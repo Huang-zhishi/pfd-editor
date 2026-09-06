@@ -1,0 +1,1325 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PFD Preview · 工艺流程预览</title>
+<style>
+  :root{
+    --bg:#070612; --panel:#0f0e22; --panel2:#161534;
+    --line:#9C99FF22; --line2:#9C99FF44;
+    --purple:#9C99FF; --cyan:#00E5FF; --green:#96CC60; --amber:#F59E0B; --red:#EF4444;
+    --text:#fff; --text2:#FFFFFFCC; --text3:#FFFFFF80;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);font-family:"Microsoft YaHei","Source Han Sans CN",sans-serif;color:var(--text);font-size:13px}
+  #app{position:fixed;inset:0;display:flex;flex-direction:column}
+
+  /* Toolbar */
+  .toolbar{display:flex;align-items:center;gap:8px;padding:0 14px;height:46px;background:linear-gradient(180deg,#0d0c20,#0a0a1a);border-bottom:1px solid var(--line2);z-index:30;flex-shrink:0}
+  .brand{display:flex;align-items:center;gap:8px;padding-right:12px;margin-right:4px;border-right:1px solid var(--line)}
+  .logo{width:28px;height:28px;border-radius:6px;background:linear-gradient(135deg,#817DFF,#99D5FF);display:flex;align-items:center;justify-content:center}
+  .logo svg{width:18px;height:18px;fill:#fff}
+  .brand .t{font-size:14px;font-weight:600;letter-spacing:1px}
+  .brand .s{font-size:9px;color:var(--text3);letter-spacing:1px}
+  .title{font-size:13px;color:var(--text2);margin-left:4px;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tsep{width:1px;height:22px;background:var(--line2);margin:0 4px}
+  .tbtn{display:flex;align-items:center;gap:5px;height:30px;padding:0 10px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;color:var(--text2);cursor:pointer;font-size:12px;transition:.15s;white-space:nowrap;text-decoration:none}
+  .tbtn:hover{border-color:var(--purple);color:#fff;background:#1c1b40}
+  .tbtn.active{background:var(--purple);color:#0a0a1a;border-color:var(--purple);font-weight:600}
+  .tbtn svg{width:14px;height:14px;fill:currentColor}
+  .t-spacer{flex:1}
+  .zoom-box{display:flex;align-items:center;gap:4px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;height:30px;padding:0 4px}
+  .zoom-box button{width:24px;height:24px;background:none;border:0;color:var(--text2);cursor:pointer;font-size:16px;border-radius:3px}
+  .zoom-box button:hover{background:var(--line2);color:#fff}
+  .zoom-box .zv{font-size:11px;color:var(--text2);width:42px;text-align:center;font-variant-numeric:tabular-nums}
+  .src-badge{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:9999px;font-size:10px;border:1px solid var(--line2);color:var(--text3)}
+  .src-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 5px var(--amber)}
+  .src-badge.live .dot{background:var(--green);box-shadow:0 0 5px var(--green)}
+  .src-badge.warn{border-color:var(--amber);color:var(--amber)}
+  .src-badge.warn .dot{background:var(--amber);box-shadow:0 0 5px var(--amber);animation:pulse 1.5s infinite}
+  .src-badge.error{border-color:#ff6b6b;color:#ff6b6b}
+  .src-badge.error .dot{background:#ff6b6b;box-shadow:0 0 5px #ff6b6b;animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+
+  /* Canvas */
+  .canvas-wrap{flex:1;position:relative;overflow:hidden}
+  #canvas{width:100%;height:100%;display:block;cursor:default}
+  #canvas.panning{cursor:grabbing}
+
+  /* SVG styles */
+  .grid-line{stroke:#9C99FF;stroke-width:1;opacity:.06}
+  .grid-line-major{stroke:#9C99FF;stroke-width:1;opacity:.12}
+  .equip-body{fill:url(#gEquip);stroke:var(--purple);stroke-width:1.5}
+  .tlabel{font-size:11px;fill:var(--text);font-weight:600;font-family:inherit;pointer-events:none}
+  .ttag{font-size:9px;fill:var(--cyan);font-family:inherit;pointer-events:none}
+  .tval{font-size:9px;fill:var(--text3);font-family:inherit;pointer-events:none}
+  .pipe{fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .flow-dot{pointer-events:none}
+  #layerFlow{pointer-events:none}
+  .equip-group{cursor:pointer}
+  .equip-group .equip-hoverbox{fill:rgba(156,153,255,0);}
+  /* 注：SVG 中 drop-shadow filter 会触发逐帧光栅化重算，改用描边加粗 */
+  .equip-group:hover .equip-body{stroke-width:2.2}
+  .equip-group.selected .equip-body{stroke-width:2.5;stroke:var(--cyan)}
+
+  /* Hover panel */
+  .hover-panel{position:fixed;z-index:60;pointer-events:none;min-width:190px;max-width:260px;background:#12112Bf2;backdrop-filter:blur(8px);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;box-shadow:0 8px 24px #000a;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
+  .hover-panel.show{opacity:1;transform:translateY(0)}
+  .hover-panel .hp-head{display:flex;align-items:center;gap:6px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .hover-panel .hp-name{font-size:12px;font-weight:600;color:var(--text)}
+  .hover-panel .hp-tag{font-size:9px;color:var(--cyan);padding:1px 6px;background:#00E5FF1a;border-radius:4px}
+  .hover-panel .hp-row{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;padding:2px 0}
+  .hover-panel .hp-row .k{color:var(--text3)}
+  .hover-panel .hp-row .v{font-variant-numeric:tabular-nums;color:var(--cyan);font-weight:600}
+  .hover-panel .hp-row .u{color:var(--text4,var(--text3));font-size:9px;margin-left:3px}
+  .hover-panel .hp-empty{font-size:10px;color:var(--text4,var(--text3));padding:4px 0}
+  .hover-panel .hp-time{font-size:9px;color:var(--text4,var(--text3));margin-top:5px;padding-top:5px;border-top:1px dashed var(--line)}
+
+  /* Detail panel */
+  .detail-panel{position:absolute;top:0;right:0;bottom:0;width:350px;z-index:25;background:var(--panel);border-left:1px solid var(--line2);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .2s}
+  .detail-panel.open{transform:translateX(0)}
+  .dp-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line2)}
+  .dp-head .dp-name{font-size:14px;font-weight:600}
+  .dp-head .dp-tag{font-size:10px;color:var(--cyan);padding:1px 6px;background:#00E5FF1a;border-radius:4px}
+  .dp-head .dp-close{margin-left:auto;cursor:pointer;color:var(--text3);font-size:18px;line-height:1;padding:2px 6px;border-radius:4px}
+  .dp-head .dp-close:hover{color:var(--red);background:#ef44441a}
+  .dp-body{flex:1;overflow-y:auto;padding:12px 14px}
+  .dp-body::-webkit-scrollbar{width:6px}
+  .dp-body::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+  .dp-sec{font-size:10px;color:var(--text3);letter-spacing:2px;margin:10px 0 6px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .dp-sec::before{content:"";width:2px;height:11px;background:var(--purple);border-radius:1px}
+  .dp-sec:first-child{margin-top:0}
+  .dp-sensors{display:flex;flex-direction:column;gap:5px}
+  .dp-sensor{display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--bg);border:1px solid var(--line);border-radius:6px;cursor:pointer;transition:.12s}
+  .dp-sensor:hover{border-color:var(--line2)}
+  .dp-sensor.active{border-color:var(--cyan);background:#00E5FF0d}
+  .dp-sensor .sdot{width:8px;height:8px;border-radius:50%;background:var(--cyan);flex-shrink:0}
+  .dp-sensor .sname{font-size:12px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dp-sensor .sval{font-size:13px;font-weight:600;color:var(--cyan);font-variant-numeric:tabular-nums}
+  .dp-sensor .sun{font-size:9px;color:var(--text3);margin-left:2px}
+  .dp-empty{font-size:11px;color:var(--text4,var(--text3));text-align:center;padding:20px 0;line-height:1.8}
+  .range-bar{display:flex;gap:4px;margin-bottom:8px}
+  .range-bar button{flex:1;height:24px;font-size:10px;border:1px solid var(--line2);background:var(--panel2);color:var(--text3);border-radius:4px;cursor:pointer;transition:.12s}
+  .range-bar button.active{background:var(--purple);color:#0a0a1a;border-color:var(--purple);font-weight:600}
+  .chart-title{font-size:11px;color:var(--text2);margin-bottom:6px;display:flex;justify-content:space-between;align-items:baseline}
+  .chart-title .ct-cur{color:var(--cyan);font-weight:600;font-variant-numeric:tabular-nums}
+  #chart{cursor:crosshair}
+  .dp-note{font-size:10px;color:var(--text4,var(--text3));margin-top:8px;line-height:1.6}
+
+  /* Status bar */
+  .status{height:26px;display:flex;align-items:center;padding:0 14px;gap:18px;background:var(--panel);border-top:1px solid var(--line2);font-size:11px;color:var(--text3);flex-shrink:0}
+  .status .s-item{display:flex;align-items:center;gap:5px}
+  .status .s-item b{color:var(--text2);font-weight:500}
+  .status .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+  .status .dot.live{background:var(--amber)}
+
+  /* Embed mode: hide chrome, transparent, auto-fit container */
+  body.embed{background:transparent}
+  body.embed #app{background:transparent}
+  body.embed .toolbar, body.embed .status{display:none}
+  body.embed .canvas-wrap{background:transparent}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="toolbar">
+    <a class="tbtn" href="editor.html" title="返回编辑器">
+      <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>返回编辑
+    </a>
+    <div class="tsep"></div>
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+      <div><div class="t">PFD Preview</div><div class="s">工艺流程预览</div></div>
+    </div>
+    <div class="title" id="docTitle">加载中…</div>
+    <div class="t-spacer"></div>
+    <span class="src-badge error" id="srcBadge"><span class="dot"></span><span id="srcText">连接中...</span></span>
+    <button class="tbtn active" id="btnRun" title="流动动画">
+      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>运行
+    </button>
+    <div class="tsep"></div>
+    <div class="zoom-box">
+      <button id="btnZoomOut">−</button>
+      <span class="zv" id="zoomVal">100%</span>
+      <button id="btnZoomIn">+</button>
+      <button id="btnZoomFit" title="适应窗口">⊡</button>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <svg id="canvas" viewBox="0 0 2000 1200" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="gEquip" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#1b1b2f" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="#0a0a1a" stop-opacity="0.95"/>
+        </linearGradient>
+        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path d="M 20 0 L 0 0 0 20" fill="none" class="grid-line"/>
+        </pattern>
+        <pattern id="gridMajor" width="100" height="100" patternUnits="userSpaceOnUse">
+          <rect width="100" height="100" fill="url(#grid)"/>
+          <path d="M 100 0 L 0 0 0 100" fill="none" class="grid-line-major"/>
+        </pattern>
+      </defs>
+      <rect id="bgGrid" width="2000" height="1200" fill="url(#gridMajor)"/>
+      <g id="layerPipes"></g>
+      <g id="layerEquip"></g>
+      <g id="layerTop"></g>
+      <g id="layerFlow"></g>
+    </svg>
+
+    <!-- Hover panel -->
+    <div class="hover-panel" id="hoverPanel">
+      <div class="hp-head"><span class="hp-name" id="hpName"></span><span class="hp-tag" id="hpTag"></span></div>
+      <div id="hpRows"></div>
+      <div class="hp-time" id="hpTime"></div>
+    </div>
+
+    <!-- Detail panel -->
+    <div class="detail-panel" id="detailPanel">
+      <div class="dp-head">
+        <span class="dp-name" id="dpName"></span>
+        <span class="dp-tag" id="dpTag"></span>
+        <span class="dp-close" id="dpClose" title="关闭">×</span>
+      </div>
+      <div class="dp-body">
+        <div class="dp-sec">运行参数</div>
+        <div class="dp-sensors" id="dpSensors"></div>
+        <div class="dp-sec">历史数据</div>
+        <div class="range-bar" id="rangeBar">
+          <button data-range="10m" class="active">10分钟</button>
+          <button data-range="30m">30分钟</button>
+          <button data-range="1h">1小时</button>
+          <button data-range="6h">6小时</button>
+          <button data-range="12h">12小时</button>
+          <button data-range="24h">24小时</button>
+        </div>
+        <div class="chart-title"><span id="chartSensorName">—</span><span id="chartCur">—</span></div>
+        <canvas id="chart" width="322" height="200"></canvas>
+        <div class="dp-note" id="dpNote"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="status">
+    <div class="s-item"><span class="dot" id="stDot"></span><span id="stModeText">预览模式 · 只读</span></div>
+    <div class="s-item">缩放: <b id="stZoom">100%</b></div>
+    <div class="s-item">悬停查看实时参数 · 点击设备查看历史曲线</div>
+  </div>
+</div>
+
+<script>document.write('<scr'+'ipt src="editor.js?v='+Date.now()+'"><\/scr'+'ipt>');</script>
+<script>
+(function(){
+  'use strict';
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = id => document.getElementById(id);
+  const svg = el('canvas');
+  const layerPipes = el('layerPipes');
+  const layerEquip = el('layerEquip');
+  const layerTop = el('layerTop');
+  const layerFlow = el('layerFlow');
+  const mk = tag => document.createElementNS(NS, tag);
+
+  /* ============================================================
+   * 数据接入配置：唯一数据源为后端实时API，无模拟数据
+   * ============================================================ */
+  const DATA_CONFIG = {
+    refreshMs: 3000,         // 实时刷新周期（后端数值刷新间隔）
+  };
+  function normTag(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+
+  // ============================================================
+  // 真实数据适配器（唯一数据源，直接对接后端传感器 API，无任何模拟）
+  // ============================================================
+  function RealDataAdapter(doc){
+    this.doc = doc;
+    this.catalog = [];      // [{cid,key,label,unit,min,max,sensorTag,type}]
+    this.byCid = {};        // cid -> [sensor]
+    this.liveMap = {};      // sensorTag -> {value,unit,reported_at}
+    this.metaMap = {};      // sensorTag -> {type, unit, kiln_id}
+    this.historyCache = {}; // sensorTag_timeRange -> {data, ts}
+    this.ready = false;
+    this.error = null;      // 连接错误信息
+  }
+  RealDataAdapter.prototype.mode = 'real';
+
+  // 从后端拉取传感器目录并建立 组件→传感器 关联（仅使用组件params中绑定的真实sensor_tag）
+  RealDataAdapter.prototype.init = async function(){
+    try{
+      // 1. 拉取传感器目录
+      const jl = await SENSOR_API.list();
+      if(!jl || !Array.isArray(jl.data)){
+        throw new Error('传感器目录接口返回格式错误');
+      }
+      jl.data.forEach(d=>{
+        if(d && d.sensor_tag){
+          this.metaMap[d.sensor_tag] = { type:d.type, unit:d.unit, kiln_id:d.kiln_id };
+        }
+      });
+
+      // 2. 建立组件→传感器关联：仅使用组件params中显式绑定的sensor_tag
+      const cat = [];
+      doc.components.forEach(comp=>{
+        if(comp.type==='text') return;
+        const params = (comp.props && comp.props.params) || [];
+        const list = [];
+        // 【注意】不再自动生成模拟传感器，只有params中显式配置了k（sensor_tag）的才会关联
+        params.forEach(p=>{
+          const tag = (p.k || '').trim();
+          if(!tag) return;
+          // 检查后端是否存在该sensor_tag
+          const m = this.metaMap[tag];
+          const unit = p.u || (m ? m.unit : '') || '';
+          const type = m ? m.type : '';
+          list.push({
+            cid:comp.id,
+            key:tag,
+            label:p.k || tag,
+            unit:unit,
+            min:0,
+            max:100,
+            sensorTag:tag,
+            type:type,
+            existsInBackend: !!m
+          });
+        });
+        list.forEach(s=>cat.push(s));
+        this.byCid[comp.id] = list;
+      });
+      this.catalog = cat;
+
+      // 3. 拉取实时值
+      await this.refreshLive();
+      this.ready = true;
+      this.error = null;
+    }catch(e){
+      console.error('后端连接失败:', e);
+      this.ready = false;
+      // 根据错误类型给出更具体的提示
+      let msg = e.message || '后端连接失败';
+      if(location.protocol === 'file:'){
+        msg = '双击打开受浏览器跨域限制无法连接后端。解决：将文件放到项目目录，通过 http://localhost:8090/文件名.html 访问';
+      }else if(e.name === 'TypeError' && (msg.includes('Failed to fetch') || msg.includes('NetworkError'))){
+        msg = '无法连接后端，请确认本地服务已启动（node server.js）或服务器已配置/api代理';
+      }
+      this.error = msg;
+    }
+  };
+
+  // 拉取全部传感器实时值到缓存
+  RealDataAdapter.prototype.refreshLive = async function(){
+    try{
+      const j = await SENSOR_API.values({ limit: 500 });
+      if(j && Array.isArray(j.data)){
+        const m = {};
+        j.data.forEach(d=>{
+          if(d && d.sensor_tag){
+            const meta = this.metaMap[d.sensor_tag] || {};
+            m[d.sensor_tag] = {
+              value:d.value,
+              unit:d.unit || meta.unit || '',
+              reported_at:d.reported_at
+            };
+          }
+        });
+        this.liveMap = m;
+      }
+    }catch(e){
+      console.warn('实时数据刷新失败:', e);
+      this.error = '实时数据刷新失败: ' + (e.message || e);
+    }
+  };
+
+  RealDataAdapter.prototype.update = function(){ this.refreshLive(); };
+
+  RealDataAdapter.prototype.getSensors = function(cid){
+    return this.byCid[cid] || [];
+  };
+
+  RealDataAdapter.prototype.getSensorLive = function(s){
+    if(!s || !s.sensorTag) return { value: null, unit: '', ts: Date.now() };
+    const live = this.liveMap[s.sensorTag];
+    if(live && live.value != null){
+      return {
+        value: live.value,
+        unit: live.unit || s.unit || '',
+        ts: live.reported_at ? new Date(live.reported_at).getTime() : Date.now()
+      };
+    }
+    // 后端无该点数据
+    return { value: null, unit: s.unit || '', ts: Date.now(), noData: true };
+  };
+
+  // 获取真实历史数据（直接调用后端接口，使用time_range参数）
+  RealDataAdapter.prototype.getHistory = async function(s, timeRange){
+    if(!s || !s.sensorTag) return [];
+    const tr = timeRange || '10m';
+    const cacheKey = s.sensorTag + '_' + tr;
+    const now = Date.now();
+    // 缓存10秒
+    if(this.historyCache[cacheKey] && (now - this.historyCache[cacheKey].ts) < 10000){
+      return this.historyCache[cacheKey].data;
+    }
+    try{
+      const j = await SENSOR_API.history({ sensor_tag: s.sensorTag, time_range: tr });
+      if(j && Array.isArray(j.data) && j.data.length > 0){
+        const arr = j.data.map(d=>({
+          ts: d.reported_at ? new Date(d.reported_at).getTime() : now,
+          value: d.sensor_value != null ? d.sensor_value : d.value
+        })).filter(p=>p.value!=null && !isNaN(p.value));
+        arr.sort((a,b)=>a.ts-b.ts);
+        this.historyCache[cacheKey] = { data: arr, ts: now };
+        return arr;
+      }
+    }catch(e){ console.warn('历史数据获取失败:', e); }
+    return [];
+  };
+
+  // 创建数据适配器：强制使用真实后端，无降级到模拟
+  async function createDataAdapter(doc){
+    const a = new RealDataAdapter(doc);
+    await a.init();
+    return a;
+  }
+
+  // 更新数据源状态徽章（显示真实连接状态）
+  function updateSrcBadge(adapter){
+    const badge = el('srcBadge');
+    const dot = badge.querySelector('.dot');
+    const text = el('srcText');
+    badge.classList.remove('live', 'error', 'warn');
+
+    if(!adapter){
+      text.textContent = '连接中...';
+      badge.classList.add('error');
+      return;
+    }
+    if(adapter.error){
+      text.textContent = '后端离线';
+      badge.classList.add('error');
+      return;
+    }
+    if(adapter.ready){
+      const boundCount = adapter.catalog.length;
+      if(boundCount === 0){
+        text.textContent = '后端已连 · 未绑定测点';
+        badge.classList.add('warn');
+      }else{
+        text.textContent = '实时数据 · ' + boundCount + '测点';
+        badge.classList.add('live');
+      }
+      return;
+    }
+    text.textContent = '连接中...';
+  }
+
+  function fmt(v){
+    if(v==null || isNaN(v)) return '—';
+    return v.toFixed(v>=100?0:(v>=10?1:2));
+  }
+
+  // ============================================================
+  // 文档加载
+  // ============================================================
+  // 嵌入模式：?embed=1 供第三方网站 iframe 嵌入，隐藏工具栏/状态栏
+  const EMBED = new URLSearchParams(location.search).get('embed')==='1';
+  var doc = { version:1, components:[], pipes:[], meta:{title:'未命名流程',bg:'#070612'} };
+  var compMap = new Map();
+  var pipeMap = new Map();
+  function rebuildIndex(){
+    compMap.clear(); pipeMap.clear();
+    for(let i=0;i<doc.components.length;i++) compMap.set(doc.components[i].id, doc.components[i]);
+    for(let i=0;i<doc.pipes.length;i++) pipeMap.set(doc.pipes[i].id, doc.pipes[i]);
+  }
+  function getComp(id){ return compMap.get(id); }
+  function getPipe(id){ return pipeMap.get(id); }
+  try{
+    const qp = new URLSearchParams(location.search).get('doc');
+    if(qp){                       // 优先使用 ?doc= 传入的项目（URI 编码 JSON）
+      doc = JSON.parse(decodeURIComponent(qp));
+    } else {
+      const s = localStorage.getItem('pfd_doc');
+      if(s) doc = JSON.parse(s);
+    }
+  }catch(e){ console.error('Failed to load doc:', e); }
+
+  // 嵌入模式：隐藏界面 chrome，画布自适应容器
+  if(EMBED){
+    document.body.classList.add('embed');
+  }
+
+  el('docTitle').textContent = doc.meta.title || '未命名流程';
+  document.title = (doc.meta.title || 'PFD') + ' · 预览';
+
+  // 数据源：初始为null，异步连接后端后赋值（无任何模拟数据）
+  let adapter = null;
+
+  // ============================================================
+  // 视图状态
+  // ============================================================
+  let zoom = 1.05, panX = 0, panY = 0;
+  let running = true;
+  let flowRAF = null;
+  let liveTimer = null;
+
+  function applyView(){
+    const vb = svg.viewBox.baseVal;
+    const bw = 2000/zoom, bh = 1200/zoom;
+    vb.x = panX; vb.y = panY; vb.width = bw; vb.height = bh;
+    const pct = Math.round(zoom*100)+'%';
+    el('zoomVal').textContent = pct;
+    el('stZoom').textContent = pct;
+  }
+  function zoomBy(f){
+    zoom = Math.max(0.2, Math.min(4, zoom*f));
+    applyView();
+  }
+  function zoomFit(){
+    if(!doc.components.length){ zoom=1.05; panX=0; panY=0; applyView(); return; }
+    let minX=1e9, minY=1e9, maxX=-1e9, maxY=-1e9;
+    doc.components.forEach(c=>{
+      minX=Math.min(minX,c.x); minY=Math.min(minY,c.y);
+      maxX=Math.max(maxX,c.x+c.w); maxY=Math.max(maxY,c.y+c.h);
+    });
+    doc.pipes.forEach(p=>{
+      (p._pts||[]).forEach(pt=>{
+        minX=Math.min(minX,pt.x); minY=Math.min(minY,pt.y);
+        maxX=Math.max(maxX,pt.x); maxY=Math.max(maxY,pt.y);
+      });
+    });
+    const pad=80;
+    minX-=pad; minY-=pad;
+    const w=maxX-minX+pad*2, h=maxY-minY+pad*2;
+    const rect = svg.getBoundingClientRect();
+    zoom = Math.min(rect.width/w, rect.height/h) * 0.95;
+    panX = minX; panY = minY;
+    applyView();
+  }
+
+  function portPosComp(comp, portId){
+    const t = TEMPLATES[comp.type]; if(!t) return null;
+    const pt = t.ports.find(p=>p.id===portId); if(!pt) return null;
+    const rot = (comp.rotation||0) * Math.PI/180;
+    const mirrored = comp.props && comp.props.mirrored;
+    const px = (mirrored ? (1-pt.x) : pt.x) * comp.w;
+    const py = pt.y * comp.h;
+    const cx = comp.w/2, cy = comp.h/2;
+    const cos = Math.cos(rot), sin = Math.sin(rot);
+    const rx = cx + (px-cx)*cos - (py-cy)*sin;
+    const ry = cy + (px-cx)*sin + (py-cy)*cos;
+    const dirMap = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} };
+    let dir = pt.dir;
+    if(mirrored && (dir==='left'||dir==='right')) dir = dir==='left'?'right':'left';
+    const d = dirMap[dir] || {x:0,y:0};
+    const drx = d.x*cos - d.y*sin;
+    const dry = d.x*sin + d.y*cos;
+    const finalDir = Math.abs(drx)>Math.abs(dry) ? (drx>0?'right':'left') : (dry>0?'down':'up');
+    return { x: comp.x+rx, y: comp.y+ry, dir: finalDir };
+  }
+
+  function simpleRoute(p1, dir1, p2, dir2){
+    const pts = [{x:p1.x,y:p1.y}];
+    if(dir1==='right' && dir2==='left'){ const mx=(p1.x+p2.x)/2; pts.push({x:mx,y:p1.y},{x:mx,y:p2.y},{x:p2.x,y:p2.y}); }
+    else if(dir1==='down' && dir2==='up'){ const my=(p1.y+p2.y)/2; pts.push({x:p1.x,y:my},{x:p2.x,y:my},{x:p2.x,y:p2.y}); }
+    else if((dir1==='right'&&dir2==='up')||(dir1==='right'&&dir2==='down')||(dir1==='left'&&dir2==='up')||(dir1==='down'&&dir2==='right')||(dir1==='down'&&dir2==='left')){ pts.push({x:p2.x,y:p1.y},{x:p2.x,y:p2.y}); }
+    else if(dir1==='up' && dir2==='down'){ const my=(p1.y+p2.y)/2; pts.push({x:p1.x,y:my},{x:p2.x,y:my},{x:p2.x,y:p2.y}); }
+    else if(dir1==='left' && dir2==='right'){ const mx=(p1.x+p2.x)/2; pts.push({x:mx,y:p1.y},{x:mx,y:p2.y},{x:p2.x,y:p2.y}); }
+    else { pts.push({x:p2.x,y:p2.y}); }
+    return pts;
+  }
+  function ptsToD(pts){
+    if(!pts || pts.length<2) return '';
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for(let i=1;i<pts.length;i++) d += ` L ${pts[i].x} ${pts[i].y}`;
+    return d;
+  }
+  function pointAlongPath(pts, t){
+    let segs=[], total=0;
+    for(let i=1;i<pts.length;i++){
+      const d=Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+      segs.push(d); total+=d;
+    }
+    let dist=t*total, acc=0;
+    for(let i=1;i<pts.length;i++){
+      if(acc+segs[i-1]>=dist){
+        const r = segs[i-1]===0?0:(dist-acc)/segs[i-1];
+        return { x: pts[i-1].x+(pts[i].x-pts[i-1].x)*r, y: pts[i-1].y+(pts[i].y-pts[i-1].y)*r };
+      }
+      acc+=segs[i-1];
+    }
+    return pts[pts.length-1];
+  }
+
+  // ============================================================
+  // 监控器组件：固定在画布上的实时数值面板 + 归属指向折线（adapter.liveMap 为唯一数据源）
+  // ============================================================
+  // 旧版数据迁移：monitorTag/monitorTag2 双字段 → monitorTags 列表（lead 连接线字段保留）
+  function normalizeMonitorPropsPreview(comp){
+    const p = comp.props || (comp.props = {});
+    if(!Array.isArray(p.monitorTags)){
+      const mt = [];
+      if(p.monitorTag) mt.push({tag:String(p.monitorTag), label:''});
+      if(p.monitorTag2) mt.push({tag:String(p.monitorTag2), label:''});
+      p.monitorTags = mt;
+    }
+    if(p.monitorTag!=null) delete p.monitorTag;
+    if(p.monitorTag2!=null) delete p.monitorTag2;
+  }
+  // 面板高度随监控项数量自适应（与 editor.js monitorAutoHeight 保持一致）
+  function monitorAutoHeightPreview(props){
+    const n = (props && Array.isArray(props.monitorTags)) ? props.monitorTags.length : 0;
+    return Math.max(n,1)*17 + 4;
+  }
+  // 归属折线终点：按 lead 目标类型解析世界坐标（无 lead 返回 null，不画线）
+  function monitorLeadTargetPreview(comp){
+    const lead = comp.props && comp.props.lead;
+    if(!lead) return null;
+    if(lead.targetType==='comp'){
+      const c = getComp(lead.cid);
+      if(c) return {x:c.x+c.w/2, y:c.y+c.h/2};
+    } else if(lead.targetType==='port'){
+      const c = getComp(lead.cid);
+      if(c){ const p = portPosComp(c, lead.port); if(p) return {x:p.x, y:p.y}; }
+    } else if(lead.targetType==='pipe'){
+      const p = getPipe(lead.pipeId);
+      if(p && p._pts) return pointAlongPath(p._pts, lead.pipeT==null?0.5:lead.pipeT);
+    }
+    return {x:lead.x, y:lead.y};
+  }
+  // 渲染归属折线（锚点自动选边 + 虚线 + 目标端点圆点），追加到 layerTop
+  // 线宽/透明度取全局样式 doc.meta.monitorLeadStyle（与 editor.js 一致，默认 1.6 / 0.85）
+  function renderMonitorLeadPreview(comp){
+    const b = monitorLeadTargetPreview(comp);
+    if(!b) return;
+    const st = (doc.meta && doc.meta.monitorLeadStyle) || {};
+    const lw = (+st.width > 0) ? +st.width : 1.6;
+    const lop = (st.opacity != null && +st.opacity >= 0 && +st.opacity <= 1) ? +st.opacity : 0.85;
+    const y = comp.y + comp.h/2;
+    const a = (b.x < comp.x + comp.w/2) ? {x:comp.x, y} : {x:comp.x+comp.w, y};
+    const pts = [{x:a.x, y:a.y}];
+    const bend = comp.props.lead && comp.props.lead.bend;
+    if(bend) pts.push({x:bend.x, y:bend.y});
+    pts.push({x:b.x, y:b.y});
+    const g = mk('g');
+    g.setAttribute('class','lead-group');
+    g.dataset.id = comp.id;
+    const path = mk('path');
+    path.setAttribute('d', ptsToD(pts));
+    path.setAttribute('class','lead-path');
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke','#00E5FF');
+    path.setAttribute('stroke-width', lw);
+    path.setAttribute('stroke-dasharray','5 3');
+    path.setAttribute('opacity', lop);
+    path.setAttribute('pointer-events','none');
+    g.appendChild(path);
+    const end = pts[pts.length-1];
+    const dot = mk('circle');
+    dot.setAttribute('cx', end.x); dot.setAttribute('cy', end.y);
+    dot.setAttribute('r', 3.5);
+    dot.setAttribute('class','lead-dot');
+    dot.setAttribute('fill','#00E5FF');
+    dot.setAttribute('stroke','#0a0a1a'); dot.setAttribute('stroke-width','0.8');
+    dot.setAttribute('pointer-events','none');
+    g.appendChild(dot);
+    layerTop.appendChild(g);
+  }
+  // 刷新监控器实时数值/单位（每监控项一行）
+  // 注：preview 渲染的组件组挂 data-cid（editor 端为 data-id）
+  function refreshMonitorValuesPreview(){
+    if(!layerTop) return;
+    const live = (adapter && adapter.liveMap) || {};
+    doc.components.forEach(comp=>{
+      if(comp.type!=='monitor') return;
+      const g = layerTop.querySelector(`.equip-group[data-cid="${comp.id}"]`);
+      if(!g) return;
+      const tags = (comp.props && comp.props.monitorTags) || [];
+      tags.forEach((t,i)=>{
+        const v = t.tag ? live[t.tag] : null;
+        const valEl = g.querySelector(`.mon-value[data-i="${i}"]`);
+        const unitEl = g.querySelector(`.mon-unit[data-i="${i}"]`);
+        if(valEl) valEl.textContent = (v && v.value!=null && v.value!=='') ? fmtMonVal(v.value) : '--';
+        if(unitEl) unitEl.textContent = (v && v.unit) ? ' '+v.unit : '';
+      });
+    });
+  }
+
+  // ============================================================
+  // 渲染
+  // ============================================================
+  function render(){
+    rebuildIndex();
+    layerPipes.innerHTML = '';
+    layerEquip.innerHTML = '';
+    layerTop.innerHTML = '';
+    layerFlow.innerHTML = '';
+
+    // Pipes
+    doc.pipes.forEach(pipe=>{
+      const g = mk('g');
+      let pts;
+      if(pipe.from && pipe.to){
+        const c1 = getComp(pipe.from.cid);
+        const c2 = getComp(pipe.to.cid);
+        if(!c1||!c2) return;
+        const p1 = portPosComp(c1, pipe.from.port);
+        const p2 = portPosComp(c2, pipe.to.port);
+        if(!p1||!p2) return;
+        pts = (typeof routePipe==='function') ? routePipe(p1,p1.dir,p2,p2.dir,pipe.bend,pipe.straight) : simpleRoute(p1,p1.dir,p2,p2.dir);
+        pipe._pts = pts;
+      } else {
+        pts = pipe.points || [];
+        pipe._pts = pts;
+      }
+      if(!pts || pts.length<2) return;
+      const pt = PIPE_TYPES[pipe.type] || PIPE_TYPES.solid;
+      const path = mk('path');
+      path.setAttribute('d', ptsToD(pts));
+      path.setAttribute('class','pipe');
+      path.setAttribute('stroke', pt.color);
+      path.setAttribute('stroke-width', pipe.width || 2.5);
+      path.setAttribute('stroke-dasharray', pt.dash==='none' ? '' : pt.dash);
+      g.appendChild(path);
+      if(pipe.label){
+        const mid = pointAlongPath(pts, pipe.labelPos==null ? 0.5 : pipe.labelPos);
+        const tw = pipe.label.length*7+8;
+        const bg = mk('rect');
+        bg.setAttribute('x', mid.x-tw/2); bg.setAttribute('y', mid.y-9);
+        bg.setAttribute('width', tw); bg.setAttribute('height', 16); bg.setAttribute('rx',3);
+        bg.setAttribute('fill','#12112Bee'); bg.setAttribute('stroke', pt.color); bg.setAttribute('stroke-width',0.8);
+        g.appendChild(bg);
+        const tx = mk('text');
+        tx.setAttribute('x', mid.x); tx.setAttribute('y', mid.y+3);
+        tx.setAttribute('text-anchor','middle'); tx.setAttribute('font-size','10'); tx.setAttribute('fill', pt.color);
+        tx.setAttribute('font-family','inherit'); tx.textContent = pipe.label;
+        g.appendChild(tx);
+      }
+      layerPipes.appendChild(g);
+    });
+
+    // Equipment (interactive)
+    doc.components.forEach(comp=>{
+      const t = TEMPLATES[comp.type]; if(!t) return;
+      const isMonitor = comp.type === 'monitor';
+      const layer = isMonitor ? layerTop : layerEquip;
+      if(isMonitor){
+        normalizeMonitorPropsPreview(comp);            // 旧版双 tag 字段迁移
+        comp.h = monitorAutoHeightPreview(comp.props); // 高度随监控项数量自适应
+        renderMonitorLeadPreview(comp);                // 归属指向折线（先画，位于面板之下）
+      }
+      const g = mk('g');
+      g.setAttribute('transform', `translate(${comp.x},${comp.y}) rotate(${comp.rotation||0} ${comp.w/2} ${comp.h/2})`);
+      // 注：原 clip-path 为死代码（子节点被移出 bodyWrap），已移除
+      const mirrored = comp.props && comp.props.mirrored;
+      const markup = running ? t.render(comp.w, comp.h, comp.props)
+                             : (typeof stripSMIL==='function' ? stripSMIL(t.render(comp.w, comp.h, comp.props)) : t.render(comp.w, comp.h, comp.props));
+      if(mirrored){
+        const mirrorG = mk('g');
+        mirrorG.setAttribute('transform', `translate(${comp.w},0) scale(-1,1)`);
+        mirrorG.innerHTML = markup;
+        g.appendChild(mirrorG);
+      } else {
+        const bodyG = mk('g');
+        bodyG.innerHTML = markup;
+        g.appendChild(bodyG);
+      }
+      layer.appendChild(g);
+
+      // 标签（在旋转组外）
+      const cx = comp.x + comp.w/2, cy = comp.y + comp.h/2;
+      const r = (comp.rotation||0) * Math.PI/180;
+      const cos = Math.cos(r), sin = Math.sin(r);
+      if(comp.type!=='text' && !isMonitor){
+        const lbl = mk('text');
+        const ldx=0, ldy=-(comp.h/2+6);
+        lbl.setAttribute('x', cx+ldx*cos-ldy*sin);
+        lbl.setAttribute('y', cy+ldx*sin+ldy*cos);
+        lbl.setAttribute('text-anchor','middle'); lbl.setAttribute('class','tlabel');
+        lbl.textContent = comp.props.name || t.name;
+        layer.appendChild(lbl);
+      }
+      if(comp.props.tag && !isMonitor){
+        const tg = mk('text');
+        const tdx=0, tdy=(comp.h/2+14);
+        tg.setAttribute('x', cx+tdx*cos-tdy*sin);
+        tg.setAttribute('y', cy+tdx*sin+tdy*cos);
+        tg.setAttribute('text-anchor','middle'); tg.setAttribute('class','ttag');
+        tg.textContent = comp.props.tag;
+        layer.appendChild(tg);
+      }
+      // params 值不渲染在画布上，悬浮面板(dpSensors/hpRows)已展示实时数据
+
+      // 交互：透明命中框 + 事件（monitor 保留 equip-group 供数值刷新定位，但不触发悬浮/详情）
+      if(comp.type!=='text'){
+        const hit = mk('rect');
+        hit.setAttribute('x',0); hit.setAttribute('y',0);
+        hit.setAttribute('width',comp.w); hit.setAttribute('height',comp.h);
+        hit.setAttribute('fill','rgba(156,153,255,0)');
+        hit.setAttribute('class','equip-hoverbox');
+        hit.setAttribute('pointer-events', comp.type==='monitor' ? 'none' : 'auto');
+        g.appendChild(hit);
+        g.classList.add('equip-group');
+        g.dataset.cid = comp.id;
+        if(comp.type!=='monitor'){
+          g.addEventListener('mouseenter', ev=>showHover(comp, ev));
+          g.addEventListener('mousemove', ev=>moveHover(ev));
+          g.addEventListener('mouseleave', ()=>hideHover());
+          g.addEventListener('click', ev=>{ ev.stopPropagation(); selectComponent(comp); });
+        }
+      }
+    });
+    // 重建 DOM 后 SMIL 时间线重置，按 running 状态恢复正确的播放/暂停
+    if(typeof applySMILState==='function') applySMILState();
+  }
+
+  // ============================================================
+  // 实时刷新（从后端拉取真实数据 + 面板刷新）
+  // ============================================================
+  function startLive(){
+    if(liveTimer) return;
+    liveTimer = setInterval(()=>{
+      if(adapter && adapter.update && !adapter.error) adapter.update();
+      refreshHover();
+      refreshDetail();
+      refreshMonitorValuesPreview();
+    }, DATA_CONFIG.refreshMs);
+  }
+  function stopLive(){ if(liveTimer){ clearInterval(liveTimer); liveTimer=null; } }
+
+  // （重新）初始化数据适配器：停止旧定时器 → 创建新 adapter → 启动实时刷新
+  async function initAdapter(){
+    stopLive();
+    try{
+      adapter = await createDataAdapter(doc);
+    }catch(e){
+      console.error('createDataAdapter error:', e);
+      adapter = { error: e.message || '连接失败', ready: false, mode: 'real', catalog: [], byCid: {}, liveMap: {}, historyCache: {} };
+    }
+    updateSrcBadge(adapter);
+    startLive();
+    // 刷新当前悬浮面板/详情面板
+    refreshHover();
+    refreshDetail();
+    refreshMonitorValuesPreview();
+  }
+
+  // ============================================================
+  // 悬停面板
+  // ============================================================
+  const hoverPanel = el('hoverPanel');
+  let hoverCid = null;
+  function showHover(comp, ev){
+    hoverCid = comp.id;
+    el('hpName').textContent = comp.props.name || TEMPLATES[comp.type].name;
+    el('hpTag').textContent = comp.props.tag || '—';
+    hoverPanel.classList.add('show');
+    renderHoverRows(comp);
+    moveHover(ev);
+  }
+  function renderHoverRows(comp){
+    const box = el('hpRows');
+    // adapter未就绪
+    if(!adapter){
+      box.innerHTML = '<div class="hp-empty">连接后端中...</div>';
+      el('hpTime').textContent = '';
+      return;
+    }
+    if(adapter.error){
+      box.innerHTML = '<div class="hp-empty" style="color:#ff6b6b">后端离线<br>' + esc(adapter.error) + '</div>';
+      el('hpTime').textContent = '';
+      return;
+    }
+    const sensors = (adapter.getSensors && adapter.getSensors(comp.id)) || [];
+    if(!sensors.length){
+      box.innerHTML = '<div class="hp-empty">未绑定测点<br>请在编辑器为设备参数填写sensor_tag</div>';
+      el('hpTime').textContent = '';
+      return;
+    }
+    let html = '';
+    sensors.forEach(s=>{
+      const live = adapter.getSensorLive(s);
+      const valStr = live.noData ? '<span style="color:#888">—</span>' : fmt(live.value);
+      html += `<div class="hp-row"><span class="k">${esc(s.label)}</span><span><span class="v">${valStr}</span><span class="u">${esc(s.unit||'')}</span></span></div>`;
+    });
+    box.innerHTML = html;
+    const t = hoverTime();
+    el('hpTime').textContent = t ? '更新于 ' + t : '';
+  }
+  function refreshHover(){
+    if(!hoverCid) return;
+    const comp = getComp(hoverCid);
+    if(comp) renderHoverRows(comp);
+  }
+  function moveHover(ev){
+    if(!hoverPanel.classList.contains('show')) return;
+    const pad = 14;
+    const x = ev.clientX + pad, y = ev.clientY + pad;
+    const rect = hoverPanel.getBoundingClientRect();
+    const nx = (x + rect.width > window.innerWidth) ? ev.clientX - rect.width - pad : x;
+    const ny = (y + rect.height > window.innerHeight) ? ev.clientY - rect.height - pad : y;
+    hoverPanel.style.left = Math.max(6, nx) + 'px';
+    hoverPanel.style.top  = Math.max(6, ny) + 'px';
+  }
+  function hideHover(){ hoverCid=null; hoverPanel.classList.remove('show'); }
+  function hoverTime(){
+    if(!adapter || adapter.error) return '';
+    const sensors = (adapter.getSensors && adapter.getSensors(hoverCid||'')) || [];
+    if(!sensors.length) return '';
+    const live = adapter.getSensorLive(sensors[0]);
+    if(!live || !live.ts || live.noData) return '';
+    return new Date(live.ts).toLocaleTimeString();
+  }
+
+  // ============================================================
+  // 详情面板（点击选中 + 历史曲线）
+  // ============================================================
+  const detailPanel = el('detailPanel');
+  let selectedCid = null;
+  let selectedSensor = null;
+  let chartRange = '10m';
+
+  function selectComponent(comp){
+    selectedCid = comp.id;
+    // 高亮
+    document.querySelectorAll('.equip-group.selected').forEach(e=>e.classList.remove('selected'));
+    const g = layerEquip.querySelector(`[data-cid="${comp.id}"]`);
+    if(g) g.classList.add('selected');
+
+    el('dpName').textContent = comp.props.name || TEMPLATES[comp.type].name;
+    el('dpTag').textContent = comp.props.tag || '—';
+
+    // 传感器列表
+    const box = el('dpSensors');
+    if(!adapter){
+      el('dpNote').textContent = '状态：连接后端中...';
+      box.innerHTML = '<div class="dp-empty">连接后端中...</div>';
+      selectedSensor = null;
+    }else if(adapter.error){
+      el('dpNote').textContent = '状态：后端离线 - ' + adapter.error;
+      box.innerHTML = '<div class="dp-empty" style="color:#ff6b6b">后端离线<br>' + esc(adapter.error) + '</div>';
+      selectedSensor = null;
+    }else{
+      const sensors = (adapter.getSensors && adapter.getSensors(comp.id)) || [];
+      el('dpNote').textContent = '数据源：后端实时接口（需在编辑器为设备参数绑定sensor_tag）';
+      if(!sensors.length){
+        box.innerHTML = '<div class="dp-empty">未绑定测点<br>请在编辑器为设备添加参数并填写真实sensor_tag</div>';
+        selectedSensor = null;
+      } else {
+        let html = '';
+        sensors.forEach(s=>{
+          const live = adapter.getSensorLive(s);
+          const valStr = live.noData ? '<span style="color:#888">—</span>' : fmt(live.value);
+          html += `<div class="dp-sensor" data-key="${esc(s.key)}">
+            <span class="sdot"></span><span class="sname">${esc(s.label)}</span>
+            <span class="sval">${valStr}</span><span class="sun">${esc(s.unit||'')}</span>
+          </div>`;
+        });
+        box.innerHTML = html;
+        selectedSensor = sensors[0];
+        box.querySelectorAll('.dp-sensor').forEach((row,i)=>{
+          if(i===0) row.classList.add('active');
+          row.addEventListener('click', ()=>{
+            selectedSensor = sensors[i];
+            box.querySelectorAll('.dp-sensor').forEach(r=>r.classList.remove('active'));
+            row.classList.add('active');
+            drawChart();
+          });
+        });
+      }
+    }
+    detailPanel.classList.add('open');
+    drawChart();
+  }
+
+  function closeDetail(){
+    detailPanel.classList.remove('open');
+    selectedCid = null; selectedSensor = null;
+    document.querySelectorAll('.equip-group.selected').forEach(e=>e.classList.remove('selected'));
+  }
+
+  function refreshDetail(){
+    if(!detailPanel.classList.contains('open') || !selectedCid) return;
+    const comp = getComp(selectedCid);
+    if(!comp) return;
+    if(!adapter || adapter.error) return;
+    // 刷新传感器列表数值
+    const sensors = (adapter.getSensors && adapter.getSensors(comp.id)) || [];
+    if(!sensors.length){ return; }
+    const rows = el('dpSensors').querySelectorAll('.dp-sensor');
+    rows.forEach((row,i)=>{
+      if(sensors[i]){
+        const live = adapter.getSensorLive(sensors[i]);
+        row.querySelector('.sval').textContent = live.noData ? '—' : fmt(live.value);
+      }
+    });
+    // 刷新图表当前值
+    if(selectedSensor){
+      const live = adapter.getSensorLive(selectedSensor);
+      el('chartCur').textContent = (live.noData ? '—' : fmt(live.value)) + ' ' + (live.unit||selectedSensor.unit||'');
+    }
+    drawChart();
+  }
+
+  // 历史曲线（Canvas 绘制，无第三方依赖）- 支持异步加载真实历史数据
+  let chartLoading = false;
+  let chartSeq = 0; // 请求序号：防止异步竞态（切换传感器/时间范围后，旧请求返回覆盖新图）
+  async function drawChart(){
+    const seq = ++chartSeq;
+    const canvas = el('chart');
+    if(!selectedSensor){ el('chartSensorName').textContent='—'; el('chartCur').textContent='—'; clearChart(); return; }
+    if(!adapter || adapter.error || !adapter.getSensorLive){
+      el('chartSensorName').textContent = selectedSensor.key || selectedSensor.label;
+      el('chartCur').textContent = '—';
+      const dpr = window.devicePixelRatio || 1;
+      const W = canvas.clientWidth, H = canvas.clientHeight;
+      canvas.width = W*dpr; canvas.height = H*dpr;
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.clearRect(0,0,W,H);
+      ctx.fillStyle='#FFFFFF66'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+      ctx.fillText(adapter && adapter.error ? '后端离线' : '未连接', W/2, H/2);
+      return;
+    }
+    el('chartSensorName').textContent = selectedSensor.key || selectedSensor.label;
+    const live = adapter.getSensorLive(selectedSensor);
+    el('chartCur').textContent = (live.noData ? '—' : fmt(live.value)) + ' ' + (live.unit||selectedSensor.unit||'');
+
+    // 先显示加载中
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    canvas.width = W*dpr; canvas.height = H*dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#FFFFFF66'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('加载中...', W/2, H/2);
+
+    // 异步获取历史数据（兼容同步/异步两种适配器）
+    let series;
+    try{
+      const histResult = adapter.getHistory(selectedSensor, chartRange);
+      series = histResult instanceof Promise ? await histResult : histResult;
+    }catch(e){
+      console.error('获取历史数据失败:', e);
+      series = [];
+    }
+
+    // await 期间若已有更新的绘制请求（切换传感器/时间范围/定时刷新），放弃本次旧数据
+    if(seq !== chartSeq) return;
+    // 补上实时当前值点：历史接口末点通常滞后数秒，追加后曲线末端与面板当前值严格一致
+    // （getHistory 缓存命中返回原数组引用，须先复制再追加，避免污染缓存）
+    if(series && series.length){
+      const liveNow = adapter.getSensorLive(selectedSensor);
+      if(liveNow && !liveNow.noData && liveNow.value!=null && !isNaN(Number(liveNow.value))){
+        const lastP = series[series.length-1];
+        if(!lastP || liveNow.ts > lastP.ts){ series = series.slice(); series.push({ ts: liveNow.ts, value: Number(liveNow.value) }); }
+      }
+    }
+    canvas.width = W*dpr; canvas.height = H*dpr;
+    const ctx2 = canvas.getContext('2d');
+    ctx2.setTransform(dpr,0,0,dpr,0,0);
+    ctx2.clearRect(0,0,W,H);
+
+    const pad = { l:45, r:8, t:8, b:25 };
+    const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+    if(!series || series.length<2){
+      ctx2.fillStyle='#FFFFFF66'; ctx2.font='11px sans-serif'; ctx2.textAlign='center';
+      ctx2.fillText('暂无历史数据', W/2, H/2);
+      return;
+    }
+    // 值域
+    let vmin=Infinity, vmax=-Infinity;
+    series.forEach(p=>{ if(p.value<vmin)vmin=p.value; if(p.value>vmax)vmax=p.value; });
+    const span = (vmax-vmin) || 1;
+    vmin -= span*0.1; vmax += span*0.1;
+
+    // 网格 + 纵轴
+    ctx2.strokeStyle='#9C99FF22'; ctx2.fillStyle='#FFFFFF88'; ctx2.font='9px sans-serif'; ctx2.textAlign='right';
+    for(let i=0;i<=4;i++){
+      const y = pad.t + ch*i/4;
+      const val = vmax - (vmax-vmin)*i/4;
+      ctx2.beginPath(); ctx2.moveTo(pad.l,y); ctx2.lineTo(W-pad.r,y); ctx2.stroke();
+      ctx2.fillText(val.toFixed(val>=100?0:1), pad.l-4, y+3);
+    }
+    // 时间轴（根据时间跨度自动选择显示格式）
+    const t0 = series[0].ts, t1 = series[series.length-1].ts;
+    const timeSpan = t1 - t0;
+    ctx2.textAlign='center'; ctx2.font='8px sans-serif';
+    if(timeSpan > 86400000){
+      // 超过1天显示日期
+      ctx2.fillText(tsDate(t0), pad.l+20, H-6);
+      ctx2.fillText(tsDate(t1), W-pad.r-20, H-6);
+    }else{
+      ctx2.fillText(ts(t0), pad.l+20, H-6);
+      ctx2.fillText(ts(t1), W-pad.r-20, H-6);
+    }
+
+    // 面积渐变
+    const grad = ctx2.createLinearGradient(0,pad.t,0,H-pad.b);
+    grad.addColorStop(0, '#00E5FF55'); grad.addColorStop(1, '#00E5FF00');
+    ctx2.beginPath();
+    series.forEach((p,i)=>{
+      const x = pad.l + (i/(series.length-1))*cw;
+      const y = pad.t + (1-(p.value-vmin)/(vmax-vmin))*ch;
+      if(i===0) ctx2.moveTo(x,y); else ctx2.lineTo(x,y);
+    });
+    ctx2.lineTo(pad.l+cw, H-pad.b); ctx2.lineTo(pad.l, H-pad.b); ctx2.closePath();
+    ctx2.fillStyle = grad; ctx2.fill();
+
+    // 折线
+    ctx2.beginPath();
+    series.forEach((p,i)=>{
+      const x = pad.l + (i/(series.length-1))*cw;
+      const y = pad.t + (1-(p.value-vmin)/(vmax-vmin))*ch;
+      if(i===0) ctx2.moveTo(x,y); else ctx2.lineTo(x,y);
+    });
+    ctx2.strokeStyle='#00E5FF'; ctx2.lineWidth=1.6; ctx2.lineJoin='round'; ctx2.stroke();
+
+    // 数据点
+    series.forEach((p,i)=>{
+      const x = pad.l + (i/(series.length-1))*cw;
+      const y = pad.t + (1-(p.value-vmin)/(vmax-vmin))*ch;
+      ctx2.beginPath(); ctx2.arc(x,y,1.5,0,Math.PI*2); ctx2.fillStyle='#00E5FF'; ctx2.fill();
+    });
+
+    // 当前值点
+    const last = series[series.length-1];
+    const lx = pad.l+cw, ly = pad.t + (1-(last.value-vmin)/(vmax-vmin))*ch;
+    ctx2.beginPath(); ctx2.arc(lx,ly,3,0,Math.PI*2); ctx2.fillStyle='#00E5FF'; ctx2.fill();
+    ctx2.beginPath(); ctx2.arc(lx,ly,6,0,Math.PI*2); ctx2.strokeStyle='#00E5FF66'; ctx2.lineWidth=1; ctx2.stroke();
+  }
+  function clearChart(){
+    const canvas = el('chart');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+  function ts(t){ const d=new Date(t); return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+  function tsDate(t){ const d=new Date(t); return `${String(d.getFullYear()).slice(2)}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+
+  // ============================================================
+  // 流动动画
+  // ============================================================
+  // 预览页专属 SMIL 开关：跟随预览页自身的 running 状态
+  // （editor.js 的全局 applySMILState 引用其自身的 running，在预览页恒为 false，会把 SMIL 时间线永久冻结）
+  function applySMILState(){
+    try{ if(running){ svg.unpauseAnimations(); } else { svg.pauseAnimations(); } }catch(err){}
+  }
+  let flowNodes = [];   // 粒子节点池：复用于每次动画帧，避免每帧销毁/重建
+  const FLOW_TRAIL = 4; // 每个主粒子随影拖尾数（拖尾越长越流畅，节点数 = 粒子数*(1+FLOW_TRAIL)）
+  function startFlow(){
+    if(flowRAF) return;
+    // 停止态曾剥离 SMIL 动画元素，运行前重新渲染注入
+    if(svg && !svg.querySelector('animate,animateTransform') && doc.components.length) render();
+    if(typeof applySMILState==='function') applySMILState();
+    function ensureNodes(n){
+      // 若上次池中的节点已被重渲染清出 DOM（未连接），整体重建池
+      if(flowNodes.length && !flowNodes[0].isConnected){ flowNodes = []; layerFlow.innerHTML=''; }
+      while(flowNodes.length < n){
+        const c = mk('circle');
+        c.setAttribute('class','flow-dot');
+        layerFlow.appendChild(c);
+        flowNodes.push(c);
+      }
+      while(flowNodes.length > n){
+        const extra = flowNodes.pop();
+        extra.remove();
+      }
+    }
+    function tick(){
+      // 计算当前需要的粒子总数（含拖尾）
+      const n = FLOW_TRAIL + 1;
+      let need = 0;
+      doc.pipes.forEach(pipe=>{ if(pipe._pts && pipe._pts.length>=2) need += 3*n; });
+      doc.components.forEach(comp=>{ if(comp.type==='silo') need += 8*n; });
+      ensureNodes(need);
+      let idx = 0;
+      // 管道粒子（含拖尾：沿路径滞后、渐隐渐小）
+      doc.pipes.forEach(pipe=>{
+        if(!pipe._pts || pipe._pts.length<2) return;
+        const pt = PIPE_TYPES[pipe.type] || PIPE_TYPES.solid;
+        const t = (performance.now()/1000 * (pt.speed||0.3)) % 1;
+        for(let k=0;k<3;k++){
+          const base = (t+k/3)%1;
+          for(let j=0;j<n;j++){
+            const u = ((base - j*0.018) % 1 + 1) % 1;
+            const p = pointAlongPath(pipe._pts, u);
+            const fade = 1 - j/n;
+            const c = flowNodes[idx++];
+            c.setAttribute('cx',p.x); c.setAttribute('cy',p.y);
+            c.setAttribute('r', 2.6 * (0.35 + 0.65*fade));
+            c.setAttribute('fill',pt.color);
+            c.setAttribute('opacity', 0.12 + 0.88*fade);
+          }
+        }
+      });
+      // 料仓落料粒子（含拖尾）
+      const now = performance.now()/1000;
+      doc.components.forEach(comp=>{
+        if(comp.type!=='silo') return;
+        const w=comp.w, h=comp.h;
+        const cx=comp.x+w/2, topY=comp.y+5, bottomY=comp.y+h*0.92;
+        const pColor=comp.props.color||'#9C99FF';
+        const seed=comp.id.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+        for(let i=0;i<8;i++){
+          const base = (now*0.6 + ((seed*0.137+i*0.618)%1)) % 1;
+          for(let j=0;j<n;j++){
+            const tt = base - j*0.03;
+            const t = ((tt%1)+1)%1;
+            const y = topY+(bottomY-topY)*t;
+            const sway = Math.sin(now*1.5+i*2.1+seed-j*0.5)*w*0.15;
+            const fade = 1 - j/n;
+            const c=flowNodes[idx++];
+            c.setAttribute('cx',cx+sway); c.setAttribute('cy',y);
+            c.setAttribute('r',(1.5+0.8*(1-t))*(0.35+0.65*fade));
+            c.setAttribute('fill',pColor);
+            c.setAttribute('opacity',(0.3+0.7*(1-t))*fade);
+          }
+        }
+      });
+      flowRAF = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+  function stopFlow(){
+    if(flowRAF){ cancelAnimationFrame(flowRAF); flowRAF=null; }
+    layerFlow.innerHTML=''; flowNodes.length=0;
+    // 停止后剥离 SMIL 动画元素
+    if(svg && svg.querySelector('animate,animateTransform') && doc.components.length) render();
+    if(typeof applySMILState==='function') applySMILState();
+  }
+
+  // ============================================================
+  // 画布平移/缩放
+  // ============================================================
+  let panning = false, panStart = null;
+  svg.addEventListener('mousedown', e=>{
+    if(e.button===0){
+      panning = true; svg.classList.add('panning');
+      panStart = { sx:e.clientX, sy:e.clientY, px:panX, py:panY };
+    }
+  });
+  window.addEventListener('mousemove', e=>{
+    if(!panning) return;
+    const rect = svg.getBoundingClientRect();
+    const vb = svg.viewBox.baseVal;
+    const scaleX = vb.width/rect.width, scaleY = vb.height/rect.height;
+    panX = panStart.px - (e.clientX-panStart.sx)*scaleX;
+    panY = panStart.py - (e.clientY-panStart.sy)*scaleY;
+    applyView();
+  });
+  window.addEventListener('mouseup', ()=>{ panning=false; svg.classList.remove('panning'); });
+  svg.addEventListener('wheel', e=>{
+    e.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+    const vb = svg.viewBox.baseVal;
+    const wx = vb.x + mx*vb.width/rect.width, wy = vb.y + my*vb.height/rect.height;
+    const f = e.deltaY<0 ? 1.12 : 0.89;
+    const newZoom = Math.max(0.2, Math.min(4, zoom*f));
+    const ratio = newZoom/zoom;
+    panX = wx - (wx-vb.x)/ratio;
+    panY = wy - (wy-vb.y)/ratio;
+    zoom = newZoom;
+    applyView();
+  }, {passive:false});
+
+  function screenToSVG(cx, cy){
+    const rect = svg.getBoundingClientRect();
+    const vb = svg.viewBox.baseVal;
+    return { x: vb.x + (cx-rect.left)*vb.width/rect.width, y: vb.y + (cy-rect.top)*vb.height/rect.height };
+  }
+
+  // ============================================================
+  // 工具栏 / 键盘
+  // ============================================================
+  const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  el('btnZoomIn').onclick = ()=>zoomBy(1.2);
+  el('btnZoomOut').onclick = ()=>zoomBy(0.8);
+  el('btnZoomFit').onclick = zoomFit;
+  el('btnRun').onclick = ()=>{ running=!running; el('btnRun').classList.toggle('active',running); if(running) startFlow(); else stopFlow(); };
+  el('dpClose').onclick = closeDetail;
+  // 时间范围按钮
+  el('rangeBar').querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      chartRange = btn.dataset.range;
+      el('rangeBar').querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      drawChart();
+    });
+  });
+  window.addEventListener('keydown', e=>{
+    if(e.key==='+'||e.key==='=') zoomBy(1.2);
+    else if(e.key==='-') zoomBy(0.8);
+    else if(e.key==='0'){ zoomFit(); e.preventDefault(); }
+    else if(e.key===' '){ running=!running; el('btnRun').classList.toggle('active',running); if(running) startFlow(); else stopFlow(); e.preventDefault(); }
+    else if(e.key==='Escape'){ closeDetail(); hideHover(); }
+  });
+
+  // ============================================================
+  // 嵌入模式：对外 API + 与宿主页面通讯
+  // ============================================================
+  if(EMBED){
+    const notify = (type, extra={}) => {
+      if(window.parent && window.parent!==window) window.parent.postMessage({source:'pfd-embed', type, ...extra}, '*');
+    };
+    // 宿主可在 iframe onload 后调用 window.PFDEmbed
+    window.PFDEmbed = {
+      load(d){ try{
+        doc = JSON.parse(typeof d==='string' ? d : JSON.stringify(d));
+        zoom = 1.05; panX = 0; panY = 0;
+        render(); applyView();
+        // 关键：用新 doc 重建数据适配器，否则传感器目录为空导致悬浮面板无数据
+        initAdapter();
+        const t = (doc.meta&&doc.meta.title)||'PFD';
+        el('docTitle').textContent = t;
+        document.title = t + ' · 预览';
+        notify('ready',{title:t});
+      }catch(e){ console.error('PFDEmbed.load error', e); } },
+      fit(){ zoomFit(); },
+      setRunning(on){ running=!!on; el('btnRun').classList.toggle('active',running); if(running) startFlow(); else stopFlow(); },
+      getRunning(){ return running; },
+      getTitle(){ return (doc.meta&&doc.meta.title)||'PFD'; }
+    };
+    // 选中设备时通知宿主
+    const _sel = selectComponent;
+    selectComponent = function(comp){
+      _sel(comp);
+      notify('select', { id: comp.id, name: (comp.props&&comp.props.name)||'' });
+    };
+    // 接收宿主指令
+    window.addEventListener('message', e=>{
+      const m = e.data; if(!m || m.source!=='pfd-host') return;
+      if(m.type==='load') window.PFDEmbed.load(m.doc);
+      else if(m.type==='fit') window.PFDEmbed.fit();
+      else if(m.type==='run') window.PFDEmbed.setRunning(!!m.value);
+    });
+    // 容器尺寸变化时更新视图（保持当前缩放）
+    const ro = new ResizeObserver(()=>{ applyView(); });
+    ro.observe(document.body);
+  }
+
+  // ============================================================
+  // 初始化：渲染画面 → 异步连接真实后端（无任何模拟数据降级）
+  // ============================================================
+  render();
+  setTimeout(()=>{ applyView(); if(running) startFlow(); }, 100);
+  updateSrcBadge(adapter);
+  // 异步连接真实后端
+  createDataAdapter(doc).then(a=>{
+    adapter = a;
+    updateSrcBadge(adapter);
+    startLive();
+    refreshHover();
+    refreshDetail();
+  }).catch(e=>{
+    console.error('后端连接失败:', e);
+    adapter = { error: e.message || '连接失败', ready: false, mode: 'real', catalog: [], byCid: {}, liveMap: {}, historyCache: {} };
+    updateSrcBadge(adapter);
+  });
+  window.addEventListener('resize', ()=>{ applyView(); if(detailPanel.classList.contains('open')) drawChart(); });
+})();
+</script>
+</body>
+</html>

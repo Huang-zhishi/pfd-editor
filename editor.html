@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PFD Editor · 工艺流程组态编辑器</title>
+<style>
+  :root{
+    --bg:#0a0a1a; --bg2:#12112B; --panel:#0f0e22; --panel2:#161534;
+    --line:#9C99FF22; --line2:#9C99FF44; --line3:#9C99FF66;
+    --purple:#9C99FF; --purple2:#7c7adf; --cyan:#00E5FF; --green:#96CC60;
+    --red:#EF4444; --amber:#F59E0B; --blue:#5B9DFF; --orange:#FF6B3D;
+    --text:#fff; --text2:#FFFFFFCC; --text3:#FFFFFF80; --text4:#FFFFFF55;
+    --tan:#C4B5A0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);font-family:"Microsoft YaHei","Source Han Sans CN",sans-serif;color:var(--text);font-size:13px}
+  #app{position:fixed;inset:0;display:grid;grid-template-rows:46px 1fr 26px;grid-template-columns:210px 1fr 270px;grid-template-areas:"top top top" "left main right" "status status status"}
+
+  /* ===== Toolbar ===== */
+  .top{grid-area:top;display:flex;align-items:center;gap:6px;padding:0 12px;background:linear-gradient(180deg,#0d0c20,#0a0a1a);border-bottom:1px solid var(--line2);z-index:20;overflow-x:auto}
+  .top::-webkit-scrollbar{height:4px}
+  .top::-webkit-scrollbar-thumb{background:var(--line2);border-radius:2px}
+  .brand{display:flex;align-items:center;gap:8px;padding-right:12px;margin-right:6px;border-right:1px solid var(--line);flex-shrink:0}
+  .logo{width:28px;height:28px;flex-shrink:0;border-radius:6px;background:linear-gradient(135deg,#817DFF,#99D5FF);display:flex;align-items:center;justify-content:center}
+  .logo svg{width:18px;height:18px;fill:#fff}
+  .brand .t{font-size:14px;font-weight:600;letter-spacing:1px;white-space:nowrap}
+  .brand .s{font-size:9px;color:var(--text3);letter-spacing:1px;white-space:nowrap}
+  .tbtn{display:flex;align-items:center;gap:5px;height:30px;padding:0 10px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;color:var(--text2);cursor:pointer;font-size:12px;transition:.15s;white-space:nowrap}
+  .tbtn:hover{border-color:var(--purple);color:#fff;background:#1c1b40}
+  .tbtn.active{background:var(--purple);color:#0a0a1a;border-color:var(--purple);font-weight:600}
+  .tbtn svg{width:14px;height:14px;fill:currentColor}
+  .tbtn.danger:hover{border-color:var(--red);color:var(--red)}
+  .tsep{width:1px;height:22px;background:var(--line2);margin:0 4px}
+  .t-spacer{flex:1}
+  .zoom-box{display:flex;align-items:center;gap:4px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;height:30px;padding:0 4px}
+  .zoom-box button{width:24px;height:24px;background:none;border:0;color:var(--text2);cursor:pointer;font-size:16px;border-radius:3px}
+  .zoom-box button:hover{background:var(--line2);color:#fff}
+  .zoom-box .zv{font-size:11px;color:var(--text2);width:42px;text-align:center;font-variant-numeric:tabular-nums}
+
+  /* ===== Palette ===== */
+  .left{grid-area:left;background:var(--panel);border-right:1px solid var(--line2);display:flex;flex-direction:column;overflow:hidden}
+  .pa-search{padding:8px;border-bottom:1px solid var(--line)}
+  .pa-search input{width:100%;height:28px;background:var(--bg);border:1px solid var(--line2);border-radius:5px;color:var(--text);padding:0 10px;font-size:12px;outline:none}
+  .pa-search input:focus{border-color:var(--purple)}
+  .pa-list{flex:1;overflow-y:auto;padding:6px}
+  .pa-list::-webkit-scrollbar{width:6px}
+  .pa-list::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+  .pa-cat{font-size:10px;color:var(--text3);letter-spacing:2px;padding:8px 6px 4px;font-weight:600}
+  .pa-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:5px;cursor:grab;border:1px solid transparent;transition:.12s}
+  .pa-item:hover{background:var(--panel2);border-color:var(--line2)}
+  .pa-item:active{cursor:grabbing}
+  .pa-item.dragging{opacity:.4}
+  .pa-icon{width:30px;height:30px;flex-shrink:0;background:var(--bg);border:1px solid var(--line2);border-radius:4px;display:flex;align-items:center;justify-content:center}
+  .pa-icon svg{width:22px;height:22px}
+  .pa-name{font-size:12px;color:var(--text2)}
+  .pa-hint{font-size:9px;color:var(--text4);margin-top:2px}
+
+  /* ===== Canvas ===== */
+  .main{grid-area:main;position:relative;overflow:hidden;background:#070612}
+  #canvas{width:100%;height:100%;display:block;cursor:default}
+  #canvas.connecting{cursor:crosshair}
+  #canvas.panning{cursor:grabbing}
+  .canvas-overlay{position:absolute;top:8px;left:8px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+  .mode-pill{pointer-events:auto;display:inline-flex;align-items:center;gap:6px;background:#12112Bee;backdrop-filter:blur(6px);border:1px solid var(--line2);border-radius:9999px;padding:4px 12px;font-size:11px;color:var(--text2)}
+  .mode-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--purple);box-shadow:0 0 6px var(--purple)}
+  .mode-pill.connect .dot{background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+  .mode-pill.pan .dot{background:var(--amber);box-shadow:0 0 6px var(--amber)}
+  .tip{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--text4);letter-spacing:1px;pointer-events:none;text-align:center;line-height:1.6}
+
+  /* ===== Properties ===== */
+  .right{grid-area:right;background:var(--panel);border-left:1px solid var(--line2);display:flex;flex-direction:column;overflow:hidden}
+  .pr-head{padding:10px 12px;border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:8px}
+  .pr-head .ic{width:24px;height:24px;border-radius:5px;background:var(--purple);display:flex;align-items:center;justify-content:center;font-size:12px;color:#0a0a1a;font-weight:700}
+  .pr-head .tt{font-size:13px;font-weight:600}
+  .pr-head .sub{font-size:10px;color:var(--text3)}
+  .pr-body{flex:1;overflow-y:auto;padding:10px 12px}
+  .pr-body::-webkit-scrollbar{width:6px}
+  .pr-body::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+  .pr-empty{color:var(--text4);font-size:12px;text-align:center;padding:40px 12px;line-height:1.8}
+  .pr-empty svg{width:40px;height:40px;fill:var(--text4);margin-bottom:12px;opacity:.5}
+  .fg{margin-bottom:14px}
+  .fg-title{font-size:10px;color:var(--text3);letter-spacing:2px;margin-bottom:6px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .fg-title::before{content:"";width:2px;height:11px;background:var(--purple);border-radius:1px}
+  .fg-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  .fg-row label{font-size:11px;color:var(--text3);width:60px;flex-shrink:0}
+  .fg-row input,.fg-row select,.fg-row textarea{flex:1;height:28px;background:var(--bg);border:1px solid var(--line2);border-radius:4px;color:var(--text);padding:0 8px;font-size:12px;outline:none;font-family:inherit}
+  .fg-row textarea{height:auto;padding:5px 8px;resize:vertical;min-height:28px}
+  .fg-row input:focus,.fg-row select:focus,.fg-row textarea:focus{border-color:var(--purple)}
+  .fg-row .color-row{display:flex;gap:6px;align-items:center}
+  .fg-row input[type=color]{width:32px;height:28px;padding:2px;flex:0 0 32px;cursor:pointer}
+  .params-list{display:flex;flex-direction:column;gap:5px}
+  .param-row{display:flex;gap:4px;align-items:center}
+  .param-row input{height:24px;font-size:11px;padding:0 6px}
+  .param-row .pk{flex:1.2}
+  .param-row .pv{flex:1}
+  .param-row .pu{flex:.5}
+  .param-row .mon-tag-k{flex:1.2;min-width:0;font-size:11px;color:var(--cyan);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .param-row .pdel{width:22px;height:24px;background:var(--bg);border:1px solid var(--line2);border-radius:4px;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0}
+  .param-row .pdel:hover{color:var(--red);border-color:var(--red)}
+  .param-row .pmove{width:20px;height:24px;background:var(--bg);border:1px solid var(--line2);border-radius:4px;color:var(--text3);cursor:pointer;font-size:9px;flex-shrink:0;line-height:1;padding:0}
+  .param-row .pmove:hover{color:var(--cyan);border-color:var(--cyan)}
+  .tag-search{position:relative;margin-bottom:6px}
+  .tag-search .ts-icon{position:absolute;left:8px;top:7px;color:var(--text3);font-size:13px;pointer-events:none}
+  .tag-search input{width:100%;height:28px;background:var(--bg);border:1px solid var(--line2);border-radius:5px;color:var(--text);padding:0 10px 0 28px;font-size:12px;outline:none}
+  .tag-search input:focus{border-color:var(--purple)}
+  .tag-suggest{position:absolute;top:32px;left:0;right:0;background:var(--panel2);border:1px solid var(--line2);border-radius:6px;z-index:80;max-height:180px;overflow-y:auto;box-shadow:0 8px 20px #0008}
+  .ts-item{padding:7px 10px;font-size:12px;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+  .ts-item:hover{background:var(--purple);color:#0a0a1a}
+  .ts-item::before{content:"+";font-weight:700;color:var(--green);font-size:13px;width:12px}
+  .ts-item:hover::before{color:#0a0a1a}
+  .ts-item .ts-type{margin-left:auto;font-size:9px;color:var(--text4);background:var(--bg);padding:1px 6px;border-radius:4px;white-space:nowrap}
+  .ts-item:hover .ts-type{color:#0a0a1a;background:#ffffff22}
+  .pr-btn{width:100%;height:28px;background:var(--panel2);border:1px dashed var(--line2);border-radius:4px;color:var(--text3);cursor:pointer;font-size:11px;margin-top:4px}
+  .pr-btn:hover{border-color:var(--purple);color:var(--purple);border-style:solid}
+  .pr-actions{display:flex;gap:6px;margin-top:8px}
+  .pr-actions button{flex:1;height:30px;border-radius:5px;font-size:11px;cursor:pointer;border:1px solid;transition:.15s}
+  .pr-actions .dup{background:var(--panel2);border-color:var(--line2);color:var(--text2)}
+  .pr-actions .dup:hover{border-color:var(--cyan);color:var(--cyan)}
+  .pr-actions .del{background:var(--panel2);border-color:var(--line2);color:var(--text2)}
+  .pr-actions .del:hover{color:var(--red);border-color:var(--red);background:#ef44441a}
+  .btn-group{display:flex;gap:4px;width:100%}
+  .btn-group .s-btn{flex:1;height:26px;font-size:10px;border:1px solid var(--line2);background:var(--panel2);color:var(--text3);border-radius:4px;cursor:pointer;transition:.15s}
+  .btn-group .s-btn.active{background:var(--purple);color:#fff;border-color:var(--purple)}
+  .rot-row{display:flex;gap:4px;width:100%}
+  .rot-row input{flex:1;min-width:0}
+  .mini-btn{width:26px;height:26px;background:var(--panel2);border:1px solid var(--line2);border-radius:4px;color:var(--text3);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:.15s}
+  .mini-btn:hover{color:var(--cyan);border-color:var(--cyan)}
+  .ports-list{display:flex;flex-direction:column;gap:4px}
+  .port-row{display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 6px;background:var(--bg);border-radius:4px;border:1px solid var(--line)}
+  .port-row .pd{width:8px;height:8px;border-radius:50%;background:var(--purple)}
+  .port-row .pn{flex:1;color:var(--text2)}
+  .port-row .pl{color:var(--cyan);font-size:10px}
+
+  /* ===== Status bar ===== */
+  .status{grid-area:status;background:var(--panel);border-top:1px solid var(--line2);display:flex;align-items:center;padding:0 14px;gap:18px;font-size:11px;color:var(--text3)}
+  .status .s-item{display:flex;align-items:center;gap:5px}
+  .status .s-item b{color:var(--text2);font-weight:500}
+  .status .s-spacer{flex:1}
+
+  /* ===== SVG element styles ===== */
+  .grid-line{stroke:#9C99FF;stroke-width:1;opacity:.06}
+  .grid-line-major{stroke:#9C99FF;stroke-width:1;opacity:.12}
+  .equip-body{fill:url(#gEquip);stroke:var(--purple);stroke-width:1.5}
+  .equip-sel{stroke-width:2.5;stroke:var(--cyan)}
+  .equip-hover{stroke-width:2.2}
+  .tlabel{font-size:11px;fill:var(--text);font-weight:600;font-family:inherit;pointer-events:none}
+  .ttag{font-size:9px;fill:var(--cyan);font-family:inherit;pointer-events:none}
+  .tval{font-size:9px;fill:var(--text3);font-family:inherit;pointer-events:none}
+  .port{fill:#0a0a1a;stroke:var(--purple);stroke-width:1.5;cursor:crosshair;transition:.15s}
+  .port:hover{fill:var(--purple);r:6}
+  .port.active{fill:var(--cyan);stroke:var(--cyan)}
+  .port-label{font-size:8px;fill:var(--text3);font-family:inherit;pointer-events:none}
+  /* 注：SVG 中 drop-shadow filter 会触发逐帧光栅化重算，改用描边加粗，开销可忽略 */
+  .pipe{fill:none;stroke-linecap:round;stroke-linejoin:round;cursor:pointer}
+  .pipe:hover{stroke-width:3.5}
+  .pipe-sel{stroke:var(--cyan)!important;stroke-width:3.5!important}
+  .pipe-handle{fill:var(--cyan);stroke:#0a0a1a;stroke-width:1;cursor:move}
+  .flow-dot{pointer-events:none}
+  /* 拖拽期间降低光栅化成本：跳过抗锯齿等精细化处理，松手后恢复 */
+  #canvas.dragging, #canvas.dragging *{shape-rendering:optimizeSpeed;text-rendering:optimizeSpeed}
+
+  /* ===== Drag ghost ===== */
+  .drag-ghost{position:fixed;pointer-events:none;z-index:9999;opacity:.8;transform:translate(-50%,-50%)}
+
+  /* ===== Modal ===== */
+  .modal-bg{position:fixed;inset:0;background:#000a;z-index:100;display:none;align-items:center;justify-content:center}
+  .modal-bg.show{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line2);border-radius:8px;width:560px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column}
+  .modal-lg{width:820px}
+  .modal-h{padding:12px 16px;border-bottom:1px solid var(--line2);display:flex;align-items:center;justify-content:space-between}
+  .modal-h .mt{font-size:14px;font-weight:600}
+  .modal-h .mc{cursor:pointer;color:var(--text3);font-size:18px}
+  .modal-b{padding:12px 16px;overflow:auto;flex:1}
+  .modal-b textarea{width:100%;height:280px;background:var(--bg);border:1px solid var(--line2);border-radius:5px;color:var(--text);padding:10px;font-size:11px;font-family:Consolas,monospace;outline:none;resize:vertical}
+  .modal-f{padding:10px 16px;border-top:1px solid var(--line2);display:flex;justify-content:flex-end;gap:8px}
+  .modal-f button{height:32px;padding:0 16px;border-radius:5px;font-size:12px;cursor:pointer;border:1px solid}
+  .modal-f .primary{background:var(--purple);color:#0a0a1a;border-color:var(--purple);font-weight:600}
+
+  /* ===== 监控器面板 ===== */
+  .sm-tools{display:flex;align-items:center;gap:8px}
+  .sm-tools input{height:28px;background:var(--bg);border:1px solid var(--line2);border-radius:5px;color:var(--text);padding:0 10px;font-size:12px;outline:none;width:230px}
+  .sm-tools input:focus{border-color:var(--purple)}
+  .sm-btn{width:28px;height:28px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;color:var(--text2);cursor:pointer;font-size:15px;line-height:1}
+  .sm-btn:hover{color:var(--cyan);border-color:var(--cyan)}
+  .sm-cats{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;border-bottom:1px solid var(--line)}
+  .sm-cat{height:24px;padding:0 11px;border:1px solid var(--line2);background:var(--panel2);color:var(--text3);border-radius:9999px;cursor:pointer;font-size:11px;transition:.12s}
+  .sm-cat:hover{color:var(--text);border-color:var(--line3)}
+  .sm-cat.active{background:var(--purple);color:#0a0a1a;border-color:var(--purple);font-weight:600}
+  .sm-list{display:flex;flex-direction:column;gap:5px;max-height:52vh;overflow-y:auto}
+  .sm-list::-webkit-scrollbar{width:6px}
+  .sm-list::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+  .sm-row{display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;font-size:12px;cursor:pointer;transition:.1s}
+  .sm-row:hover{border-color:var(--line3)}
+  .sm-row.sel{border-color:var(--cyan);background:#00E5FF0d}
+  .sm-col-tag{flex:1.3;color:var(--cyan);font-weight:600;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sm-col-type{flex:.5;color:var(--text3)}
+  .sm-col-kiln{flex:.4;color:var(--text3)}
+  .sm-col-used{flex:1;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sm-col-head{display:flex;align-items:center;gap:10px;padding:5px 10px;font-size:10px;color:var(--text4);letter-spacing:1px}
+  .sm-col-head span{flex:1}
+  .sm-col-head .sm-col-tag{flex:1.3}
+  .sm-col-head .sm-col-type{flex:.5}
+  .sm-col-head .sm-col-kiln{flex:.4}
+  .sm-empty{color:var(--text4);text-align:center;padding:34px 10px;font-size:12px;line-height:1.8}
+  .sm-hint{font-size:11px;color:var(--text3);flex:1;text-align:left}
+  .sm-add{height:32px;padding:0 14px;background:var(--panel2);border:1px solid var(--line2);color:var(--text2);border-radius:5px;font-size:12px;cursor:pointer;transition:.12s}
+  .sm-add:hover{color:var(--cyan);border-color:var(--cyan)}
+  .sm-add:disabled{opacity:.4;cursor:not-allowed}
+  .modal-f .ghost{background:var(--panel2);border-color:var(--line2);color:var(--text2)}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Toolbar -->
+  <div class="top">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+      <div><div class="t">PFD Editor</div><div class="s">工艺流程组态编辑器</div></div>
+    </div>
+    <button class="tbtn" id="btnTemplate" title="加载还原工艺模板"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>模板</button>
+    <div class="tsep"></div>
+    <button class="tbtn" id="btnSave" title="保存到本地"><svg viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7l-4-4zm-5 16a3 3 0 110-6 3 3 0 010 6zm3-10H5V5h10v4z"/></svg>保存</button>
+    <button class="tbtn" id="btnLoad" title="从本地加载"><svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2z"/></svg>加载</button>
+    <div class="tsep"></div>
+    <button class="tbtn" id="btnExportJson" title="导出 JSON"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-4-6zm-1 7V3.5L18.5 9H13z"/></svg>导出</button>
+    <button class="tbtn" id="btnImport" title="导入 JSON"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>导入</button>
+    <button class="tbtn" id="btnPNG" title="导出 PNG 图片"><svg viewBox="0 0 24 24"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>图片</button>
+    <div class="tsep"></div>
+    <button class="tbtn" id="btnUndo" title="撤销 Ctrl+Z"><svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
+    <button class="tbtn" id="btnRedo" title="重做 Ctrl+Y"><svg viewBox="0 0 24 24"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.06-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg></button>
+    <div class="tsep"></div>
+    <button class="tbtn" id="btnRun" title="运行模式：粒子流动动画"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>运行</button>
+    <button class="tbtn" id="btnPreview" title="预览页面（新标签页打开）"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>预览</button>
+    <button class="tbtn" id="btnSensors" title="查看全部监控器（后端传感器）"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>监控器</button>
+    <button class="tbtn" id="btnExport" title="把当前流程打包为自包含单文件 HTML，可直接发送给官网"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>导出单文件</button>
+    <button class="tbtn" id="btnSnap" title="网格吸附"><svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zm6 6h6v6H9z" fill="none" stroke="currentColor" stroke-width="2"/></svg>吸附</button>
+    <button class="tbtn" id="btnRotL" title="向左旋转 90°"><svg viewBox="0 0 24 24"><path d="M7.11 8.53L5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z" fill="currentColor"/></svg></button>
+    <button class="tbtn" id="btnRotR" title="向右旋转 90°"><svg viewBox="0 0 24 24" transform="scale(-1,1)"><path d="M7.11 8.53L5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z" fill="currentColor"/></svg></button>
+    <button class="tbtn" id="btnMirror" title="水平镜像翻转"><svg viewBox="0 0 24 24"><path d="M11 3v18H9V3h2zm2 0v18h2V3h-2zM4 7l5 5-5 5V7zm16 0l-5 5 5 5V7z" fill="currentColor"/></svg></button>
+    <button class="tbtn" id="btnClear" title="清空画布" style="color:var(--red)"><svg viewBox="0 0 24 24"><path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>清空</button>
+    <div class="t-spacer"></div>
+    <div class="zoom-box">
+      <button id="btnZoomOut">−</button>
+      <span class="zv" id="zoomVal">100%</span>
+      <button id="btnZoomIn">+</button>
+      <button id="btnZoomFit" title="适应窗口">⊡</button>
+    </div>
+  </div>
+
+  <!-- Palette -->
+  <div class="left">
+    <div class="pa-search"><input id="paSearch" placeholder="搜索组件…" /></div>
+    <div class="pa-list" id="paList"></div>
+    <div style="padding:8px 12px;border-top:1px solid var(--line);font-size:10px;color:var(--text4);line-height:1.6">
+      <div>拖拽组件到画布</div>
+      <div>点击端口连线</div>
+      <div>角点缩放 · 拖折点改管道</div>
+      <div>Shift+点击/框选 多选</div>
+      <div>Ctrl+C/V 复制粘贴 · Delete 删除</div>
+    </div>
+  </div>
+
+  <!-- Canvas -->
+  <div class="main">
+    <svg id="canvas" viewBox="0 0 2000 1200" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="gEquip" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#1b1b2f" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="#0a0a1a" stop-opacity="0.95"/>
+        </linearGradient>
+        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path d="M 20 0 L 0 0 0 20" fill="none" class="grid-line"/>
+        </pattern>
+        <pattern id="gridMajor" width="100" height="100" patternUnits="userSpaceOnUse">
+          <rect width="100" height="100" fill="url(#grid)"/>
+          <path d="M 100 0 L 0 0 0 100" fill="none" class="grid-line-major"/>
+        </pattern>
+      </defs>
+      <rect id="bgGrid" width="2000" height="1200" fill="url(#gridMajor)"/>
+      <g id="layerPipes"></g>
+      <g id="layerEquip"></g>
+      <g id="layerTop"></g>
+      <g id="layerFlow"></g>
+      <g id="layerOverlay"></g>
+    </svg>
+    <div class="canvas-overlay">
+      <div class="mode-pill" id="modePill"><span class="dot"></span><span id="modeText">选择模式</span></div>
+    </div>
+    <div class="tip" id="tipText">拖拽组件到画布 · 点选/框选(Shift多选) · 拖动移动 · 角点缩放 · 点击端口连线 · 拖折点改管道 · Ctrl+C/V 复制粘贴 · 滚轮缩放 · Shift+滚轮左右移 · Ctrl+滚轮上下移 · 空格/中键平移 · ↺↻ 旋转(Ctrl+[/]) · H 水平镜像</div>
+  </div>
+
+  <!-- Properties -->
+  <div class="right">
+    <div class="pr-head">
+      <div class="ic" id="prIcon">—</div>
+      <div><div class="tt" id="prTitle">未选中</div><div class="sub" id="prSub">在画布上点击元素以编辑</div></div>
+    </div>
+    <div class="pr-body" id="prBody">
+      <div class="pr-empty">
+        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+        <div>选中一个组件或管道<br>即可在此编辑属性</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="status">
+    <div class="s-item">模式: <b id="stMode">选择</b></div>
+    <div class="s-item">组件: <b id="stCount">0</b></div>
+    <div class="s-item">管道: <b id="stPipes">0</b></div>
+    <div class="s-item">选中: <b id="stSel">无</b></div>
+    <div class="s-spacer"></div>
+    <div class="s-item">坐标: <b id="stXY">—</b></div>
+    <div class="s-item">缩放: <b id="stZoom">100%</b></div>
+    <div class="s-item" title="最近一次保存/加载的信息" id="stFileInfo" style="color:var(--text3);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">未保存过文件</div>
+    <div class="s-item" id="stSaved" style="color:var(--green)">● 已保存</div>
+  </div>
+</div>
+
+<!-- 监控器（后端传感器）面板 -->
+<div class="modal-bg" id="sensorModal">
+  <div class="modal modal-lg">
+    <div class="modal-h">
+      <span class="mt">监控器列表</span>
+      <div class="sm-tools">
+        <input id="smSearch" placeholder="搜索 tag / 类型 / 窑号…">
+        <button class="sm-btn" id="smRefresh" title="刷新">⟳</button>
+        <span class="mc" id="smClose">×</span>
+      </div>
+    </div>
+    <div class="sm-cats" id="smCats"></div>
+    <div class="modal-b"><div class="sm-list" id="smList"></div></div>
+    <div class="modal-f">
+      <span class="sm-hint" id="smHint"></span>
+      <button class="sm-add" id="smAddSel">添加到选中设备</button>
+      <button class="primary" id="smDone">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for JSON import/export -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <div class="modal-h"><span class="mt" id="modalTitle">导出 JSON</span><span class="mc" id="modalClose">×</span></div>
+    <div class="modal-b"><textarea id="modalText" spellcheck="false"></textarea></div>
+    <div class="modal-f">
+      <button class="ghost" id="modalCancel">取消</button>
+      <button class="primary" id="modalOk">确定</button>
+    </div>
+  </div>
+</div>
+
+<script>document.write('<scr'+'ipt src="editor.js?v='+Date.now()+'"><\/scr'+'ipt>');</script>
+</body>
+</html>
