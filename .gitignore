@@ -3,3 +3,18 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+
+# AOCI agent host integration (machine-bound; do not commit)
+.mcp.json
+.mcp.json.backup.*
+.codex/config.toml
+.codex/config.toml.backup.*
+
+# WorkBuddy / AOCI local agent assets (machine-bound; do not commit)
+.workbuddy/
+.aoci/
+aoci.txt
+aoci.code.txt
+aoci.meta.txt
+AGENTS.md
+.gitattributes

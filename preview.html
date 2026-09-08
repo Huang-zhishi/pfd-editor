@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<html lang="zh-CN" data-page-node-id="cUUawuNIBOFWlemgHpSWqB">
+<head data-page-node-id="i7EF4wpJYWINUNw6VhdXV9">
+<meta charset="UTF-8" data-page-node-id="zHlqYabEtIDlNBe6HzMJW4" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="wQRYtUeFnfjbzYk1TRZYv3" />
 <title>PFD Preview · 工艺流程预览</title>
 <style>
   :root{
@@ -62,6 +62,8 @@
   /* 注：SVG 中 drop-shadow filter 会触发逐帧光栅化重算，改用描边加粗 */
   .equip-group:hover .equip-body{stroke-width:2.2}
   .equip-group.selected .equip-body{stroke-width:2.5;stroke:var(--cyan)}
+  .equip-group:hover .mon-panel{stroke-width:2}
+  .equip-group.selected .mon-panel{stroke-width:2.2;stroke:var(--cyan)}
 
   /* Hover panel */
   .hover-panel{position:fixed;z-index:60;pointer-events:none;min-width:190px;max-width:260px;background:#12112Bf2;backdrop-filter:blur(8px);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;box-shadow:0 8px 24px #000a;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
@@ -121,95 +123,95 @@
   body.embed .canvas-wrap{background:transparent}
 </style>
 </head>
-<body>
-<div id="app">
-  <div class="toolbar">
-    <a class="tbtn" href="editor.html" title="返回编辑器">
-      <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>返回编辑
+<body data-page-node-id="JSrUubaXSNCRTmqdXMQCco">
+<div id="app" data-page-node-id="vPHpn66ivG9lqhpDbeHneX">
+  <div class="toolbar" data-page-node-id="yKnvSaOII13r7vF1ENfSgD">
+    <a class="tbtn" href="editor.html" title="返回编辑器" data-page-node-id="phtIZIgFGzZZJoAk6OOHnH">
+      <svg viewBox="0 0 24 24" data-page-node-id="fHgTVVzSFunEc53IMly8h2"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" data-page-node-id="cVHPlxDQ5gn88Jmj0c2bys"/></svg>返回编辑
     </a>
-    <div class="tsep"></div>
-    <div class="brand">
-      <div class="logo"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-      <div><div class="t">PFD Preview</div><div class="s">工艺流程预览</div></div>
+    <div class="tsep" data-page-node-id="QENgjTkVyOV3pbGY8aWtIh"></div>
+    <div class="brand" data-page-node-id="PflTc7RWd8IhqTtFLMUc6m">
+      <div class="logo" data-page-node-id="gRJygcRQtr1iQugucoiMHk"><svg viewBox="0 0 24 24" data-page-node-id="kDIUAmwhpvh00avCFe52E6"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" data-page-node-id="rfx8Trm5iPL9BN0gEveyrr"/></svg></div>
+      <div data-page-node-id="UVDJEX4EpbWobA9egquHHK"><div class="t" data-page-node-id="5Pwf5Xl0mOUdeKIfLC46dK">PFD Preview</div><div class="s" data-page-node-id="FCGbaBSRDnY6sXuTu1aP9B">工艺流程预览</div></div>
     </div>
-    <div class="title" id="docTitle">加载中…</div>
-    <div class="t-spacer"></div>
-    <span class="src-badge error" id="srcBadge"><span class="dot"></span><span id="srcText">连接中...</span></span>
-    <button class="tbtn active" id="btnRun" title="流动动画">
-      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>运行
+    <div class="title" id="docTitle" data-page-node-id="ftNAGAClTiNcMzRBFdBqxU">加载中…</div>
+    <div class="t-spacer" data-page-node-id="XQCVlD9wTMZfWHW2V10YN7"></div>
+    <span class="src-badge error" id="srcBadge" data-page-node-id="DCoYm7NLvQ3u8UIZ8UlMWS"><span class="dot" data-page-node-id="bOg5WhzQcoLGETe7aIweZO"></span><span id="srcText" data-page-node-id="u255mJLbGjk66esBPHOWzB">连接中...</span></span>
+    <button class="tbtn active" id="btnRun" title="流动动画" data-page-node-id="WZVOE6HHpNF1kLWZuz4mAB">
+      <svg viewBox="0 0 24 24" data-page-node-id="kneAGEHOvfqdvGd6IgCiqH"><path d="M8 5v14l11-7z" data-page-node-id="iOjVgt69oyOVFSOGNVsHTS"/></svg>运行
     </button>
-    <div class="tsep"></div>
-    <div class="zoom-box">
-      <button id="btnZoomOut">−</button>
-      <span class="zv" id="zoomVal">100%</span>
-      <button id="btnZoomIn">+</button>
-      <button id="btnZoomFit" title="适应窗口">⊡</button>
+    <div class="tsep" data-page-node-id="ir14wEmMxGUPN50Y6AKg4D"></div>
+    <div class="zoom-box" data-page-node-id="tHgXhbBW7KoKZH96pvAWQr">
+      <button id="btnZoomOut" data-page-node-id="MbjVoCKARGDQTcazYz9Gsu">−</button>
+      <span class="zv" id="zoomVal" data-page-node-id="0SdTK8r2L2S7OYZUjosBlk">100%</span>
+      <button id="btnZoomIn" data-page-node-id="2F58PwuLCoeB4oxTRhw2Qc">+</button>
+      <button id="btnZoomFit" title="适应窗口" data-page-node-id="bw7Fr7guEJurAuygzjpAB2">⊡</button>
     </div>
   </div>
 
-  <div class="canvas-wrap">
-    <svg id="canvas" viewBox="0 0 2000 1200" preserveAspectRatio="xMidYMid meet">
-      <defs>
-        <linearGradient id="gEquip" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#1b1b2f" stop-opacity="0.95"/>
-          <stop offset="100%" stop-color="#0a0a1a" stop-opacity="0.95"/>
+  <div class="canvas-wrap" data-page-node-id="aT6KsxowKy7kmbKjQdDB7i">
+    <svg id="canvas" viewBox="0 0 2000 1200" preserveAspectRatio="xMidYMid meet" data-page-node-id="JNeuJNWbIuCxSEwCF49vTd">
+      <defs data-page-node-id="aWxKGXmbBV56FQ3NbNVaHb">
+        <linearGradient id="gEquip" x1="0" y1="0" x2="0" y2="1" data-page-node-id="izn9XbJUqtaGwVaOWAdQEM">
+          <stop offset="0%" stop-color="#1b1b2f" stop-opacity="0.95" data-page-node-id="EU6PSuP46vAr24H6xebZhj"/>
+          <stop offset="100%" stop-color="#0a0a1a" stop-opacity="0.95" data-page-node-id="EwkWfbpoPh4bDBHEAbiRrc"/>
         </linearGradient>
-        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-          <path d="M 20 0 L 0 0 0 20" fill="none" class="grid-line"/>
+        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse" data-page-node-id="ReVa04x8zh4qYllUj4QcVD">
+          <path d="M 20 0 L 0 0 0 20" fill="none" class="grid-line" data-page-node-id="RB57VudgbXarDBVHVTDzms"/>
         </pattern>
-        <pattern id="gridMajor" width="100" height="100" patternUnits="userSpaceOnUse">
-          <rect width="100" height="100" fill="url(#grid)"/>
-          <path d="M 100 0 L 0 0 0 100" fill="none" class="grid-line-major"/>
+        <pattern id="gridMajor" width="100" height="100" patternUnits="userSpaceOnUse" data-page-node-id="ehv9NUHDrhdLrJjrlC0ZvQ">
+          <rect width="100" height="100" fill="url(#grid)" data-page-node-id="d3RNUqY8DuaVHYwmECW6hH"/>
+          <path d="M 100 0 L 0 0 0 100" fill="none" class="grid-line-major" data-page-node-id="HU7RSkEZcOoyEHLelvFIhb"/>
         </pattern>
       </defs>
-      <rect id="bgGrid" width="2000" height="1200" fill="url(#gridMajor)"/>
-      <g id="layerPipes"></g>
-      <g id="layerEquip"></g>
-      <g id="layerTop"></g>
-      <g id="layerFlow"></g>
+      <rect id="bgGrid" width="2000" height="1200" fill="url(#gridMajor)" data-page-node-id="cEgM9ymflRmtRfpmdHkeRb"/>
+      <g id="layerPipes" data-page-node-id="SxhZdjlG93AgGYLQKYaP0l"></g>
+      <g id="layerEquip" data-page-node-id="yUJ7VBJ6J5Fdtl3FtNYdP1"></g>
+      <g id="layerTop" data-page-node-id="4wGVo6arm4d7uJWYWQ6wL1"></g>
+      <g id="layerFlow" data-page-node-id="U69Y2dEoKSs2aqhq75VFWP"></g>
     </svg>
 
     <!-- Hover panel -->
-    <div class="hover-panel" id="hoverPanel">
-      <div class="hp-head"><span class="hp-name" id="hpName"></span><span class="hp-tag" id="hpTag"></span></div>
-      <div id="hpRows"></div>
-      <div class="hp-time" id="hpTime"></div>
+    <div class="hover-panel" id="hoverPanel" data-page-node-id="05YJT7Cpuxb749NxU2ddj9">
+      <div class="hp-head" data-page-node-id="Mvw0tm7E8mgeF8gYteatV4"><span class="hp-name" id="hpName" data-page-node-id="FP7yDil7UJQXa0Gd0JCJI3"></span><span class="hp-tag" id="hpTag" data-page-node-id="dU5CZpndDz0j9rXH0rFxJ1"></span></div>
+      <div id="hpRows" data-page-node-id="Ui3Vup44nFF7z0MFEmNAp0"></div>
+      <div class="hp-time" id="hpTime" data-page-node-id="GFuP66I3qsOSNy0Dl0z88i"></div>
     </div>
 
     <!-- Detail panel -->
-    <div class="detail-panel" id="detailPanel">
-      <div class="dp-head">
-        <span class="dp-name" id="dpName"></span>
-        <span class="dp-tag" id="dpTag"></span>
-        <span class="dp-close" id="dpClose" title="关闭">×</span>
+    <div class="detail-panel" id="detailPanel" data-page-node-id="9ngTOgsdpKAW3u0AIeavqv">
+      <div class="dp-head" data-page-node-id="9GC4fKe1j27eCk5nGC49dK">
+        <span class="dp-name" id="dpName" data-page-node-id="fFmGFcMMiwa8paP4HbIAeY"></span>
+        <span class="dp-tag" id="dpTag" data-page-node-id="9lBWhpPT5XPW2UNoucQXoQ"></span>
+        <span class="dp-close" id="dpClose" title="关闭" data-page-node-id="fhJGaUtwqQ541S8O1VK9Iv">×</span>
       </div>
-      <div class="dp-body">
-        <div class="dp-sec">运行参数</div>
-        <div class="dp-sensors" id="dpSensors"></div>
-        <div class="dp-sec">历史数据</div>
-        <div class="range-bar" id="rangeBar">
-          <button data-range="10m" class="active">10分钟</button>
-          <button data-range="30m">30分钟</button>
-          <button data-range="1h">1小时</button>
-          <button data-range="6h">6小时</button>
-          <button data-range="12h">12小时</button>
-          <button data-range="24h">24小时</button>
+      <div class="dp-body" data-page-node-id="P64PrGSDSOdK8YBC4BgKZ4">
+        <div class="dp-sec" data-page-node-id="CYJu6PjCLHXdn2ROQKbyRE">运行参数</div>
+        <div class="dp-sensors" id="dpSensors" data-page-node-id="27bTY54FjT4aB4Spiejyae"></div>
+        <div class="dp-sec" data-page-node-id="iofyFvhBa1lm9Wlen1INzL">历史数据</div>
+        <div class="range-bar" id="rangeBar" data-page-node-id="TkxagC9qKahTcHikjIbvek">
+          <button data-range="10m" class="active" data-page-node-id="045A0OqvicYfNhWf7WG1ZC">10分钟</button>
+          <button data-range="30m" data-page-node-id="OeKUDcYwneMTZhX96EZETI">30分钟</button>
+          <button data-range="1h" data-page-node-id="Ei79xdMp8KmnfkRkn7stpf">1小时</button>
+          <button data-range="6h" data-page-node-id="eUXuwzQXhiiRzMK5MKqjF1">6小时</button>
+          <button data-range="12h" data-page-node-id="KyNz1w0DgdLjC9PrbQ6FYi">12小时</button>
+          <button data-range="24h" data-page-node-id="QEV7csDfYanuAWCIPXVhiw">24小时</button>
         </div>
-        <div class="chart-title"><span id="chartSensorName">—</span><span id="chartCur">—</span></div>
-        <canvas id="chart" width="322" height="200"></canvas>
-        <div class="dp-note" id="dpNote"></div>
+        <div class="chart-title" data-page-node-id="mRtDwKWvgpngoC6rgpAbnS"><span id="chartSensorName" data-page-node-id="8ZRXcqEksKeyHhwYGl50Gc">—</span><span id="chartCur" data-page-node-id="gBahE7F7Zx5VROvPEjsN0x">—</span></div>
+        <canvas id="chart" width="322" height="200" data-page-node-id="x7rgW8TKwfyM4C8ThgihA4"></canvas>
+        <div class="dp-note" id="dpNote" data-page-node-id="ZLUwiw9JceMPI1FuyM7C5k"></div>
       </div>
     </div>
   </div>
 
-  <div class="status">
-    <div class="s-item"><span class="dot" id="stDot"></span><span id="stModeText">预览模式 · 只读</span></div>
-    <div class="s-item">缩放: <b id="stZoom">100%</b></div>
-    <div class="s-item">悬停查看实时参数 · 点击设备查看历史曲线</div>
+  <div class="status" data-page-node-id="tKfIoJPVBcwY4HmKfB53LH">
+    <div class="s-item" data-page-node-id="MAykt70vzyfEMIwS1l05ou"><span class="dot" id="stDot" data-page-node-id="kJqWsWj6sVrpeJMlQUco2A"></span><span id="stModeText" data-page-node-id="BENHiuHFedLx2ZfxMmJ8iO">预览模式 · 只读</span></div>
+    <div class="s-item" data-page-node-id="P2x39V6AwJoIYv0FMpQpTi">缩放: <b id="stZoom" data-page-node-id="ETlVN9Yhi7vIcViJ2vB6KK">100%</b></div>
+    <div class="s-item" data-page-node-id="nUO8Q65Kri7ZRSYXGSAHIu">悬停查看实时参数 · 点击设备查看历史曲线</div>
   </div>
 </div>
 
-<script>document.write('<scr'+'ipt src="editor.js?v='+Date.now()+'"><\/scr'+'ipt>');</script>
+<script>document.write('<scr'+'ipt src="templates.js?v='+Date.now()+'"><\/scr'+'ipt><scr'+'ipt src="editor.js?v='+Date.now()+'"><\/scr'+'ipt>');</script>
 <script>
 (function(){
   'use strict';
@@ -265,6 +267,27 @@
         if(comp.type==='text') return;
         const params = (comp.props && comp.props.params) || [];
         const list = [];
+        if(comp.type==='monitor'){
+          // 监控器：测点来自 monitorTags（画布只显示数值，悬浮/抽屉显示名称与历史）
+          if(typeof normalizeMonitorPropsPreview==='function') normalizeMonitorPropsPreview(comp); // 旧版字段迁移可能尚未执行
+          const tags = (comp.props && Array.isArray(comp.props.monitorTags)) ? comp.props.monitorTags : [];
+          tags.forEach(t=>{
+            const tag = (t.tag || '').trim();
+            if(!tag) return;
+            const m = this.metaMap[tag];
+            list.push({
+              cid:comp.id,
+              key:tag,
+              label:t.label || tag,
+              unit:(m && m.unit) || '',
+              min:0,
+              max:100,
+              sensorTag:tag,
+              type:m ? m.type : '',
+              existsInBackend: !!m
+            });
+          });
+        } else
         // 【注意】不再自动生成模拟传感器，只有params中显式配置了k（sensor_tag）的才会关联
         params.forEach(p=>{
           const tag = (p.k || '').trim();
@@ -320,11 +343,14 @@
             m[d.sensor_tag] = {
               value:d.value,
               unit:d.unit || meta.unit || '',
-              reported_at:d.reported_at
+              reported_at:d.reported_at,
+              type:meta.type   // 一并缓存：监控器面板"开/关"显示用
             };
           }
         });
         this.liveMap = m;
+        if(typeof refreshKilnTemp==='function') refreshKilnTemp(this.liveMap, this.doc);
+        if(typeof refreshSwitchValveAuto==='function') refreshSwitchValveAuto(this.liveMap, this.doc);
       }
     }catch(e){
       console.warn('实时数据刷新失败:', e);
@@ -333,6 +359,45 @@
   };
 
   RealDataAdapter.prototype.update = function(){ this.refreshLive(); };
+
+  // 三通阀自动模式：根据绑定的 A/B 路开关量 sensor 互斥切换激活路。
+  // 互斥规则：A=1 B=0 → A 路激活；A=0 B=1 → B 路激活；都 0 / 都 1 / 取数失败 → 保持手动值
+  // 仅在 active 真变化时重生成组件 innerHTML，避免 SMIL 无谓重置
+  function refreshSwitchValveAuto(liveMap, docArg){
+    const d = docArg || (typeof doc!=='undefined' ? doc : null);
+    if(!liveMap || !d || !Array.isArray(d.components)) return;
+    const fallbackFor = c => ((c.props.switchValve===0||c.props.switchValve===1) ? c.props.switchValve : 0);
+    d.components.forEach(comp=>{
+      if(comp.type !== 'switchValve') return;
+      if((comp.props.controlMode||'manual') !== 'auto') return;
+      const tagA = (comp.props.sensorA||'').trim();
+      const tagB = (comp.props.sensorB||'').trim();
+      const liveA = tagA ? liveMap[tagA] : null;
+      const liveB = tagB ? liveMap[tagB] : null;
+      const vA = liveA && isFinite(+liveA.value) ? +liveA.value : null;
+      const vB = liveB && isFinite(+liveB.value) ? +liveB.value : null;
+      const aOn = vA!=null && vA>=0.5;
+      const bOn = vB!=null && vB>=0.5;
+      let autoActive;
+      if(aOn && !bOn) autoActive = 0;
+      else if(bOn && !aOn) autoActive = 1;
+      else autoActive = fallbackFor(comp);
+      const g = findCompGroupDom(comp.id);
+      if(g){
+        const cur = (g.dataset.active===undefined || g.dataset.active===''||g.dataset.active==null) ? null : +g.dataset.active;
+        if(cur !== autoActive){
+          const t = TEMPLATES['switchValve'];
+          if(t){
+            const tmpProps = Object.assign({}, comp.props, { switchValve: autoActive });
+            const inner = t.render(comp.w, comp.h, tmpProps);
+            const outInner = (typeof running!=='undefined' && running) ? inner : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
+            g.innerHTML = outInner;
+            g.dataset.active = String(autoActive);
+          }
+        }
+      }
+    });
+  }
 
   RealDataAdapter.prototype.getSensors = function(cid){
     return this.byCid[cid] || [];
@@ -415,9 +480,12 @@
     text.textContent = '连接中...';
   }
 
-  function fmt(v){
+  function fmt(v, type){
+    // 与编辑器属性面板/监控器口径一致：最多保留2位小数，不做整数化（避免与数据库数值对不上）
     if(v==null || isNaN(v)) return '—';
-    return v.toFixed(v>=100?0:(v>=10?1:2));
+    // 开关量类型 → "开"/"关"，普通量走原有 fmtMonVal
+    if(type && typeof isDiscreteSensorType==='function' && isDiscreteSensorType(type)) return fmtMonValByType(v, type);
+    return typeof fmtMonVal==='function' ? fmtMonVal(v) : String(Math.round(Number(v)*100)/100);
   }
 
   // ============================================================
@@ -556,6 +624,7 @@
   // 监控器组件：固定在画布上的实时数值面板 + 归属指向折线（adapter.liveMap 为唯一数据源）
   // ============================================================
   // 旧版数据迁移：monitorTag/monitorTag2 双字段 → monitorTags 列表（lead 连接线字段保留）
+  // showLead: 是否显示归属指向折线（默认 true，与 editor.js 保持一致）
   function normalizeMonitorPropsPreview(comp){
     const p = comp.props || (comp.props = {});
     if(!Array.isArray(p.monitorTags)){
@@ -566,6 +635,7 @@
     }
     if(p.monitorTag!=null) delete p.monitorTag;
     if(p.monitorTag2!=null) delete p.monitorTag2;
+    if(p.showLead===undefined) p.showLead = true;
   }
   // 面板高度随监控项数量自适应（与 editor.js monitorAutoHeight 保持一致）
   function monitorAutoHeightPreview(props){
@@ -626,7 +696,7 @@
     g.appendChild(dot);
     layerTop.appendChild(g);
   }
-  // 刷新监控器实时数值/单位（每监控项一行）
+  // 刷新监控器实时数值/单位（每监控项一行，开关量 → "开/关"且不显示单位）
   // 注：preview 渲染的组件组挂 data-cid（editor 端为 data-id）
   function refreshMonitorValuesPreview(){
     if(!layerTop) return;
@@ -640,8 +710,9 @@
         const v = t.tag ? live[t.tag] : null;
         const valEl = g.querySelector(`.mon-value[data-i="${i}"]`);
         const unitEl = g.querySelector(`.mon-unit[data-i="${i}"]`);
-        if(valEl) valEl.textContent = (v && v.value!=null && v.value!=='') ? fmtMonVal(v.value) : '--';
-        if(unitEl) unitEl.textContent = (v && v.unit) ? ' '+v.unit : '';
+        if(valEl) valEl.textContent = (v && v.value!=null && v.value!=='') ? (typeof fmtMonValByType==='function' && v.type ? fmtMonValByType(v.value, v.type) : fmtMonVal(v.value)) : '--';
+        // 开关量不带单位（避免出现"开 ℃"这种诡异组合）
+        if(unitEl) unitEl.textContent = (v && v.unit && !isDiscreteSensorType(v.type)) ? ' '+v.unit : '';
       });
     });
   }
@@ -705,9 +776,9 @@
       const isMonitor = comp.type === 'monitor';
       const layer = isMonitor ? layerTop : layerEquip;
       if(isMonitor){
-        normalizeMonitorPropsPreview(comp);            // 旧版双 tag 字段迁移
+        normalizeMonitorPropsPreview(comp);            // 旧版双 tag 字段迁移 + showLead 默认值
         comp.h = monitorAutoHeightPreview(comp.props); // 高度随监控项数量自适应
-        renderMonitorLeadPreview(comp);                // 归属指向折线（先画，位于面板之下）
+        if(comp.props.showLead !== false) renderMonitorLeadPreview(comp); // 归属指向折线（先画，位于面板之下；可关闭）
       }
       const g = mk('g');
       g.setAttribute('transform', `translate(${comp.x},${comp.y}) rotate(${comp.rotation||0} ${comp.w/2} ${comp.h/2})`);
@@ -751,27 +822,26 @@
       }
       // params 值不渲染在画布上，悬浮面板(dpSensors/hpRows)已展示实时数据
 
-      // 交互：透明命中框 + 事件（monitor 保留 equip-group 供数值刷新定位，但不触发悬浮/详情）
+      // 交互：透明命中框 + 事件（monitor 与其他组件一致：悬浮看详情、点击开历史抽屉）
       if(comp.type!=='text'){
         const hit = mk('rect');
         hit.setAttribute('x',0); hit.setAttribute('y',0);
         hit.setAttribute('width',comp.w); hit.setAttribute('height',comp.h);
         hit.setAttribute('fill','rgba(156,153,255,0)');
         hit.setAttribute('class','equip-hoverbox');
-        hit.setAttribute('pointer-events', comp.type==='monitor' ? 'none' : 'auto');
+        hit.setAttribute('pointer-events','auto');
         g.appendChild(hit);
         g.classList.add('equip-group');
         g.dataset.cid = comp.id;
-        if(comp.type!=='monitor'){
-          g.addEventListener('mouseenter', ev=>showHover(comp, ev));
-          g.addEventListener('mousemove', ev=>moveHover(ev));
-          g.addEventListener('mouseleave', ()=>hideHover());
-          g.addEventListener('click', ev=>{ ev.stopPropagation(); selectComponent(comp); });
-        }
+        g.addEventListener('mouseenter', ev=>showHover(comp, ev));
+        g.addEventListener('mousemove', ev=>moveHover(ev));
+        g.addEventListener('mouseleave', ()=>hideHover());
+        g.addEventListener('click', ev=>{ ev.stopPropagation(); selectComponent(comp); });
       }
     });
     // 重建 DOM 后 SMIL 时间线重置，按 running 状态恢复正确的播放/暂停
     if(typeof applySMILState==='function') applySMILState();
+    if(typeof refreshKilnTemp==='function' && adapter && adapter.liveMap) refreshKilnTemp(adapter.liveMap, doc);
   }
 
   // ============================================================
@@ -845,7 +915,7 @@
     });
     box.innerHTML = html;
     const t = hoverTime();
-    el('hpTime').textContent = t ? '更新于 ' + t : '';
+    el('hpTime').textContent = t;
   }
   function refreshHover(){
     if(!hoverCid) return;
@@ -869,7 +939,9 @@
     if(!sensors.length) return '';
     const live = adapter.getSensorLive(sensors[0]);
     if(!live || !live.ts || live.noData) return '';
-    return new Date(live.ts).toLocaleTimeString();
+    // 相对时间：上一次更新在 N 分钟之前
+    const diffMin = Math.floor((Date.now() - live.ts) / 60000);
+    return diffMin < 1 ? '上一次更新在 1 分钟内' : '上一次更新在 ' + diffMin + ' 分钟之前';
   }
 
   // ============================================================
@@ -882,9 +954,9 @@
 
   function selectComponent(comp){
     selectedCid = comp.id;
-    // 高亮
+    // 高亮（monitor 在 layerTop，其余在 layerEquip）
     document.querySelectorAll('.equip-group.selected').forEach(e=>e.classList.remove('selected'));
-    const g = layerEquip.querySelector(`[data-cid="${comp.id}"]`);
+    const g = layerEquip.querySelector(`[data-cid="${comp.id}"]`) || layerTop.querySelector(`[data-cid="${comp.id}"]`);
     if(g) g.classList.add('selected');
 
     el('dpName').textContent = comp.props.name || TEMPLATES[comp.type].name;
@@ -957,7 +1029,8 @@
     // 刷新图表当前值
     if(selectedSensor){
       const live = adapter.getSensorLive(selectedSensor);
-      el('chartCur').textContent = (live.noData ? '—' : fmt(live.value)) + ' ' + (live.unit||selectedSensor.unit||'');
+      const _chartCurIsDis = typeof isDiscreteSensorType==='function' && isDiscreteSensorType(selectedSensor.type);
+      el('chartCur').textContent = (live.noData ? '—' : fmt(live.value, selectedSensor.type)) + (_chartCurIsDis ? '' : (' ' + (live.unit||selectedSensor.unit||'')));
     }
     drawChart();
   }
@@ -965,6 +1038,30 @@
   // 历史曲线（Canvas 绘制，无第三方依赖）- 支持异步加载真实历史数据
   let chartLoading = false;
   let chartSeq = 0; // 请求序号：防止异步竞态（切换传感器/时间范围后，旧请求返回覆盖新图）
+  // 是否开关量（DI/DO/DIGITAL/DISCRETE/SWITCH/BINARY/FLAG/BIT/ONOFF 等离散量）：
+  //  1) sensor.type 命中关键字直接判定；
+  //  2) 兜底启发：数据点 unique 值集 ≤2 且都在 [0,1] 范围（含 0/1 与 0/0.5/1 两种典型形态）。
+  // 开关量必须用阶梯图渲染，否则噪声和采样跨跃会画出"凹凸"斜线。
+  function isDiscreteSeries(sensor, series){
+    if(!series || series.length<2) return false;
+    if(sensor && sensor.type){
+      const t = String(sensor.type).toUpperCase();
+      if(/^(DI|DO|DIGITAL|DISCRETE|SWITCH|BINARY|FLAG|BIT|ONOFF)/.test(t)) return true;
+      if(/(DIGITAL|DISCRETE|SWITCH|BIT|FLAG|ONOFF)/.test(t)) return true;
+    }
+    const seen = new Set();
+    const vals = [];
+    for(const p of series){
+      const v = +p.value;
+      if(!isFinite(v)) continue;
+      const k = Math.round(v*1000)/1000; // 浮点容差聚合，避免把 0/1 拆碎成 0.999/1.000
+      if(!seen.has(k)){ seen.add(k); vals.push(v); }
+    }
+    vals.sort((a,b)=>a-b);
+    if(vals.length<=2 && vals[0]>=0 && vals[vals.length-1]<=1) return true;
+    if(vals.length===3 && vals[0]>=0 && vals[2]<=1 && Math.abs(vals[1]-0.5)<0.001) return true;
+    return false;
+  }
   async function drawChart(){
     const seq = ++chartSeq;
     const canvas = el('chart');
@@ -984,7 +1081,8 @@
     }
     el('chartSensorName').textContent = selectedSensor.key || selectedSensor.label;
     const live = adapter.getSensorLive(selectedSensor);
-    el('chartCur').textContent = (live.noData ? '—' : fmt(live.value)) + ' ' + (live.unit||selectedSensor.unit||'');
+    const _chartCurIsDis = typeof isDiscreteSensorType==='function' && isDiscreteSensorType(selectedSensor.type);
+      el('chartCur').textContent = (live.noData ? '—' : fmt(live.value, selectedSensor.type)) + (_chartCurIsDis ? '' : (' ' + (live.unit||selectedSensor.unit||'')));
 
     // 先显示加载中
     const dpr = window.devicePixelRatio || 1;
@@ -1059,29 +1157,38 @@
     // 面积渐变
     const grad = ctx2.createLinearGradient(0,pad.t,0,H-pad.b);
     grad.addColorStop(0, '#00E5FF55'); grad.addColorStop(1, '#00E5FF00');
-    ctx2.beginPath();
-    series.forEach((p,i)=>{
-      const x = pad.l + (i/(series.length-1))*cw;
-      const y = pad.t + (1-(p.value-vmin)/(vmax-vmin))*ch;
-      if(i===0) ctx2.moveTo(x,y); else ctx2.lineTo(x,y);
-    });
+    // 开关量识别 + 阶梯化：相邻点垂直跳变，避免噪声在连续绘制下产生斜线和"凹凸"
+    const isDiscrete = isDiscreteSeries(selectedSensor, series);
+    if(isDiscrete){ series.forEach(p=>{ p.value = (+p.value) >= 0.5 ? 1 : 0; }); }
+    const pts = series.map((p,i)=>({
+      x: pad.l + (i/(series.length-1))*cw,
+      y: pad.t + (1-(p.value-vmin)/(vmax-vmin))*ch,
+    }));
+    // 阶梯路径：相邻两点先水平延展（保持前 y）再垂直跳变；普通模式走原本的直线连接
+    const strokePath = ()=>{
+      ctx2.beginPath();
+      pts.forEach((p,i)=>{
+        if(i===0){ ctx2.moveTo(p.x, p.y); }
+        else if(isDiscrete){
+          const prev = pts[i-1];
+          ctx2.lineTo(p.x, prev.y);  // 水平延展
+          ctx2.lineTo(p.x, p.y);       // 垂直跳变
+        } else {
+          ctx2.lineTo(p.x, p.y);
+        }
+      });
+    };
+    strokePath();
     ctx2.lineTo(pad.l+cw, H-pad.b); ctx2.lineTo(pad.l, H-pad.b); ctx2.closePath();
     ctx2.fillStyle = grad; ctx2.fill();
 
     // 折线
-    ctx2.beginPath();
-    series.forEach((p,i)=>{
-      const x = pad.l + (i/(series.length-1))*cw;
-      const y = pad.t + (1-(p.value-vmin)/(vmax-vmin))*ch;
-      if(i===0) ctx2.moveTo(x,y); else ctx2.lineTo(x,y);
-    });
+    strokePath();
     ctx2.strokeStyle='#00E5FF'; ctx2.lineWidth=1.6; ctx2.lineJoin='round'; ctx2.stroke();
 
-    // 数据点
-    series.forEach((p,i)=>{
-      const x = pad.l + (i/(series.length-1))*cw;
-      const y = pad.t + (1-(p.value-vmin)/(vmax-vmin))*ch;
-      ctx2.beginPath(); ctx2.arc(x,y,1.5,0,Math.PI*2); ctx2.fillStyle='#00E5FF'; ctx2.fill();
+    // 数据点（开关量数据点缩到 0.8px，避免密集毛刺圈的视觉干扰）
+    pts.forEach(p=>{
+      ctx2.beginPath(); ctx2.arc(p.x, p.y, isDiscrete?0.8:1.5, 0, Math.PI*2); ctx2.fillStyle='#00E5FF'; ctx2.fill();
     });
 
     // 当前值点

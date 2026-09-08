@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<html lang="zh-CN" data-page-node-id="bPZ8PD8XwECpQMnDIXPVJE">
+<head data-page-node-id="rYr1LArGJIvGLWQjw2RTs5">
+<meta charset="UTF-8" data-page-node-id="tKa4fgNES9x9ybJpczEMVJ" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="fVZDlacHRsCz7JxOReSlYa" />
 <title>PFD Editor · 工艺流程组态编辑器</title>
 <style>
   :root{
@@ -132,6 +132,13 @@
   .port-row .pn{flex:1;color:var(--text2)}
   .port-row .pl{color:var(--cyan);font-size:10px}
 
+  /* ===== 回转窑测温点 ===== */
+  .kiln-temps{display:flex;flex-direction:column;gap:4px}
+  .kiln-temps .ktemp-row{display:flex;align-items:center;gap:6px}
+  .kiln-temps .ktemp-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .kiln-temps .ktag{flex:1;min-width:0;height:26px;background:var(--bg);border:1px solid var(--line2);border-radius:4px;color:var(--cyan);padding:0 8px;font-size:12px;font-family:inherit;outline:none}
+  .kiln-temps .ktag:focus{border-color:var(--purple)}
+
   /* ===== Status bar ===== */
   .status{grid-area:status;background:var(--panel);border-top:1px solid var(--line2);display:flex;align-items:center;padding:0 14px;gap:18px;font-size:11px;color:var(--text3)}
   .status .s-item{display:flex;align-items:center;gap:5px}
@@ -210,147 +217,147 @@
   .modal-f .ghost{background:var(--panel2);border-color:var(--line2);color:var(--text2)}
 </style>
 </head>
-<body>
-<div id="app">
+<body data-page-node-id="YZStSbDBX3ukiC95ZmZ4Il">
+<div id="app" data-page-node-id="G4fEN8PkXT2tOJMQNlBPqC">
   <!-- Toolbar -->
-  <div class="top">
-    <div class="brand">
-      <div class="logo"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-      <div><div class="t">PFD Editor</div><div class="s">工艺流程组态编辑器</div></div>
+  <div class="top" data-page-node-id="jgghnyAC4c66G406PoRckU">
+    <div class="brand" data-page-node-id="QwHsPFDtd6v3EEN5CoGaMl">
+      <div class="logo" data-page-node-id="Gx6sGLt4Qefa5FWXvNOHJz"><svg viewBox="0 0 24 24" data-page-node-id="QKDdMhEGFb87g91zYxULzJ"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" data-page-node-id="yJ4yfJe2pNS9gnpUY4WKyx"/></svg></div>
+      <div data-page-node-id="ESbSLL2OoKjW34RlfEClMd"><div class="t" data-page-node-id="ooFO2WA7VZoDgIjVlguNFa">PFD Editor</div><div class="s" data-page-node-id="HkQByNTNFLH4zFr7hHLoJL">工艺流程组态编辑器</div></div>
     </div>
-    <button class="tbtn" id="btnTemplate" title="加载还原工艺模板"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>模板</button>
-    <div class="tsep"></div>
-    <button class="tbtn" id="btnSave" title="保存到本地"><svg viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7l-4-4zm-5 16a3 3 0 110-6 3 3 0 010 6zm3-10H5V5h10v4z"/></svg>保存</button>
-    <button class="tbtn" id="btnLoad" title="从本地加载"><svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2z"/></svg>加载</button>
-    <div class="tsep"></div>
-    <button class="tbtn" id="btnExportJson" title="导出 JSON"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-4-6zm-1 7V3.5L18.5 9H13z"/></svg>导出</button>
-    <button class="tbtn" id="btnImport" title="导入 JSON"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>导入</button>
-    <button class="tbtn" id="btnPNG" title="导出 PNG 图片"><svg viewBox="0 0 24 24"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>图片</button>
-    <div class="tsep"></div>
-    <button class="tbtn" id="btnUndo" title="撤销 Ctrl+Z"><svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
-    <button class="tbtn" id="btnRedo" title="重做 Ctrl+Y"><svg viewBox="0 0 24 24"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.06-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg></button>
-    <div class="tsep"></div>
-    <button class="tbtn" id="btnRun" title="运行模式：粒子流动动画"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>运行</button>
-    <button class="tbtn" id="btnPreview" title="预览页面（新标签页打开）"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>预览</button>
-    <button class="tbtn" id="btnSensors" title="查看全部监控器（后端传感器）"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>监控器</button>
-    <button class="tbtn" id="btnExport" title="把当前流程打包为自包含单文件 HTML，可直接发送给官网"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>导出单文件</button>
-    <button class="tbtn" id="btnSnap" title="网格吸附"><svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zm6 6h6v6H9z" fill="none" stroke="currentColor" stroke-width="2"/></svg>吸附</button>
-    <button class="tbtn" id="btnRotL" title="向左旋转 90°"><svg viewBox="0 0 24 24"><path d="M7.11 8.53L5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z" fill="currentColor"/></svg></button>
-    <button class="tbtn" id="btnRotR" title="向右旋转 90°"><svg viewBox="0 0 24 24" transform="scale(-1,1)"><path d="M7.11 8.53L5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z" fill="currentColor"/></svg></button>
-    <button class="tbtn" id="btnMirror" title="水平镜像翻转"><svg viewBox="0 0 24 24"><path d="M11 3v18H9V3h2zm2 0v18h2V3h-2zM4 7l5 5-5 5V7zm16 0l-5 5 5 5V7z" fill="currentColor"/></svg></button>
-    <button class="tbtn" id="btnClear" title="清空画布" style="color:var(--red)"><svg viewBox="0 0 24 24"><path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>清空</button>
-    <div class="t-spacer"></div>
-    <div class="zoom-box">
-      <button id="btnZoomOut">−</button>
-      <span class="zv" id="zoomVal">100%</span>
-      <button id="btnZoomIn">+</button>
-      <button id="btnZoomFit" title="适应窗口">⊡</button>
+    <button class="tbtn" id="btnTemplate" title="加载还原工艺模板" data-page-node-id="6B7gsLyPbu1bIhijCFocud"><svg viewBox="0 0 24 24" data-page-node-id="JwVXPKt55zfDGV4Hndfftl"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" data-page-node-id="32pMr2iqTg7CMBbfCNH2Qq"/></svg>模板</button>
+    <div class="tsep" data-page-node-id="EbRV7AivTYYonKNAxW2C9q"></div>
+    <button class="tbtn" id="btnSave" title="保存到本地" data-page-node-id="0wPbNO1EZ6PvEWSV8ZIMkp"><svg viewBox="0 0 24 24" data-page-node-id="jQHhA14BITzIcRtb4ZlbNw"><path d="M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7l-4-4zm-5 16a3 3 0 110-6 3 3 0 010 6zm3-10H5V5h10v4z" data-page-node-id="UgUmPAbqbAFD7VYmJeAtyH"/></svg>保存</button>
+    <button class="tbtn" id="btnLoad" title="从本地加载" data-page-node-id="CjGDmVZei2bdDrcow0HGFz"><svg viewBox="0 0 24 24" data-page-node-id="Z8jwhDM7ieEdG2CPuRAa4O"><path d="M20 6h-8l-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2z" data-page-node-id="Hp7TUTqjlgoFPjACphSdPs"/></svg>加载</button>
+    <div class="tsep" data-page-node-id="MoN8wnpJXYjl4wbM6pRC2u"></div>
+    <button class="tbtn" id="btnExportJson" title="导出 JSON" data-page-node-id="jTUoTgXpEVejGGm49uRFED"><svg viewBox="0 0 24 24" data-page-node-id="afObvI1WG47Q0JGOEN3aOO"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-4-6zm-1 7V3.5L18.5 9H13z" data-page-node-id="HE15g95myFrorKH4KeB37H"/></svg>导出</button>
+    <button class="tbtn" id="btnImport" title="导入 JSON" data-page-node-id="LhBVbPNSDqRxDbNFQvvPAn"><svg viewBox="0 0 24 24" data-page-node-id="2DA2AWlCIaDnIp5WE4rZdJ"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" data-page-node-id="fJ0YvBHaKWGhsY6aurefSB"/></svg>导入</button>
+    <button class="tbtn" id="btnPNG" title="导出 PNG 图片" data-page-node-id="efJ1jNI1B7AN9tB6VW272g"><svg viewBox="0 0 24 24" data-page-node-id="9Nhf29ZY9wWPPXOPs4SCb6"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" data-page-node-id="Tj6YfyAE0OHAAeY4Rn34Ss"/></svg>图片</button>
+    <div class="tsep" data-page-node-id="aNZKrILn4he16BowaKPmwH"></div>
+    <button class="tbtn" id="btnUndo" title="撤销 Ctrl+Z" data-page-node-id="ZwimQSCMeQW9o9pex2YBTw"><svg viewBox="0 0 24 24" data-page-node-id="hGhpYn3e4GfhAVgUpCrTdU"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" data-page-node-id="4i6XZCr83RO4qr8soXURAk"/></svg></button>
+    <button class="tbtn" id="btnRedo" title="重做 Ctrl+Y" data-page-node-id="7Zb2DToLIszNpJqHBRwQoX"><svg viewBox="0 0 24 24" data-page-node-id="e9sf5ze8bzxVcBJNp9YHlH"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.06-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z" data-page-node-id="Kua9K1eZq1ZGZuF4EmxLZV"/></svg></button>
+    <div class="tsep" data-page-node-id="BEZTowcxFm8jg5hnHWtyxT"></div>
+    <button class="tbtn" id="btnRun" title="运行模式：粒子流动动画" data-page-node-id="QwAD6So8GjIs02jQZSE9St"><svg viewBox="0 0 24 24" data-page-node-id="L2fDWeMISmIloAgh2ooYQ9"><path d="M8 5v14l11-7z" data-page-node-id="cQgcG6RLJBiRg5BNqYstSj"/></svg>运行</button>
+    <button class="tbtn" id="btnPreview" title="预览页面（新标签页打开）" data-page-node-id="W7AxDilny1XadTD4kPiPeP"><svg viewBox="0 0 24 24" data-page-node-id="fuDkP0e8s269kdjaFDvTbb"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" data-page-node-id="is7a0i3IV6afeAgr7zl82w"/></svg>预览</button>
+    <button class="tbtn" id="btnSensors" title="查看全部监控器（后端传感器）" data-page-node-id="S6yRQL8NPAB7a2Q613ZDBM"><svg viewBox="0 0 24 24" data-page-node-id="OllmHmkqHCwqFuvXVh6WLM"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" data-page-node-id="wFQ6QnUyGgsWtPHDBsLQSk"/></svg>监控器</button>
+    <button class="tbtn" id="btnExport" title="把当前流程打包为自包含单文件 HTML，可直接发送给官网" data-page-node-id="JBBwXkBdF31H5Nn7MYphpR"><svg viewBox="0 0 24 24" data-page-node-id="ZKeB4qDsAsGE7LaYTQGaas"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" data-page-node-id="Qo70EUleYTilnYhLTYqm4E"/></svg>导出单文件</button>
+    <button class="tbtn" id="btnSnap" title="网格吸附" data-page-node-id="c7OD8yxfhA4ScnTXKykqVQ"><svg viewBox="0 0 24 24" data-page-node-id="z924Bkprrv21FUiKi8WXBm"><path d="M3 3h18v18H3zm6 6h6v6H9z" fill="none" stroke="currentColor" stroke-width="2" data-page-node-id="Wr16UaipxrtxtdzcBOLRf1"/></svg>吸附</button>
+    <button class="tbtn" id="btnRotL" title="向左旋转 90°" data-page-node-id="pQzYWbPQI462hPOCRthlSs"><svg viewBox="0 0 24 24" data-page-node-id="sAND5D4lChHp0a6EbU5qMO"><path d="M7.11 8.53L5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z" fill="currentColor" data-page-node-id="06TJ55KgmasUJhyZw2ZMzD"/></svg></button>
+    <button class="tbtn" id="btnRotR" title="向右旋转 90°" data-page-node-id="YcIJvlbIpWCn8EZ8nAz9OM"><svg viewBox="0 0 24 24" transform="scale(-1,1)" data-page-node-id="xERUzQySLMBJxFrcTDRwPw"><path d="M7.11 8.53L5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z" fill="currentColor" data-page-node-id="evY8ncytHaST6jd7iP61lU"/></svg></button>
+    <button class="tbtn" id="btnMirror" title="水平镜像翻转" data-page-node-id="T9s8upCjGcI1KMjG8VsHy9"><svg viewBox="0 0 24 24" data-page-node-id="Rkf42JaoAuLpetP0BYN0og"><path d="M11 3v18H9V3h2zm2 0v18h2V3h-2zM4 7l5 5-5 5V7zm16 0l-5 5 5 5V7z" fill="currentColor" data-page-node-id="ZFvH3QRRDJFDXvA4gEDxPz"/></svg></button>
+    <button class="tbtn" id="btnClear" title="清空画布" style="color:var(--red)" data-page-node-id="byDeEnCPJnJHArcTjEHMdh"><svg viewBox="0 0 24 24" data-page-node-id="7Wui94ydUifqx0fk6xKX3T"><path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" data-page-node-id="rSwpGXtf14815zOiz7tyi4"/></svg>清空</button>
+    <div class="t-spacer" data-page-node-id="hOs6RwzmIdOVUHwX5wxD2S"></div>
+    <div class="zoom-box" data-page-node-id="TFVO07e9hYVyxC35kUJETT">
+      <button id="btnZoomOut" data-page-node-id="uPw1Rq3JxXutEHok3Sy2if">−</button>
+      <span class="zv" id="zoomVal" data-page-node-id="IDYdHRsfF8wmqxbVkOVWvb">100%</span>
+      <button id="btnZoomIn" data-page-node-id="KrpPICtAWUckRRaN5wrkZf">+</button>
+      <button id="btnZoomFit" title="适应窗口" data-page-node-id="9shDb5zBCy8rF7YPTobuUp">⊡</button>
     </div>
   </div>
 
   <!-- Palette -->
-  <div class="left">
-    <div class="pa-search"><input id="paSearch" placeholder="搜索组件…" /></div>
-    <div class="pa-list" id="paList"></div>
-    <div style="padding:8px 12px;border-top:1px solid var(--line);font-size:10px;color:var(--text4);line-height:1.6">
-      <div>拖拽组件到画布</div>
-      <div>点击端口连线</div>
-      <div>角点缩放 · 拖折点改管道</div>
-      <div>Shift+点击/框选 多选</div>
-      <div>Ctrl+C/V 复制粘贴 · Delete 删除</div>
+  <div class="left" data-page-node-id="sTFeR3zSAqXu43cmVHmYsf">
+    <div class="pa-search" data-page-node-id="UAiovLx53w7U9HDTtL28qC"><input id="paSearch" placeholder="搜索组件…" data-page-node-id="3vPLiRuJ0o6Pdr0weSBgkF" /></div>
+    <div class="pa-list" id="paList" data-page-node-id="grX1kWT6hO99W0Uup2GSnj"></div>
+    <div style="padding:8px 12px;border-top:1px solid var(--line);font-size:10px;color:var(--text4);line-height:1.6" data-page-node-id="IO0a3kYh4uSMSgr5gACMiQ">
+      <div data-page-node-id="t8B3KBxezHEzHUzeEnGdhK">拖拽组件到画布</div>
+      <div data-page-node-id="1GC6Ot1kxGUJBRjLS0dAb6">点击端口连线</div>
+      <div data-page-node-id="LqGmPdZ6vZALMYuULCKrmm">角点缩放 · 拖折点改管道</div>
+      <div data-page-node-id="H5nYWe2lS3xpGNxKAD34V0">Shift+点击/框选 多选</div>
+      <div data-page-node-id="LH18HxNwaWqGzCrmRsgTa1">Ctrl+C/V 复制粘贴 · Delete 删除</div>
     </div>
   </div>
 
   <!-- Canvas -->
-  <div class="main">
-    <svg id="canvas" viewBox="0 0 2000 1200" preserveAspectRatio="xMidYMid meet">
-      <defs>
-        <linearGradient id="gEquip" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#1b1b2f" stop-opacity="0.95"/>
-          <stop offset="100%" stop-color="#0a0a1a" stop-opacity="0.95"/>
+  <div class="main" data-page-node-id="zeISrwyP4PcxhxNxQy2XoG">
+    <svg id="canvas" viewBox="0 0 2000 1200" preserveAspectRatio="xMidYMid meet" data-page-node-id="fyRA0r2n6pNO1tNyqq2KWt">
+      <defs data-page-node-id="eosFpFoUr3MpS0wZeMbDnj">
+        <linearGradient id="gEquip" x1="0" y1="0" x2="0" y2="1" data-page-node-id="O95enFwt32ApX0AgRDMyN5">
+          <stop offset="0%" stop-color="#1b1b2f" stop-opacity="0.95" data-page-node-id="eiYWZ32a65LZFA7wwzOabS"/>
+          <stop offset="100%" stop-color="#0a0a1a" stop-opacity="0.95" data-page-node-id="L8gG9bUZBDjYyTxUtlCHlu"/>
         </linearGradient>
-        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-          <path d="M 20 0 L 0 0 0 20" fill="none" class="grid-line"/>
+        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse" data-page-node-id="2VCJWYwNe7Rciqpin4wrCD">
+          <path d="M 20 0 L 0 0 0 20" fill="none" class="grid-line" data-page-node-id="56ukGeDJE4sCHTliEHQE4V"/>
         </pattern>
-        <pattern id="gridMajor" width="100" height="100" patternUnits="userSpaceOnUse">
-          <rect width="100" height="100" fill="url(#grid)"/>
-          <path d="M 100 0 L 0 0 0 100" fill="none" class="grid-line-major"/>
+        <pattern id="gridMajor" width="100" height="100" patternUnits="userSpaceOnUse" data-page-node-id="t9Dg4lOCfzf8jD9B7FfHq3">
+          <rect width="100" height="100" fill="url(#grid)" data-page-node-id="8jHr6CVA8lutVOSqSv943k"/>
+          <path d="M 100 0 L 0 0 0 100" fill="none" class="grid-line-major" data-page-node-id="w3oDGbsRn7LnvagRIh3Jhb"/>
         </pattern>
       </defs>
-      <rect id="bgGrid" width="2000" height="1200" fill="url(#gridMajor)"/>
-      <g id="layerPipes"></g>
-      <g id="layerEquip"></g>
-      <g id="layerTop"></g>
-      <g id="layerFlow"></g>
-      <g id="layerOverlay"></g>
+      <rect id="bgGrid" width="2000" height="1200" fill="url(#gridMajor)" data-page-node-id="SdxFa4R85TiDfRWJYLU8Lz"/>
+      <g id="layerPipes" data-page-node-id="0gKGYtO2561Y7ppAtJ3yaN"></g>
+      <g id="layerEquip" data-page-node-id="8hgVkFpL5bKmboRn31ezv5"></g>
+      <g id="layerTop" data-page-node-id="XGAJGCjzfdtj4rszUpCwmc"></g>
+      <g id="layerFlow" data-page-node-id="ZS2g7pubdvJ7PdEbSxLBtz"></g>
+      <g id="layerOverlay" data-page-node-id="ckGpYXF9Qv3LBKnxBFnbll"></g>
     </svg>
-    <div class="canvas-overlay">
-      <div class="mode-pill" id="modePill"><span class="dot"></span><span id="modeText">选择模式</span></div>
+    <div class="canvas-overlay" data-page-node-id="Ge7efVhYyShZ5nWqyfTKoP">
+      <div class="mode-pill" id="modePill" data-page-node-id="4q0mNkLQu0qkPSA44uFjGF"><span class="dot" data-page-node-id="1VHd5MsHlfmMAtJde8C56D"></span><span id="modeText" data-page-node-id="atohZXPS1vPRZSiJpC7FKL">选择模式</span></div>
     </div>
-    <div class="tip" id="tipText">拖拽组件到画布 · 点选/框选(Shift多选) · 拖动移动 · 角点缩放 · 点击端口连线 · 拖折点改管道 · Ctrl+C/V 复制粘贴 · 滚轮缩放 · Shift+滚轮左右移 · Ctrl+滚轮上下移 · 空格/中键平移 · ↺↻ 旋转(Ctrl+[/]) · H 水平镜像</div>
+    <div class="tip" id="tipText" data-page-node-id="zk7qJj34lEEZSlH7Btjijf">拖拽组件到画布 · 点选/框选(Shift多选) · 拖动移动 · 角点缩放 · 点击端口连线 · 拖折点改管道 · Ctrl+C/V 复制粘贴 · 滚轮缩放 · Shift+滚轮左右移 · Ctrl+滚轮上下移 · 空格/中键平移 · ↺↻ 旋转(Ctrl+[/]) · H 水平镜像</div>
   </div>
 
   <!-- Properties -->
-  <div class="right">
-    <div class="pr-head">
-      <div class="ic" id="prIcon">—</div>
-      <div><div class="tt" id="prTitle">未选中</div><div class="sub" id="prSub">在画布上点击元素以编辑</div></div>
+  <div class="right" data-page-node-id="rObp4QOdQPkNoQfRANmSkC">
+    <div class="pr-head" data-page-node-id="PKimn7S4O7o6GNDwK3KzpH">
+      <div class="ic" id="prIcon" data-page-node-id="uADbzk4kOdiO9auXpZy91b">—</div>
+      <div data-page-node-id="wuD6f1AR3x5wBjzBNhDT3F"><div class="tt" id="prTitle" data-page-node-id="TDKaUzia50O9wE6Il4BPSV">未选中</div><div class="sub" id="prSub" data-page-node-id="HUHnAPYjkRTMy1spiH4wE5">在画布上点击元素以编辑</div></div>
     </div>
-    <div class="pr-body" id="prBody">
-      <div class="pr-empty">
-        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-        <div>选中一个组件或管道<br>即可在此编辑属性</div>
+    <div class="pr-body" id="prBody" data-page-node-id="ShMkHEcEb06JlN4A6MpEpK">
+      <div class="pr-empty" data-page-node-id="YTBVDCn5t3JnaloCBftcEM">
+        <svg viewBox="0 0 24 24" data-page-node-id="XA9HlLGNt7AEQw743ODoGv"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" data-page-node-id="XAiBVrcFEi9eCxwHD6wk2H"/></svg>
+        <div data-page-node-id="V0h8HJREpiEjeig4oM2RZn">选中一个组件或管道<br data-page-node-id="DfsUSC6FPuVxT7BbL0kPZb">即可在此编辑属性</div>
       </div>
     </div>
   </div>
 
   <!-- Status -->
-  <div class="status">
-    <div class="s-item">模式: <b id="stMode">选择</b></div>
-    <div class="s-item">组件: <b id="stCount">0</b></div>
-    <div class="s-item">管道: <b id="stPipes">0</b></div>
-    <div class="s-item">选中: <b id="stSel">无</b></div>
-    <div class="s-spacer"></div>
-    <div class="s-item">坐标: <b id="stXY">—</b></div>
-    <div class="s-item">缩放: <b id="stZoom">100%</b></div>
-    <div class="s-item" title="最近一次保存/加载的信息" id="stFileInfo" style="color:var(--text3);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">未保存过文件</div>
-    <div class="s-item" id="stSaved" style="color:var(--green)">● 已保存</div>
+  <div class="status" data-page-node-id="qABaPRYPPExNNOGFaKYAqd">
+    <div class="s-item" data-page-node-id="IdBl6oxQnr1ZonU2jrmHou">模式: <b id="stMode" data-page-node-id="GdD0zFOCCVI1ul3TCxx8Bg">选择</b></div>
+    <div class="s-item" data-page-node-id="FwhP9gtHfuRzTuwfPYtM5E">组件: <b id="stCount" data-page-node-id="tUNDjsqnyCBfmliK8oQyH9">0</b></div>
+    <div class="s-item" data-page-node-id="ISBwSbbH1r0uFA97P5o3Gd">管道: <b id="stPipes" data-page-node-id="bMBlBdZRmhGo14cEfGQUoY">0</b></div>
+    <div class="s-item" data-page-node-id="Z2PK9qAhNBvAMtoun0cLvv">选中: <b id="stSel" data-page-node-id="2dIAjAOcV1BDgDibposkNc">无</b></div>
+    <div class="s-spacer" data-page-node-id="VXXL7EXgDxKPCHTUc5bdXx"></div>
+    <div class="s-item" data-page-node-id="p3LkmTDkdEAGXnBv0qqCCK">坐标: <b id="stXY" data-page-node-id="shUlNvx4T0RxoOVOXniDMZ">—</b></div>
+    <div class="s-item" data-page-node-id="UVIpxF3RJEwovXusSLSEfs">缩放: <b id="stZoom" data-page-node-id="BdvXWi4pLxpn5pKRZMxR0g">100%</b></div>
+    <div class="s-item" title="最近一次保存/加载的信息" id="stFileInfo" style="color:var(--text3);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" data-page-node-id="FynfqwiwOnGHhnCRBgwgQA">未保存过文件</div>
+    <div class="s-item" id="stSaved" style="color:var(--green)" data-page-node-id="uXe9tZ6XF8uX1DYRxPHZYK">● 已保存</div>
   </div>
 </div>
 
 <!-- 监控器（后端传感器）面板 -->
-<div class="modal-bg" id="sensorModal">
-  <div class="modal modal-lg">
-    <div class="modal-h">
-      <span class="mt">监控器列表</span>
-      <div class="sm-tools">
-        <input id="smSearch" placeholder="搜索 tag / 类型 / 窑号…">
-        <button class="sm-btn" id="smRefresh" title="刷新">⟳</button>
-        <span class="mc" id="smClose">×</span>
+<div class="modal-bg" id="sensorModal" data-page-node-id="li8YINC82q5H61HfrMiqZu">
+  <div class="modal modal-lg" data-page-node-id="2FRQYprBrElt1opEh8iAJY">
+    <div class="modal-h" data-page-node-id="oBpE8kTvhy209FyzDtazKS">
+      <span class="mt" data-page-node-id="mW2hv5EX6RctGA0xLwCv8j">监控器列表</span>
+      <div class="sm-tools" data-page-node-id="cRyfRATMmJi8U7dbqj7wJX">
+        <input id="smSearch" placeholder="搜索 tag / 类型 / 窑号…" data-page-node-id="HgVmyiuwIe1r6U5HkqgRMx">
+        <button class="sm-btn" id="smRefresh" title="刷新" data-page-node-id="2OSoYASJ1NbEjdLzFdXcHT">⟳</button>
+        <span class="mc" id="smClose" data-page-node-id="NzPyZsvaQxyxRFPUourXOB">×</span>
       </div>
     </div>
-    <div class="sm-cats" id="smCats"></div>
-    <div class="modal-b"><div class="sm-list" id="smList"></div></div>
-    <div class="modal-f">
-      <span class="sm-hint" id="smHint"></span>
-      <button class="sm-add" id="smAddSel">添加到选中设备</button>
-      <button class="primary" id="smDone">关闭</button>
+    <div class="sm-cats" id="smCats" data-page-node-id="bCxIop5CF4tY7RUHlDdvwK"></div>
+    <div class="modal-b" data-page-node-id="cwqtk7hQCVgysvL60mJo41"><div class="sm-list" id="smList" data-page-node-id="Jto1CxiB08uiedzqhGoH8K"></div></div>
+    <div class="modal-f" data-page-node-id="BWhUpaARFX5iCcpuDviDh5">
+      <span class="sm-hint" id="smHint" data-page-node-id="aEonbSfospkZ4ts5FzQ1dC"></span>
+      <button class="sm-add" id="smAddSel" data-page-node-id="yCjWfMSQUCLTVDE6DHCVQG">添加到选中设备</button>
+      <button class="primary" id="smDone" data-page-node-id="3Fytrmj3HYBLMXvgvnCaGA">关闭</button>
     </div>
   </div>
 </div>
 
 <!-- Modal for JSON import/export -->
-<div class="modal-bg" id="modal">
-  <div class="modal">
-    <div class="modal-h"><span class="mt" id="modalTitle">导出 JSON</span><span class="mc" id="modalClose">×</span></div>
-    <div class="modal-b"><textarea id="modalText" spellcheck="false"></textarea></div>
-    <div class="modal-f">
-      <button class="ghost" id="modalCancel">取消</button>
-      <button class="primary" id="modalOk">确定</button>
+<div class="modal-bg" id="modal" data-page-node-id="dmK6kVLL42I0ny7GqWwSi7">
+  <div class="modal" data-page-node-id="hmrsZelQi3gi7rOtoscWls">
+    <div class="modal-h" data-page-node-id="qf0LjnnNTJYcUMEQJhr1lD"><span class="mt" id="modalTitle" data-page-node-id="u6EehGjgm4Rs2VNU69tnsJ">导出 JSON</span><span class="mc" id="modalClose" data-page-node-id="wlK6Kx4efE8ya47qasgJHc">×</span></div>
+    <div class="modal-b" data-page-node-id="cKIONCV8uEPww9NobeJIm0"><textarea id="modalText" spellcheck="false"></textarea></div>
+    <div class="modal-f" data-page-node-id="uvWaHIkRqv9cSFE2kOww26">
+      <button class="ghost" id="modalCancel" data-page-node-id="glmSRjq1vW0ep79fRnQdNB">取消</button>
+      <button class="primary" id="modalOk" data-page-node-id="J0fKXyBdzidbkc8O8gHYix">确定</button>
     </div>
   </div>
 </div>
 
-<script>document.write('<scr'+'ipt src="editor.js?v='+Date.now()+'"><\/scr'+'ipt>');</script>
+<script>document.write('<scr'+'ipt src="templates.js?v='+Date.now()+'"><\/scr'+'ipt><scr'+'ipt src="editor.js?v='+Date.now()+'"><\/scr'+'ipt>');</script>
 </body>
 </html>

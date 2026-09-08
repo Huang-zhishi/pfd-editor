@@ -1,12 +1,21 @@
+/* ============================================================
+ * PFD Editor · 本地开发服务器（server.js）
+ *   - 静态文件服务（项目根目录，含 /editor /preview /demo 别名）
+ *   - /api/* 反向代理到后端传感器服务，绕过浏览器 CORS 限制
+ * 配置（环境变量，可选）：
+ *   PORT        监听端口，默认 8090
+ *   API_TARGET  后端地址，默认 http://192.168.1.78
+ * 启动：node server.js（或 PowerShell：$env:PORT=9000; node server.js）
+ * ============================================================ */
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 8090;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8090;
 const ROOT = __dirname;
 // 后端 API 目标（2026-09 切换至局域网后端）
-const API_TARGET = 'http://192.168.1.78';
+const API_TARGET = process.env.API_TARGET || 'http://192.168.1.78';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',

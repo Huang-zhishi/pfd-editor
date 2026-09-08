@@ -1,6 +1,7 @@
 param([int]$Port = 8090)
 $ErrorActionPreference = 'Continue'
-$root = 'D:\Java\GY\RS'
+# 轻量静态服务器（无 API 代理，实时数据功能不可用——完整功能请用 node server.js）
+$root = $PSScriptRoot
 $prefix = "http://localhost:$Port/"
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add($prefix)
