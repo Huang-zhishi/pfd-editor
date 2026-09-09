@@ -2047,6 +2047,9 @@ const TEMPLATES = {
         boltsBot.push(`<circle cx="${bx}" cy="${bodyY+bodyH+3}" r="1.5" fill="none" stroke="${p.color}" stroke-width="0.8" opacity="0.6"/>`);
       }
       const reversed = p.reverse || false;
+      // 数据驱动动画：绑定输送机开关 tag（runTag）时由外部注入 _run（true=运行，false=停止）；未绑定/未注入默认运行
+      const runTag = (p.runTag || '').trim();
+      const running = runTag ? (p._run !== false) : true;
       const clipId = 'screw_'+Math.random().toString(36).substr(2,6);
       // 方案B：斜线螺纹牙（等距平行斜线，像螺钉/绞龙的螺纹牙），整组沿轴向滑动一个螺距 = 螺旋推进
       const pitch = bodyW/3.5;               // 螺距（槽体内约 3.5 道牙）
@@ -2061,15 +2064,20 @@ const TEMPLATES = {
         teeth += `<line x1="${(x-skew*sgn).toFixed(2)}" y1="${(bodyY+bodyH-2).toFixed(2)}" x2="${(x+skew*sgn).toFixed(2)}" y2="${(bodyY+2).toFixed(2)}" stroke="${p.color}" stroke-width="1.8" stroke-linecap="round"/>`;
       }
       const moveTo = reversed ? -pitch : pitch;
-      const helix = `<g clip-path="url(#${clipId})"><g><animateTransform attributeName="transform" type="translate" from="0 0" to="${moveTo} 0" dur="1.6s" repeatCount="indefinite"/>${teeth}</g></g>`;
-      // 物料粒子：沿轴向流动 + 上下摆动
+      // 运行态：螺纹牙 + 平移动画；停止态：静态螺纹牙（无动画，定格在停转瞬间）
+      const helix = running
+        ? `<g clip-path="url(#${clipId})"><g><animateTransform attributeName="transform" type="translate" from="0 0" to="${moveTo} 0" dur="1.6s" repeatCount="indefinite"/>${teeth}</g></g>`
+        : `<g clip-path="url(#${clipId})">${teeth}</g>`;
+      // 物料粒子：沿轴向流动 + 上下摆动（仅在运行时流动；停止态不画，表达「无物料输送」）
       let particles='';
-      const pCount=5;
-      for(let i=0;i<pCount;i++){
-        const delay=(i/pCount*3).toFixed(2);
-        const fromX = reversed ? (bodyX+bodyW-6) : (bodyX+6);
-        const toX = reversed ? (bodyX+6) : (bodyX+bodyW-6);
-        particles+=`<circle r="2.2" fill="${p.color}" opacity="0"><animate attributeName="cx" from="${fromX}" to="${toX}" dur="3s" begin="-${delay}s" repeatCount="indefinite"/><animate attributeName="cy" values="${(cy-bodyH*0.18).toFixed(1)};${(cy+bodyH*0.18).toFixed(1)};${(cy-bodyH*0.18).toFixed(1)}" keyTimes="0;0.5;1" dur="0.8s" begin="-${delay}s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;0.9;0.9;0" keyTimes="0;0.12;0.88;1" dur="3s" begin="-${delay}s" repeatCount="indefinite"/></circle>`;
+      if(running){
+        const pCount=5;
+        for(let i=0;i<pCount;i++){
+          const delay=(i/pCount*3).toFixed(2);
+          const fromX = reversed ? (bodyX+bodyW-6) : (bodyX+6);
+          const toX = reversed ? (bodyX+6) : (bodyX+bodyW-6);
+          particles+=`<circle r="2.2" fill="${p.color}" opacity="0"><animate attributeName="cx" from="${fromX}" to="${toX}" dur="3s" begin="-${delay}s" repeatCount="indefinite"/><animate attributeName="cy" values="${(cy-bodyH*0.18).toFixed(1)};${(cy+bodyH*0.18).toFixed(1)};${(cy-bodyH*0.18).toFixed(1)}" keyTimes="0;0.5;1" dur="0.8s" begin="-${delay}s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;0.9;0.9;0" keyTimes="0;0.12;0.88;1" dur="3s" begin="-${delay}s" repeatCount="indefinite"/></circle>`;
+        }
       }
       // 槽体左右端圆滑收口（替代原端板，使螺旋自然终止）
       const endCap = `

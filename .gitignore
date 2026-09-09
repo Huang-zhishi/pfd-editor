@@ -18,3 +18,8 @@ aoci.code.txt
 aoci.meta.txt
 AGENTS.md
 .gitattributes
+
+# 部署产物（本机打包生成，不进仓库）
+pfd-editor-ubuntu24.tar.gz
+deploy.sh
+DEPLOY.md

@@ -1524,6 +1524,14 @@ function renderProps(){
         <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">4 个测温点对应窑体从左到右的颜色锚点，温度越高颜色越暖（暗红→橙→红→白热，全程无冷色）。填完整位号，如「1#窑体温度TI_206A」。</div>
       </div>
       ` : ''}
+      ${comp.type==='screwConveyorLite' ? `
+      <div class="fg">
+        <div class="fg-title">输送机运行控制</div>
+        <div class="fg-row"><label>开关 Tag</label><input id="scRunTag" value="${esc(comp.props.runTag||'')}" placeholder="如 1#锰粉仓输送机运行状态"></div>
+        <div class="fg-row"><label>当前状态</label><input id="scRunState" readonly value="—"></div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">绑定输送机开关量测点后：值为 1 时螺旋输送动画运行、为 0 时停止；留空则始终运行。填完整位号（含前缀）。</div>
+      </div>
+      ` : ''}
       ${comp.type==='monitor' ? `
       <div class="fg">
         <div class="fg-title">监控项（画布实时数值）</div>
@@ -1599,6 +1607,16 @@ function renderProps(){
       // 自动激活实时显示（属性面板右侧 readout）：依赖 sensorValueMap，refreshSwitchValveAuto 会负责同步
       const aa = $('svAutoActive');
       if(aa){ aa.value = '—'; }
+    }
+    // 螺旋输送机(简化)：绑定开关 tag，数据驱动动画开/停
+    if(comp.type==='screwConveyorLite'){
+      const rt = $('scRunTag');
+      if(rt){ rt.onchange = (e)=>{ comp.props.runTag = (e.target.value||'').trim(); pushHistory(); renderAll(); setDirty(); refreshScrewConveyorRun(sensorValueMap); }; }
+      const rs = $('scRunState');
+      if(rs){
+        const tag = (comp.props.runTag||'').trim();
+        rs.value = tag ? '运行中（绑定但暂无数据）' : '运行中（未绑定，默认运行）';
+      }
     }
     // 回转窑测温点配置
     if(comp.type==='rotaryKiln') renderKilnTempList(comp);
@@ -1735,6 +1753,7 @@ async function refreshSensorValues(){
       refreshMonitorValues();
       refreshKilnTemp(sensorValueMap);
       refreshSwitchValveAuto(sensorValueMap); // 三通阀自动模式：根据 A/B 开关量互斥切换
+      refreshScrewConveyorRun(sensorValueMap); // 螺旋输送机(简化)：按开关 tag 驱动动画开/停
     }
   }catch(e){ /* 静默 */ }
 }
@@ -2089,6 +2108,41 @@ function refreshSwitchValveAuto(liveMap, docArg){
       const aText = vA!=null ? String(vA) : '—';
       const bText = vB!=null ? String(vB) : '—';
       aa.value = `${activeText}  ·  A=${aText}  B=${bText}`;
+    }
+  });
+}
+
+// 螺旋输送机(简化) 数据驱动动画：绑定开关 tag（runTag）时，值>=0.5 → 运行（动画开），否则停止；未绑定/无数据 → 默认运行。
+// 仅在运行态真变化时重生成组件 innerHTML，避免无谓的 SMIL 重置。
+// docArg：预览页局部 doc 时需显式传入
+function refreshScrewConveyorRun(liveMap, docArg){
+  const d = docArg || doc;
+  if(!liveMap || !d || !Array.isArray(d.components)) return;
+  d.components.forEach(comp=>{
+    if(comp.type !== 'screwConveyorLite') return;
+    const tag = (comp.props.runTag || '').trim();
+    if(!tag) return; // 未绑定：renderAll 已按默认运行渲染，无需数据驱动
+    const live = liveMap[tag];
+    const v = live && isFinite(+live.value) ? +live.value : null;
+    const run = v==null ? true : v>=0.5;
+    const g = findCompGroupDom(comp.id);
+    if(!g) return;
+    const cur = g.dataset.run;
+    if(cur!==undefined && cur!=='' && cur!==null && cur===(run?'1':'0')) return;
+    const t = TEMPLATES['screwConveyorLite'];
+    if(!t) return;
+    const tmpProps = Object.assign({}, comp.props, { _run: run });
+    const inner = t.render(comp.w, comp.h, tmpProps);
+    const outInner = (typeof running!=='undefined' && running) ? inner : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
+    const _bodyEl = g.children && g.children[0];
+    if(_bodyEl && String(_bodyEl.tagName).toLowerCase()==='g'){ _bodyEl.innerHTML = outInner; }
+    else { g.innerHTML = outInner; }
+    g.dataset.run = run ? '1' : '0';
+    // 属性面板「当前状态」readout（仅当面板已渲染）
+    const rs = (typeof $==='function') ? $('scRunState') : null;
+    if(rs){
+      if(v==null) rs.value = '运行中（绑定但暂无数据）';
+      else rs.value = run ? `运行中（值=${v}）` : `已停止（值=${v}）`;
     }
   });
 }

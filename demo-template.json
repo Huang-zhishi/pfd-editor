@@ -1,20 +1,24 @@
 {
   "type": "pfd-project",
   "version": 1,
-  "savedAt": "2026-08-07T03:02:55.012Z",
-  "title": "1#还原系统",
+  "savedAt": "2026-09-08T01:34:20.541Z",
+  "title": "1#流程2.0",
   "meta": {
-    "title": "1#还原系统",
-    "bg": "#070612"
+    "title": "1#流程2.0",
+    "bg": "#070612",
+    "monitorLeadStyle": {
+      "width": 1.1,
+      "opacity": 0.5
+    }
   },
   "components": [
     {
       "id": "cv5i1lk",
       "type": "box",
-      "x": 280,
-      "y": 20,
-      "w": 81.72177124023438,
-      "h": 81.07854080200195,
+      "x": 200,
+      "y": 280,
+      "w": 70.74905395507812,
+      "h": 44.50285720825195,
       "rotation": 0,
       "props": {
         "name": "XV0106",
@@ -27,58 +31,39 @@
     {
       "id": "c2h1sjg",
       "type": "switchValve",
-      "x": 400,
-      "y": 60,
-      "w": 120,
-      "h": 150,
+      "x": 320,
+      "y": 300,
+      "w": 92.56417846679688,
+      "h": 104.0748291015625,
       "rotation": 0,
       "props": {
         "name": "固体三通阀",
         "tag": "",
         "color": "#9C99FF",
-        "params": [],
+        "params": [
+          {
+            "k": "1#锰粉仓进料机L0201A状态",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#锰粉仓进料机L0201B状态",
+            "v": "0",
+            "u": ""
+          }
+        ],
         "showPorts": true,
-        "switchValve": 0
-      }
-    },
-    {
-      "id": "cftedn3",
-      "type": "screwConveyor",
-      "x": 480,
-      "y": 280,
-      "w": 148.60397338867188,
-      "h": 59.87129211425781,
-      "rotation": 0,
-      "props": {
-        "name": "螺旋输送机",
-        "tag": "",
-        "color": "#9C99FF",
-        "params": [],
-        "showPorts": true
-      }
-    },
-    {
-      "id": "cvgr8ry",
-      "type": "screwConveyor",
-      "x": 300,
-      "y": 280,
-      "w": 148.60397338867188,
-      "h": 59.87129211425781,
-      "rotation": 0,
-      "props": {
-        "name": "螺旋输送机",
-        "tag": "",
-        "color": "#9C99FF",
-        "params": [],
-        "showPorts": true,
-        "mirrored": true
+        "switchValve": 1,
+        "controlMode": "auto",
+        "sensorA": "1#锰粉仓进料机L0201A状态",
+        "sensorB": "1#锰粉仓进料机L0201B状态"
       }
     },
     {
       "id": "c7wraui",
       "type": "silo",
-      "x": 220,
-      "y": 360,
+      "x": 200,
+      "y": 440,
       "w": 90,
       "h": 150,
       "rotation": 0,
@@ -93,8 +78,8 @@
     {
       "id": "c9i9h7o",
       "type": "silo",
-      "x": 620,
-      "y": 360,
+      "x": 440,
+      "y": 440,
       "w": 90,
       "h": 150,
       "rotation": 0,
@@ -110,104 +95,122 @@
       "id": "cdwj84q",
       "type": "weighFeeder",
       "x": 220,
-      "y": 600,
-      "w": 90.7869873046875,
-      "h": 92.75439453125,
-      "rotation": 0,
-      "props": {
-        "name": "配料秤/称重料斗",
-        "tag": "",
-        "color": "#9C99FF",
-        "params": [],
-        "showPorts": true
-      }
-    },
-    {
-      "id": "cxi7c5v",
-      "type": "screwConveyor",
-      "x": 360,
       "y": 620,
-      "w": 310.05682373046875,
-      "h": 71.91217041015625,
+      "w": 54.93524169921875,
+      "h": 54.4693603515625,
       "rotation": 0,
       "props": {
-        "name": "螺旋输送机",
-        "tag": "",
+        "name": " ",
+        "tag": "M0201SZ",
         "color": "#9C99FF",
-        "params": [],
+        "params": [
+          {
+            "k": "1#窑1#仓锰粉失重秤",
+            "v": "0",
+            "u": ""
+          }
+        ],
         "showPorts": true
-      }
-    },
-    {
-      "id": "c8o55q0",
-      "type": "box",
-      "x": 320,
-      "y": 380,
-      "w": 88.30654907226562,
-      "h": 66.027099609375,
-      "rotation": 0,
-      "props": {
-        "name": "L0106A",
-        "tag": "",
-        "color": "#9C99FF",
-        "params": [],
-        "showPorts": true
-      }
-    },
-    {
-      "id": "clqb7q1",
-      "type": "screwConveyor",
-      "x": 480,
-      "y": 540,
-      "w": 268.11614990234375,
-      "h": 62.30609130859375,
-      "rotation": 0,
-      "props": {
-        "name": "螺旋输送机",
-        "tag": "",
-        "color": "#9C99FF",
-        "params": [],
-        "showPorts": true,
-        "mirrored": true
       }
     },
     {
       "id": "cky5j1k",
       "type": "rotaryKiln",
-      "x": 700,
+      "x": 460,
       "y": 680,
-      "w": 380,
-      "h": 180,
+      "w": 713.0641479492188,
+      "h": 195.981201171875,
       "rotation": 0,
       "props": {
-        "name": "回转窑/旋转煅烧窑",
-        "tag": "",
+        "name": "旋转煅烧窑",
+        "tag": "R0202",
         "color": "#9C99FF",
-        "params": [],
-        "showPorts": true
+        "params": [
+          {
+            "k": "1#窑窑头压力PI_206A",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#窑体温度TI_206A",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#窑体温度TI_206B",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#窑体温度TI_206E",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#窑体温度TI_206F",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#窑窑尾压力PI_206B",
+            "v": "0",
+            "u": ""
+          }
+        ],
+        "showPorts": true,
+        "tempPoints": [
+          {
+            "tag": "1#窑体温度TI_206A"
+          },
+          {
+            "tag": "1#窑体温度TI_206B"
+          },
+          {
+            "tag": "1#窑体温度TI_206E"
+          },
+          {
+            "tag": "1#窑体温度TI_206F"
+          }
+        ]
       }
     },
     {
       "id": "c5tli5c",
       "type": "tubeCooler",
-      "x": 1140,
-      "y": 700,
-      "w": 300,
-      "h": 157.7227783203125,
+      "x": 1240,
+      "y": 720,
+      "w": 346.5523681640625,
+      "h": 146.20880126953125,
       "rotation": 0,
       "props": {
         "name": "回转滚筒冷却机",
-        "tag": "",
+        "tag": "E0202",
         "color": "#9C99FF",
-        "params": [],
+        "params": [
+          {
+            "k": "1#窑冷却器进口物料温度TI_207",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#窑冷却循环水进水温度TI_210",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#窑冷却器出口物料温度TI209",
+            "v": "0",
+            "u": ""
+          }
+        ],
         "showPorts": true
       }
     },
     {
       "id": "c41zzyw",
       "type": "valve",
-      "x": 780,
-      "y": 560,
+      "x": 540,
+      "y": 460,
       "w": 39.6124267578125,
       "h": 27.36431884765625,
       "rotation": 0,
@@ -222,59 +225,70 @@
     {
       "id": "cpa9whi",
       "type": "dustCollector",
-      "x": 880,
-      "y": 340,
+      "x": 680,
+      "y": 420,
       "w": 120,
       "h": 180,
       "rotation": 0,
       "props": {
         "name": "除尘布袋",
-        "tag": "",
+        "tag": "DC202",
         "color": "#9C99FF",
-        "params": [],
-        "showPorts": true
-      }
-    },
-    {
-      "id": "cpkytsa",
-      "type": "screwConveyor",
-      "x": 880,
-      "y": 560,
-      "w": 201.2919921875,
-      "h": 57.05426025390625,
-      "rotation": 0,
-      "props": {
-        "name": "螺旋输送机",
-        "tag": "L0205B",
-        "color": "#9C99FF",
-        "params": [],
+        "params": [
+          {
+            "k": "1#窑布袋除尘进口温度TI212",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#窑布袋除尘本体温度TI_201",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#窑布袋除尘出口温度TI_203",
+            "v": "0",
+            "u": ""
+          }
+        ],
         "showPorts": true
       }
     },
     {
       "id": "c335rfh",
       "type": "blower",
-      "x": 740,
-      "y": 280,
-      "w": 75.861328125,
-      "h": 69.99862670898438,
-      "rotation": 0,
+      "x": 860,
+      "y": 580,
+      "w": 45,
+      "h": 42,
+      "rotation": 90,
       "props": {
-        "name": "离心风机/鼓风机",
-        "tag": "",
+        "name": "鼓风机",
+        "tag": "C0203A",
         "color": "#9C99FF",
-        "params": [],
+        "params": [
+          {
+            "k": "1#窑布袋除尘出口温度TI_203",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#窑布袋除尘风机C0203阀位",
+            "v": "0",
+            "u": ""
+          }
+        ],
         "showPorts": true,
-        "mirrored": true
+        "mirrored": false
       }
     },
     {
       "id": "clbc8do",
       "type": "desulfTower",
-      "x": 1000,
-      "y": 0,
+      "x": 960,
+      "y": 300,
       "w": 120,
-      "h": 297.28591871261597,
+      "h": 349.8695673942566,
       "rotation": 0,
       "props": {
         "name": "工业脱硫塔",
@@ -287,10 +301,10 @@
     {
       "id": "cti8zsk",
       "type": "blower",
-      "x": 1120,
-      "y": 280,
-      "w": 75.861328125,
-      "h": 62.295166015625,
+      "x": 1100,
+      "y": 660,
+      "w": 38.42431640625,
+      "h": 34.45745849609375,
       "rotation": 0,
       "props": {
         "name": "泵",
@@ -304,8 +318,8 @@
     {
       "id": "cqqfd5n",
       "type": "box",
-      "x": 780,
-      "y": 200,
+      "x": 900,
+      "y": 500,
       "w": 62.61798095703125,
       "h": 41.09211730957031,
       "rotation": 0,
@@ -321,15 +335,26 @@
       "id": "c4ndpuc",
       "type": "blower",
       "x": 240,
-      "y": 820,
+      "y": 900,
       "w": 66.66668701171875,
       "h": 86.7183837890625,
       "rotation": 90,
       "props": {
-        "name": "。。。。供风机",
+        "name": " ",
         "tag": "C0204C",
         "color": "#9C99FF",
-        "params": [],
+        "params": [
+          {
+            "k": "1#窑供气流量FI_204",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#窑体供气风机C0204阀位",
+            "v": "0",
+            "u": ""
+          }
+        ],
         "showPorts": true,
         "mirrored": true
       }
@@ -338,13 +363,13 @@
       "id": "chqjt6v",
       "type": "blower",
       "x": 240,
-      "y": 920,
+      "y": 960,
       "w": 66.66668701171875,
-      "h": 86.7183837890625,
+      "h": 95,
       "rotation": 90,
       "props": {
-        "name": "。。。。供风机",
-        "tag": "C0204C",
+        "name": " ",
+        "tag": " ",
         "color": "#9C99FF",
         "params": [],
         "showPorts": true,
@@ -354,23 +379,29 @@
     {
       "id": "cepvyg7",
       "type": "valve",
-      "x": 580,
-      "y": 940,
-      "w": 84.008056640625,
-      "h": 44.7008056640625,
+      "x": 680,
+      "y": 1000,
+      "w": 37.23876953125,
+      "h": 20,
       "rotation": 0,
       "props": {
-        "name": "气密阀",
-        "tag": "",
+        "name": " ",
+        "tag": "气密阀",
         "color": "#9C99FF",
-        "params": [],
+        "params": [
+          {
+            "k": "1#窑天然气瞬时流量FI_203",
+            "v": "0",
+            "u": ""
+          }
+        ],
         "showPorts": true
       }
     },
     {
       "id": "cqxvh8j",
       "type": "coolingPond",
-      "x": 1200,
+      "x": 1300,
       "y": 380,
       "w": 192.5611572265625,
       "h": 120,
@@ -386,16 +417,22 @@
     {
       "id": "ceq4k9q",
       "type": "screwConveyor",
-      "x": 1260,
-      "y": 900,
+      "x": 1340,
+      "y": 940,
       "w": 213.18994140625,
-      "h": 79.015869140625,
+      "h": 51.28192138671875,
       "rotation": 0,
       "props": {
         "name": "L0301",
         "tag": "",
         "color": "#9C99FF",
-        "params": [],
+        "params": [
+          {
+            "k": "1#成品称瞬时流量FI_0302",
+            "v": "0",
+            "u": ""
+          }
+        ],
         "showPorts": true,
         "mirrored": true
       }
@@ -403,7 +440,7 @@
     {
       "id": "cva5r78",
       "type": "pump",
-      "x": 1460,
+      "x": 1560,
       "y": 400,
       "w": 46.450439453125,
       "h": 29.742584228515625,
@@ -419,7 +456,7 @@
     {
       "id": "cs6c3nk",
       "type": "pump",
-      "x": 1460,
+      "x": 1560,
       "y": 440,
       "w": 46.450439453125,
       "h": 29.742584228515625,
@@ -435,13 +472,129 @@
     {
       "id": "cp0llhp",
       "type": "pump",
-      "x": 1440,
+      "x": 1540,
       "y": 620,
       "w": 46.450439453125,
       "h": 29.742584228515625,
-      "rotation": 270,
+      "rotation": 90,
       "props": {
-        "name": "工业抽水泵",
+        "name": " ",
+        "tag": "P0202A",
+        "color": "#9C99FF",
+        "params": [
+          {
+            "k": "1#窑冷却循环泵P0202A阀位",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#窑冷却循环水进水温度TI_210",
+            "v": "0",
+            "u": ""
+          }
+        ],
+        "showPorts": true
+      }
+    },
+    {
+      "id": "cjeo19x",
+      "type": "pump",
+      "x": 1620,
+      "y": 620,
+      "w": 46.450439453125,
+      "h": 29.742584228515625,
+      "rotation": 90,
+      "props": {
+        "name": " ",
+        "tag": "P0202B",
+        "color": "#9C99FF",
+        "params": [
+          {
+            "k": "1#窑冷却循环泵P0202B阀位",
+            "v": "0",
+            "u": ""
+          }
+        ],
+        "showPorts": true
+      }
+    },
+    {
+      "id": "cnso1vn",
+      "type": "weighFeeder",
+      "x": 340,
+      "y": 520,
+      "w": 61.693145751953125,
+      "h": 62.077392578125,
+      "rotation": 0,
+      "props": {
+        "name": "煤粉配料秤",
+        "tag": "L0601A",
+        "color": "#9C99FF",
+        "params": [
+          {
+            "k": "1#窑煤粉称瞬时流量",
+            "v": "0",
+            "u": ""
+          }
+        ],
+        "showPorts": true
+      }
+    },
+    {
+      "id": "c8cg5i4",
+      "type": "blower",
+      "x": 580,
+      "y": 900,
+      "w": 66.66668701171875,
+      "h": 86.7183837890625,
+      "rotation": 90,
+      "props": {
+        "name": " ",
+        "tag": "C0203",
+        "color": "#9C99FF",
+        "params": [
+          {
+            "k": "1#窑供气流量FI_204",
+            "v": "0",
+            "u": ""
+          },
+          {
+            "k": "1#窑体供气风机C0204阀位",
+            "v": "0",
+            "u": ""
+          }
+        ],
+        "showPorts": true,
+        "mirrored": true
+      }
+    },
+    {
+      "id": "c20cki6",
+      "type": "blower",
+      "x": 1180,
+      "y": 620,
+      "w": 57.922607421875,
+      "h": 54.44696044921875,
+      "rotation": 0,
+      "props": {
+        "name": "风机",
+        "tag": "C0205",
+        "color": "#9C99FF",
+        "params": [],
+        "showPorts": true,
+        "mirrored": true
+      }
+    },
+    {
+      "id": "c6gegab",
+      "type": "box",
+      "x": 1180,
+      "y": 540,
+      "w": 62.61798095703125,
+      "h": 41.09211730957031,
+      "rotation": 0,
+      "props": {
+        "name": "干燥系统",
         "tag": "",
         "color": "#9C99FF",
         "params": [],
@@ -449,19 +602,467 @@
       }
     },
     {
-      "id": "cjeo19x",
-      "type": "pump",
-      "x": 1520,
-      "y": 620,
-      "w": 46.450439453125,
-      "h": 29.742584228515625,
-      "rotation": 270,
+      "id": "ctwrntw",
+      "type": "monitor",
+      "x": 560,
+      "y": 720,
+      "w": 59.25701904296875,
+      "h": 21,
+      "rotation": 0,
       "props": {
-        "name": "工业抽水泵",
+        "name": "监控器",
         "tag": "",
+        "color": "#00E5FF",
+        "params": [],
+        "showPorts": true,
+        "monitorTags": [
+          {
+            "tag": "1#窑体温度TI_206A",
+            "label": "206A"
+          }
+        ],
+        "lead": {
+          "targetType": "point",
+          "x": 768.4486083984375,
+          "y": 748.514404296875
+        },
+        "showLead": false
+      }
+    },
+    {
+      "id": "c7keqjl",
+      "type": "monitor",
+      "x": 700,
+      "y": 720,
+      "w": 57.8603515625,
+      "h": 21,
+      "rotation": 0,
+      "props": {
+        "name": "监控器",
+        "tag": "",
+        "color": "#00E5FF",
+        "params": [],
+        "showPorts": true,
+        "monitorTags": [
+          {
+            "tag": "1#窑体温度TI_206B",
+            "label": "206B"
+          }
+        ],
+        "lead": {
+          "targetType": "point",
+          "x": 836.5857543945312,
+          "y": 747.302978515625
+        },
+        "showLead": false
+      }
+    },
+    {
+      "id": "ctafh5k",
+      "type": "monitor",
+      "x": 840,
+      "y": 720,
+      "w": 56.92926025390625,
+      "h": 21,
+      "rotation": 0,
+      "props": {
+        "name": "监控器",
+        "tag": "",
+        "color": "#00E5FF",
+        "params": [],
+        "showPorts": true,
+        "monitorTags": [
+          {
+            "tag": "1#窑体温度TI_206E",
+            "label": "206E"
+          }
+        ],
+        "lead": {
+          "targetType": "point",
+          "x": 938.4580078125,
+          "y": 748.9730224609375
+        },
+        "showLead": false
+      }
+    },
+    {
+      "id": "cat0do9",
+      "type": "monitor",
+      "x": 980,
+      "y": 720,
+      "w": 60.6536865234375,
+      "h": 21,
+      "rotation": 0,
+      "props": {
+        "name": "监控器",
+        "tag": "",
+        "color": "#00E5FF",
+        "params": [],
+        "showPorts": true,
+        "monitorTags": [
+          {
+            "tag": "1#窑体温度TI_206F",
+            "label": "206F"
+          }
+        ],
+        "lead": {
+          "targetType": "point",
+          "x": 1042.835205078125,
+          "y": 746.4679565429688
+        },
+        "showLead": false
+      }
+    },
+    {
+      "id": "chjqkcf",
+      "type": "monitor",
+      "x": 600,
+      "y": 520,
+      "w": 62.472412109375,
+      "h": 21,
+      "rotation": 0,
+      "props": {
+        "name": "监控器",
+        "tag": "",
+        "color": "#00E5FF",
+        "params": [],
+        "showPorts": true,
+        "monitorTags": [
+          {
+            "tag": "1#窑布袋除尘进口温度TI212",
+            "label": ""
+          }
+        ],
+        "lead": {
+          "targetType": "port",
+          "cid": "cpa9whi",
+          "port": "cleanGas"
+        },
+        "showLead": true
+      }
+    },
+    {
+      "id": "clwswqy",
+      "type": "monitor",
+      "x": 620,
+      "y": 400,
+      "w": 62.472412109375,
+      "h": 21,
+      "rotation": 0,
+      "props": {
+        "name": "监控器",
+        "tag": "",
+        "color": "#00E5FF",
+        "params": [],
+        "showPorts": true,
+        "monitorTags": [
+          {
+            "tag": "1#窑布袋除尘出口温度TI_203",
+            "label": ""
+          }
+        ],
+        "lead": {
+          "targetType": "port",
+          "cid": "cpa9whi",
+          "port": "inlet"
+        },
+        "showLead": true
+      }
+    },
+    {
+      "id": "c3qqm3v",
+      "type": "monitor",
+      "x": 720,
+      "y": 480,
+      "w": 62.472412109375,
+      "h": 21,
+      "rotation": 0,
+      "props": {
+        "name": "监控器",
+        "tag": "",
+        "color": "#00E5FF",
+        "params": [],
+        "showPorts": true,
+        "monitorTags": [
+          {
+            "tag": "1#窑布袋除尘本体温度TI_201",
+            "label": ""
+          }
+        ],
+        "lead": {
+          "targetType": "point",
+          "x": 979.0875244140625,
+          "y": 383.796875
+        },
+        "showLead": false
+      }
+    },
+    {
+      "id": "cg1njyh",
+      "type": "monitor",
+      "x": 880,
+      "y": 440,
+      "w": 62.472412109375,
+      "h": 21,
+      "rotation": 0,
+      "props": {
+        "name": "监控器",
+        "tag": "",
+        "color": "#00E5FF",
+        "params": [],
+        "showPorts": true,
+        "monitorTags": [
+          {
+            "tag": "1#含氧量AI_101",
+            "label": ""
+          }
+        ],
+        "lead": {
+          "targetType": "pipe",
+          "pipeId": "pxr9ykg",
+          "pipeT": 0.3305380646261825
+        },
+        "showLead": true
+      }
+    },
+    {
+      "id": "cw5k7tr",
+      "type": "monitor",
+      "x": 1580,
+      "y": 840,
+      "w": 60.6536865234375,
+      "h": 21,
+      "rotation": 0,
+      "props": {
+        "name": "监控器",
+        "tag": "",
+        "color": "#00E5FF",
+        "params": [],
+        "showPorts": true,
+        "monitorTags": [
+          {
+            "tag": "1#窑冷却器出口物料温度TI209",
+            "label": ""
+          }
+        ],
+        "lead": {
+          "targetType": "point",
+          "x": 1529.0787353515625,
+          "y": 760.4295043945312
+        },
+        "showLead": false
+      }
+    },
+    {
+      "id": "cjt3aln",
+      "type": "monitor",
+      "x": 1220,
+      "y": 840,
+      "w": 60.6536865234375,
+      "h": 21,
+      "rotation": 0,
+      "props": {
+        "name": "监控器",
+        "tag": "",
+        "color": "#00E5FF",
+        "params": [],
+        "showPorts": true,
+        "monitorTags": [
+          {
+            "tag": "1#窑冷却器进口物料温度TI_207",
+            "label": ""
+          }
+        ],
+        "lead": {
+          "targetType": "point",
+          "x": 1529.0787353515625,
+          "y": 760.4295043945312
+        },
+        "showLead": false
+      }
+    },
+    {
+      "id": "c0cexya",
+      "type": "monitor",
+      "x": 840,
+      "y": 960,
+      "w": 62.472412109375,
+      "h": 21,
+      "rotation": 0,
+      "props": {
+        "name": "监控器",
+        "tag": "",
+        "color": "#00E5FF",
+        "params": [],
+        "showPorts": true,
+        "monitorTags": [
+          {
+            "tag": "1#窑天然气瞬时流量FI_203",
+            "label": ""
+          }
+        ],
+        "lead": {
+          "targetType": "pipe",
+          "pipeId": "p36lfwj",
+          "pipeT": 0.13447725887309298
+        },
+        "showLead": true
+      }
+    },
+    {
+      "id": "ckp936y",
+      "type": "monitor",
+      "x": 540,
+      "y": 840,
+      "w": 62.472412109375,
+      "h": 21,
+      "rotation": 0,
+      "props": {
+        "name": "监控器",
+        "tag": "",
+        "color": "#00E5FF",
+        "params": [],
+        "showPorts": true,
+        "monitorTags": [
+          {
+            "tag": "1#窑窑头压力PI_206A",
+            "label": ""
+          }
+        ],
+        "lead": {
+          "targetType": "point",
+          "x": 740.87646484375,
+          "y": 783.891357421875
+        },
+        "showLead": false
+      }
+    },
+    {
+      "id": "chuwl71",
+      "type": "monitor",
+      "x": 1040,
+      "y": 840,
+      "w": 62.472412109375,
+      "h": 21,
+      "rotation": 0,
+      "props": {
+        "name": "监控器",
+        "tag": "",
+        "color": "#00E5FF",
+        "params": [],
+        "showPorts": true,
+        "monitorTags": [
+          {
+            "tag": "1#窑窑尾压力PI_206B",
+            "label": ""
+          }
+        ],
+        "lead": {
+          "targetType": "point",
+          "x": 740.87646484375,
+          "y": 783.891357421875
+        },
+        "showLead": false
+      }
+    },
+    {
+      "id": "cy12028",
+      "type": "screwConveyorLite",
+      "x": 340,
+      "y": 740,
+      "w": 109.68341064453125,
+      "h": 39,
+      "rotation": 0,
+      "props": {
+        "name": "螺旋输送机",
+        "tag": "L0203",
         "color": "#9C99FF",
         "params": [],
         "showPorts": true
+      }
+    },
+    {
+      "id": "c0nqg5k",
+      "type": "screwConveyorLite",
+      "x": 300,
+      "y": 640,
+      "w": 93.75900268554688,
+      "h": 29.478515625,
+      "rotation": 0,
+      "props": {
+        "name": "螺旋输送机",
+        "tag": "L0201",
+        "color": "#9C99FF",
+        "params": [],
+        "showPorts": true,
+        "mirrored": true
+      }
+    },
+    {
+      "id": "c4ta3ez",
+      "type": "screwConveyorLite",
+      "x": 400,
+      "y": 600,
+      "w": 109.68341064453125,
+      "h": 34.134033203125,
+      "rotation": 0,
+      "props": {
+        "name": "螺旋输送机",
+        "tag": "L0202B",
+        "color": "#9C99FF",
+        "params": [],
+        "showPorts": true,
+        "mirrored": true
+      }
+    },
+    {
+      "id": "c9ws6dk",
+      "type": "screwConveyorLite",
+      "x": 700,
+      "y": 620,
+      "w": 128.7220458984375,
+      "h": 34.134033203125,
+      "rotation": 0,
+      "props": {
+        "name": " ",
+        "tag": "L0205B",
+        "color": "#9C99FF",
+        "params": [],
+        "showPorts": true
+      }
+    },
+    {
+      "id": "c7zsvak",
+      "type": "screwConveyorLite",
+      "x": 240,
+      "y": 400,
+      "w": 109.68341064453125,
+      "h": 34.134033203125,
+      "rotation": 0,
+      "props": {
+        "name": "螺旋输送机",
+        "tag": "",
+        "color": "#9C99FF",
+        "params": [],
+        "showPorts": true,
+        "mirrored": true
+      }
+    },
+    {
+      "id": "c42cvsh",
+      "type": "screwConveyorLite",
+      "x": 380,
+      "y": 400,
+      "w": 109.68341064453125,
+      "h": 34.134033203125,
+      "rotation": 0,
+      "props": {
+        "name": "螺旋输送机",
+        "tag": "",
+        "color": "#9C99FF",
+        "params": [],
+        "showPorts": true,
+        "mirrored": false
       }
     }
   ],
@@ -480,124 +1081,10 @@
       "label": "锰粉",
       "width": 2.5,
       "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 361.7217712402344,
-          "y": 60.53927040100098
-        },
-        {
-          "x": 460,
-          "y": 60
-        }
-      ],
       "bend": {
         "x": 340,
         "y": 80
       },
-      "straight": true
-    },
-    {
-      "id": "pcczsn9",
-      "type": "solid",
-      "from": {
-        "cid": "c2h1sjg",
-        "port": "outletB"
-      },
-      "to": {
-        "cid": "cftedn3",
-        "port": "inlet"
-      },
-      "label": "锰粉",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 484,
-          "y": 210
-        },
-        {
-          "x": 524.5811920166016,
-          "y": 280
-        }
-      ],
-      "straight": true
-    },
-    {
-      "id": "pxcrk9s",
-      "type": "solid",
-      "from": {
-        "cid": "c2h1sjg",
-        "port": "outletA"
-      },
-      "to": {
-        "cid": "cvgr8ry",
-        "port": "inlet"
-      },
-      "label": "锰粉",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 436,
-          "y": 210
-        },
-        {
-          "x": 404.0227813720703,
-          "y": 280
-        }
-      ],
-      "straight": true
-    },
-    {
-      "id": "pbvxtrn",
-      "type": "solid",
-      "from": {
-        "cid": "cftedn3",
-        "port": "outlet"
-      },
-      "to": {
-        "cid": "c9i9h7o",
-        "port": "top"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 628.6039733886719,
-          "y": 324.90346908569336
-        },
-        {
-          "x": 665,
-          "y": 360
-        }
-      ],
-      "straight": true
-    },
-    {
-      "id": "pchv8g2",
-      "type": "solid",
-      "from": {
-        "cid": "cvgr8ry",
-        "port": "outlet"
-      },
-      "to": {
-        "cid": "c7wraui",
-        "port": "top"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 300,
-          "y": 324.90346908569336
-        },
-        {
-          "x": 265,
-          "y": 360
-        }
-      ],
       "straight": true
     },
     {
@@ -614,241 +1101,7 @@
       "label": "",
       "width": 2.5,
       "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 265,
-          "y": 510
-        },
-        {
-          "x": 265.39349365234375,
-          "y": 600
-        }
-      ],
       "straight": true
-    },
-    {
-      "id": "pm4rgij",
-      "type": "solid",
-      "from": {
-        "cid": "c8o55q0",
-        "port": "bottom"
-      },
-      "to": {
-        "cid": "cxi7c5v",
-        "port": "left"
-      },
-      "label": "煤粉",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 364.1532745361328,
-          "y": 446.027099609375
-        },
-        {
-          "x": 360,
-          "y": 655.9560852050781
-        }
-      ],
-      "straight": true
-    },
-    {
-      "id": "pl9e86s",
-      "type": "solid",
-      "from": {
-        "cid": "c9i9h7o",
-        "port": "bottom"
-      },
-      "to": {
-        "cid": "clqb7q1",
-        "port": "inlet"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 665,
-          "y": 510
-        },
-        {
-          "x": 667.6813049316406,
-          "y": 540
-        }
-      ],
-      "straight": true
-    },
-    {
-      "id": "pw8cdvg",
-      "type": "solid",
-      "from": {
-        "cid": "clqb7q1",
-        "port": "right"
-      },
-      "to": {
-        "cid": "cxi7c5v",
-        "port": "inlet"
-      },
-      "label": "锰粉",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 480,
-          "y": 571.1530456542969
-        },
-        {
-          "x": 462,
-          "y": 571.1530456542969
-        },
-        {
-          "x": 457.50852355957034,
-          "y": 571.1530456542969
-        },
-        {
-          "x": 457.50852355957034,
-          "y": 602
-        },
-        {
-          "x": 453.0170471191406,
-          "y": 602
-        },
-        {
-          "x": 453.0170471191406,
-          "y": 620
-        }
-      ]
-    },
-    {
-      "id": "px92weh",
-      "type": "solid",
-      "from": {
-        "cid": "cdwj84q",
-        "port": "outlet"
-      },
-      "to": {
-        "cid": "cky5j1k",
-        "port": "inlet"
-      },
-      "label": "锰粉",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 265.39349365234375,
-          "y": 692.75439453125
-        },
-        {
-          "x": 265.39349365234375,
-          "y": 710.75439453125
-        },
-        {
-          "x": 265.39349365234375,
-          "y": 760
-        },
-        {
-          "x": 682,
-          "y": 760
-        },
-        {
-          "x": 682,
-          "y": 759.2
-        },
-        {
-          "x": 700,
-          "y": 759.2
-        }
-      ],
-      "bend": {
-        "x": 440,
-        "y": 760
-      }
-    },
-    {
-      "id": "pm7wq9k",
-      "type": "solid",
-      "from": {
-        "cid": "cxi7c5v",
-        "port": "outlet"
-      },
-      "to": {
-        "cid": "cky5j1k",
-        "port": "inlet"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 670.0568237304688,
-          "y": 673.9341278076172
-        },
-        {
-          "x": 688.0568237304688,
-          "y": 673.9341278076172
-        },
-        {
-          "x": 685.0284118652344,
-          "y": 673.9341278076172
-        },
-        {
-          "x": 685.0284118652344,
-          "y": 759.2
-        },
-        {
-          "x": 682,
-          "y": 759.2
-        },
-        {
-          "x": 700,
-          "y": 759.2
-        }
-      ]
-    },
-    {
-      "id": "pgevbfl",
-      "type": "gas",
-      "from": {
-        "cid": "cky5j1k",
-        "port": "flueGas"
-      },
-      "to": {
-        "cid": "c41zzyw",
-        "port": "in"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 738,
-          "y": 680
-        },
-        {
-          "x": 738,
-          "y": 662
-        },
-        {
-          "x": 738,
-          "y": 620
-        },
-        {
-          "x": 762,
-          "y": 620
-        },
-        {
-          "x": 762,
-          "y": 573.6821594238281
-        },
-        {
-          "x": 780,
-          "y": 573.6821594238281
-        }
-      ],
-      "bend": {
-        "x": 760,
-        "y": 620
-      }
     },
     {
       "id": "p79s3st",
@@ -863,280 +1116,11 @@
       },
       "label": "",
       "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 819.6124267578125,
-          "y": 573.6821594238281
-        },
-        {
-          "x": 837.6124267578125,
-          "y": 573.6821594238281
-        },
-        {
-          "x": 849.8062133789062,
-          "y": 573.6821594238281
-        },
-        {
-          "x": 849.8062133789062,
-          "y": 394
-        },
-        {
-          "x": 862,
-          "y": 394
-        },
-        {
-          "x": 880,
-          "y": 394
-        }
-      ]
-    },
-    {
-      "id": "pg7bhry",
-      "type": "solid",
-      "from": {
-        "cid": "cpa9whi",
-        "port": "outlet"
-      },
-      "to": {
-        "cid": "cpkytsa",
-        "port": "inlet"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 940,
-          "y": 520
-        },
-        {
-          "x": 940.38759765625,
-          "y": 560
-        }
-      ],
-      "straight": true
-    },
-    {
-      "id": "prfhzfb",
-      "type": "gas",
-      "from": {
-        "cid": "cpa9whi",
-        "port": "inlet"
-      },
-      "to": {
-        "cid": "c335rfh",
-        "port": "in"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 940,
-          "y": 340
-        },
-        {
-          "x": 940,
-          "y": 322
-        },
-        {
-          "x": 940,
-          "y": 320
-        },
-        {
-          "x": 833.861328125,
-          "y": 320
-        },
-        {
-          "x": 833.861328125,
-          "y": 320.5992034912109
-        },
-        {
-          "x": 815.861328125,
-          "y": 320.5992034912109
-        }
-      ],
-      "bend": {
-        "x": 840,
-        "y": 320
-      }
-    },
-    {
-      "id": "pgbphj7",
-      "type": "cool",
-      "from": {
-        "cid": "clbc8do",
-        "port": "slurryOut"
-      },
-      "to": {
-        "cid": "cti8zsk",
-        "port": "in"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1060,
-          "y": 297.28591871261597
-        },
-        {
-          "x": 1060,
-          "y": 315.28591871261597
-        },
-        {
-          "x": 1060,
-          "y": 315.7085575008392
-        },
-        {
-          "x": 1102,
-          "y": 315.7085575008392
-        },
-        {
-          "x": 1102,
-          "y": 316.1311962890625
-        },
-        {
-          "x": 1120,
-          "y": 316.1311962890625
-        }
-      ]
-    },
-    {
-      "id": "p4tq6sk",
-      "type": "cool",
-      "from": {
-        "cid": "cti8zsk",
-        "port": "out"
-      },
-      "to": {
-        "cid": "clbc8do",
-        "port": "sprayIn"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1157.9306640625,
-          "y": 280
-        },
-        {
-          "x": 1157.9306640625,
-          "y": 262
-        },
-        {
-          "x": 1157.9306640625,
-          "y": 100
-        },
-        {
-          "x": 1138,
-          "y": 100
-        },
-        {
-          "x": 1138,
-          "y": 101.07721236228943
-        },
-        {
-          "x": 1120,
-          "y": 101.07721236228943
-        }
-      ],
-      "bend": {
-        "x": 1140,
-        "y": 100
-      }
-    },
-    {
-      "id": "pxr9ykg",
-      "type": "gas",
-      "from": {
-        "cid": "c335rfh",
-        "port": "out"
-      },
-      "to": {
-        "cid": "clbc8do",
-        "port": "overflow"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 777.9306640625,
-          "y": 280
-        },
-        {
-          "x": 777.9306640625,
-          "y": 262
-        },
-        {
-          "x": 777.9306640625,
-          "y": 260
-        },
-        {
-          "x": 982,
-          "y": 260
-        },
-        {
-          "x": 982,
-          "y": 255.66589009284974
-        },
-        {
-          "x": 1000,
-          "y": 255.66589009284974
-        }
-      ],
-      "bend": {
-        "x": 980,
-        "y": 260
-      }
-    },
-    {
-      "id": "pdtzx5p",
-      "type": "solid",
-      "from": {
-        "cid": "clbc8do",
-        "port": "gasIn"
-      },
-      "to": {
-        "cid": "cqqfd5n",
-        "port": "right"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1000,
-          "y": 219.9915798473358
-        },
-        {
-          "x": 982,
-          "y": 219.9915798473358
-        },
-        {
-          "x": 921.3089904785156,
-          "y": 219.9915798473358
-        },
-        {
-          "x": 921.3089904785156,
-          "y": 220.54605865478516
-        },
-        {
-          "x": 860.6179809570312,
-          "y": 220.54605865478516
-        },
-        {
-          "x": 842.6179809570312,
-          "y": 220.54605865478516
-        }
-      ]
+      "labelPos": 0.5
     },
     {
       "id": "pamlvg0",
-      "type": "gas",
+      "type": "steam",
       "from": {
         "cid": "chqjt6v",
         "port": "out"
@@ -1147,82 +1131,11 @@
       },
       "label": "天然气",
       "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 316.6925354003906,
-          "y": 963.3591918945312
-        },
-        {
-          "x": 334.6925354003906,
-          "y": 963.3591918945312
-        },
-        {
-          "x": 448.3462677001953,
-          "y": 963.3591918945312
-        },
-        {
-          "x": 448.3462677001953,
-          "y": 962.3504028320312
-        },
-        {
-          "x": 562,
-          "y": 962.3504028320312
-        },
-        {
-          "x": 580,
-          "y": 962.3504028320312
-        }
-      ]
-    },
-    {
-      "id": "pj76rvv",
-      "type": "hot",
-      "from": {
-        "cid": "c4ndpuc",
-        "port": "out"
-      },
-      "to": {
-        "cid": "cky5j1k",
-        "port": "outlet"
-      },
-      "label": "热气",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 316.6925354003906,
-          "y": 863.3591918945312
-        },
-        {
-          "x": 334.6925354003906,
-          "y": 863.3591918945312
-        },
-        {
-          "x": 1100,
-          "y": 863.3591918945312
-        },
-        {
-          "x": 1100,
-          "y": 816.8
-        },
-        {
-          "x": 1098,
-          "y": 816.8
-        },
-        {
-          "x": 1080,
-          "y": 816.8
-        }
-      ],
-      "bend": {
-        "x": 1100,
-        "y": 860
-      }
+      "labelPos": 0.5
     },
     {
       "id": "p36lfwj",
-      "type": "gas",
+      "type": "steam",
       "from": {
         "cid": "cepvyg7",
         "port": "out"
@@ -1234,34 +1147,8 @@
       "label": "天然气",
       "width": 2.5,
       "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 664.008056640625,
-          "y": 962.3504028320312
-        },
-        {
-          "x": 682.008056640625,
-          "y": 962.3504028320312
-        },
-        {
-          "x": 1100,
-          "y": 962.3504028320312
-        },
-        {
-          "x": 1100,
-          "y": 816.8
-        },
-        {
-          "x": 1098,
-          "y": 816.8
-        },
-        {
-          "x": 1080,
-          "y": 816.8
-        }
-      ],
       "bend": {
-        "x": 1100,
+        "x": 1200,
         "y": 820
       }
     },
@@ -1278,33 +1165,7 @@
       },
       "label": "氧化锰",
       "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1080,
-          "y": 779
-        },
-        {
-          "x": 1098,
-          "y": 779
-        },
-        {
-          "x": 1110,
-          "y": 779
-        },
-        {
-          "x": 1110,
-          "y": 778.8613891601562
-        },
-        {
-          "x": 1122,
-          "y": 778.8613891601562
-        },
-        {
-          "x": 1140,
-          "y": 778.8613891601562
-        }
-      ]
+      "labelPos": 0.5
     },
     {
       "id": "pu17jwl",
@@ -1319,33 +1180,7 @@
       },
       "label": "",
       "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1410,
-          "y": 857.7227783203125
-        },
-        {
-          "x": 1410,
-          "y": 875.7227783203125
-        },
-        {
-          "x": 1410,
-          "y": 878.8613891601562
-        },
-        {
-          "x": 1409.232958984375,
-          "y": 878.8613891601562
-        },
-        {
-          "x": 1409.232958984375,
-          "y": 882
-        },
-        {
-          "x": 1409.232958984375,
-          "y": 900
-        }
-      ]
+      "labelPos": 0.5
     },
     {
       "id": "pgkglyf",
@@ -1361,39 +1196,140 @@
       "label": "",
       "width": 2.5,
       "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1170,
-          "y": 700
-        },
-        {
-          "x": 1170,
-          "y": 682
-        },
-        {
-          "x": 1170,
-          "y": 360
-        },
-        {
-          "x": 1296.2805786132812,
-          "y": 360
-        },
-        {
-          "x": 1296.2805786132812,
-          "y": 362
-        },
-        {
-          "x": 1296.2805786132812,
-          "y": 380
-        }
-      ],
       "bend": {
         "x": 1220,
         "y": 360
       }
     },
     {
-      "id": "p33vqz6",
+      "id": "p3xhayi",
+      "type": "cool",
+      "from": {
+        "cid": "cqxvh8j",
+        "port": "outlet"
+      },
+      "to": {
+        "cid": "cp0llhp",
+        "port": "in"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5
+    },
+    {
+      "id": "pzaf7y1",
+      "type": "cool",
+      "from": {
+        "cid": "cqxvh8j",
+        "port": "outlet"
+      },
+      "to": {
+        "cid": "cjeo19x",
+        "port": "in"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5
+    },
+    {
+      "id": "p64r835",
+      "type": "cool",
+      "from": {
+        "cid": "cjeo19x",
+        "port": "out"
+      },
+      "to": {
+        "cid": "c5tli5c",
+        "port": "outlet"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5
+    },
+    {
+      "id": "pfdns33",
+      "type": "cool",
+      "from": {
+        "cid": "cp0llhp",
+        "port": "out"
+      },
+      "to": {
+        "cid": "c5tli5c",
+        "port": "outlet"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5
+    },
+    {
+      "id": "p9wu343",
+      "type": "hot",
+      "from": {
+        "cid": "c8cg5i4",
+        "port": "out"
+      },
+      "to": {
+        "cid": "cky5j1k",
+        "port": "outlet"
+      },
+      "label": "热气",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "bend": {
+        "x": 1200,
+        "y": 820
+      },
+      "straight": false
+    },
+    {
+      "id": "p5pn9sa",
+      "type": "gas",
+      "from": {
+        "cid": "c4ndpuc",
+        "port": "out"
+      },
+      "to": {
+        "cid": "c8cg5i4",
+        "port": "out"
+      },
+      "label": "大气",
+      "width": 2.5,
+      "labelPos": 0.5
+    },
+    {
+      "id": "pm5xhr6",
+      "type": "gas",
+      "from": {
+        "cid": "c5tli5c",
+        "port": "inlet"
+      },
+      "to": {
+        "cid": "c20cki6",
+        "port": "in"
+      },
+      "label": "大气",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "straight": true
+    },
+    {
+      "id": "pl24xes",
+      "type": "gas",
+      "from": {
+        "cid": "c20cki6",
+        "port": "out"
+      },
+      "to": {
+        "cid": "c6gegab",
+        "port": "bottom"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "straight": true
+    },
+    {
+      "id": "pcj259y",
       "type": "cool",
       "from": {
         "cid": "cqxvh8j",
@@ -1405,40 +1341,10 @@
       },
       "label": "",
       "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1392.5611572265625,
-          "y": 428
-        },
-        {
-          "x": 1410.5611572265625,
-          "y": 428
-        },
-        {
-          "x": 1420,
-          "y": 428
-        },
-        {
-          "x": 1420,
-          "y": 414.8712921142578
-        },
-        {
-          "x": 1442,
-          "y": 414.8712921142578
-        },
-        {
-          "x": 1460,
-          "y": 414.8712921142578
-        }
-      ],
-      "bend": {
-        "x": 1420,
-        "y": 420
-      }
+      "labelPos": 0.5
     },
     {
-      "id": "p9qftun",
+      "id": "peu8005",
       "type": "cool",
       "from": {
         "cid": "cqxvh8j",
@@ -1451,39 +1357,10 @@
       "label": "",
       "width": 2.5,
       "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1392.5611572265625,
-          "y": 428
-        },
-        {
-          "x": 1410.5611572265625,
-          "y": 428
-        },
-        {
-          "x": 1420,
-          "y": 428
-        },
-        {
-          "x": 1420,
-          "y": 454.8712921142578
-        },
-        {
-          "x": 1442,
-          "y": 454.8712921142578
-        },
-        {
-          "x": 1460,
-          "y": 454.8712921142578
-        }
-      ],
-      "bend": {
-        "x": 1420,
-        "y": 460
-      }
+      "straight": false
     },
     {
-      "id": "pyw4kkt",
+      "id": "p2ou0h3",
       "type": "cool",
       "from": {
         "cid": "cva5r78",
@@ -1496,249 +1373,319 @@
       "label": "",
       "width": 2.5,
       "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1506.450439453125,
-          "y": 414.8712921142578
-        },
-        {
-          "x": 1524.450439453125,
-          "y": 414.8712921142578
-        },
-        {
-          "x": 1580,
-          "y": 414.8712921142578
-        },
-        {
-          "x": 1580,
-          "y": 362
-        },
-        {
-          "x": 1296.2805786132812,
-          "y": 362
-        },
-        {
-          "x": 1296.2805786132812,
-          "y": 380
-        }
-      ],
       "bend": {
-        "x": 1580,
-        "y": 340
-      }
-    },
-    {
-      "id": "pu003ij",
-      "type": "cool",
-      "from": {
-        "cid": "cs6c3nk",
-        "port": "out"
-      },
-      "to": {
-        "cid": "cqxvh8j",
-        "port": "inlet"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1506.450439453125,
-          "y": 454.8712921142578
-        },
-        {
-          "x": 1524.450439453125,
-          "y": 454.8712921142578
-        },
-        {
-          "x": 1580,
-          "y": 454.8712921142578
-        },
-        {
-          "x": 1580,
-          "y": 362
-        },
-        {
-          "x": 1296.2805786132812,
-          "y": 362
-        },
-        {
-          "x": 1296.2805786132812,
-          "y": 380
-        }
-      ],
-      "bend": {
-        "x": 1580,
+        "x": 1640,
         "y": 360
       }
     },
     {
-      "id": "p2x1sez",
+      "id": "poltrvu",
       "type": "cool",
       "from": {
-        "cid": "c5tli5c",
+        "cid": "cs6c3nk",
+        "port": "out"
+      },
+      "to": {
+        "cid": "cqxvh8j",
+        "port": "inlet"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "bend": {
+        "x": 1640,
+        "y": 360
+      }
+    },
+    {
+      "id": "pafb5nl",
+      "type": "solid",
+      "from": {
+        "cid": "cdwj84q",
         "port": "outlet"
       },
       "to": {
-        "cid": "cp0llhp",
+        "cid": "cy12028",
+        "port": "left"
+      },
+      "label": "锰粉",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "bend": {
+        "x": 400,
+        "y": 760
+      }
+    },
+    {
+      "id": "pj76q3w",
+      "type": "solid",
+      "from": {
+        "cid": "c9i9h7o",
+        "port": "bottom"
+      },
+      "to": {
+        "cid": "c4ta3ez",
+        "port": "inlet"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "straight": true
+    },
+    {
+      "id": "p9wl7k1",
+      "type": "solid",
+      "from": {
+        "cid": "cpa9whi",
+        "port": "outlet"
+      },
+      "to": {
+        "cid": "c9ws6dk",
+        "port": "inlet"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "straight": true
+    },
+    {
+      "id": "ph46oay",
+      "type": "solid",
+      "from": {
+        "cid": "c42cvsh",
+        "port": "outlet"
+      },
+      "to": {
+        "cid": "c9i9h7o",
+        "port": "top"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "straight": true
+    },
+    {
+      "id": "p3gnrjz",
+      "type": "solid",
+      "from": {
+        "cid": "c7zsvak",
+        "port": "outlet"
+      },
+      "to": {
+        "cid": "c7wraui",
+        "port": "top"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "straight": true
+    },
+    {
+      "id": "pci4jaf",
+      "type": "solid",
+      "from": {
+        "cid": "c2h1sjg",
+        "port": "outletA"
+      },
+      "to": {
+        "cid": "c7zsvak",
+        "port": "left"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "straight": true
+    },
+    {
+      "id": "p6nj081",
+      "type": "solid",
+      "from": {
+        "cid": "c2h1sjg",
+        "port": "outletB"
+      },
+      "to": {
+        "cid": "c42cvsh",
+        "port": "left"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "straight": true
+    },
+    {
+      "id": "pzfmucu",
+      "type": "solid",
+      "from": {
+        "cid": "cy12028",
+        "port": "right"
+      },
+      "to": {
+        "cid": "cky5j1k",
+        "port": "inlet"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "straight": true
+    },
+    {
+      "id": "pnapq2r",
+      "type": "solid",
+      "from": {
+        "cid": "c4ta3ez",
+        "port": "outlet"
+      },
+      "to": {
+        "cid": "c0nqg5k",
+        "port": "left"
+      },
+      "label": "锰粉",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "straight": true
+    },
+    {
+      "id": "pzpu33z",
+      "type": "solid",
+      "from": {
+        "cid": "cnso1vn",
+        "port": "outlet"
+      },
+      "to": {
+        "cid": "c0nqg5k",
+        "port": "inlet"
+      },
+      "label": "煤粉",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "straight": true
+    },
+    {
+      "id": "p2w38si",
+      "type": "solid",
+      "from": {
+        "cid": "c0nqg5k",
+        "port": "outlet"
+      },
+      "to": {
+        "cid": "cy12028",
+        "port": "inlet"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "bend": {
+        "x": 280,
+        "y": 720
+      }
+    },
+    {
+      "id": "p54enyy",
+      "type": "gas",
+      "from": {
+        "cid": "cpa9whi",
+        "port": "inlet"
+      },
+      "to": {
+        "cid": "c335rfh",
         "port": "in"
       },
       "label": "",
       "width": 2.5,
       "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1440,
-          "y": 778.8613891601562
-        },
-        {
-          "x": 1458,
-          "y": 778.8613891601562
-        },
-        {
-          "x": 1500,
-          "y": 778.8613891601562
-        },
-        {
-          "x": 1500,
-          "y": 676.0965118408203
-        },
-        {
-          "x": 1463.2252197265625,
-          "y": 676.0965118408203
-        },
-        {
-          "x": 1463.2252197265625,
-          "y": 658.0965118408203
-        }
-      ],
       "bend": {
-        "x": 1500,
+        "x": 880,
+        "y": 400
+      }
+    },
+    {
+      "id": "pgjhb53",
+      "type": "gas",
+      "from": {
+        "cid": "c335rfh",
+        "port": "out"
+      },
+      "to": {
+        "cid": "clbc8do",
+        "port": "overflow"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "straight": true
+    },
+    {
+      "id": "p638sew",
+      "type": "solid",
+      "from": {
+        "cid": "clbc8do",
+        "port": "gasIn"
+      },
+      "to": {
+        "cid": "cqqfd5n",
+        "port": "bottom"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5
+    },
+    {
+      "id": "p2t6r6b",
+      "type": "gas",
+      "from": {
+        "cid": "cky5j1k",
+        "port": "flueGas"
+      },
+      "to": {
+        "cid": "c41zzyw",
+        "port": "in"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "bend": {
+        "x": 560,
+        "y": 480
+      },
+      "straight": true
+    },
+    {
+      "id": "py2ekua",
+      "type": "cool",
+      "from": {
+        "cid": "clbc8do",
+        "port": "slurryOut"
+      },
+      "to": {
+        "cid": "cti8zsk",
+        "port": "in"
+      },
+      "label": "",
+      "width": 2.5,
+      "labelPos": 0.5,
+      "bend": {
+        "x": 1100,
         "y": 680
       }
     },
     {
-      "id": "p05w7jb",
-      "type": "gas",
-      "from": {
-        "cid": "c5tli5c",
-        "port": "outlet"
-      },
-      "to": {
-        "cid": "cjeo19x",
-        "port": "in"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1440,
-          "y": 778.8613891601562
-        },
-        {
-          "x": 1458,
-          "y": 778.8613891601562
-        },
-        {
-          "x": 1500.6126098632812,
-          "y": 778.8613891601562
-        },
-        {
-          "x": 1500.6126098632812,
-          "y": 676.0965118408203
-        },
-        {
-          "x": 1543.2252197265625,
-          "y": 676.0965118408203
-        },
-        {
-          "x": 1543.2252197265625,
-          "y": 658.0965118408203
-        }
-      ]
-    },
-    {
-      "id": "p5qpd4q",
+      "id": "pitd73e",
       "type": "cool",
       "from": {
-        "cid": "cp0llhp",
+        "cid": "cti8zsk",
         "port": "out"
       },
       "to": {
-        "cid": "cqxvh8j",
-        "port": "outlet"
+        "cid": "clbc8do",
+        "port": "sprayIn"
       },
       "label": "",
       "width": 2.5,
       "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1463.2252197265625,
-          "y": 611.6460723876953
-        },
-        {
-          "x": 1463.2252197265625,
-          "y": 593.6460723876953
-        },
-        {
-          "x": 1463.2252197265625,
-          "y": 555.8230361938477
-        },
-        {
-          "x": 1296.2805786132812,
-          "y": 555.8230361938477
-        },
-        {
-          "x": 1296.2805786132812,
-          "y": 518
-        },
-        {
-          "x": 1296.2805786132812,
-          "y": 500
-        }
-      ]
-    },
-    {
-      "id": "pzp4x7w",
-      "type": "cool",
-      "from": {
-        "cid": "cjeo19x",
-        "port": "out"
-      },
-      "to": {
-        "cid": "cqxvh8j",
-        "port": "outlet"
-      },
-      "label": "",
-      "width": 2.5,
-      "labelPos": 0.5,
-      "_pts": [
-        {
-          "x": 1543.2252197265625,
-          "y": 611.6460723876953
-        },
-        {
-          "x": 1543.2252197265625,
-          "y": 593.6460723876953
-        },
-        {
-          "x": 1543.2252197265625,
-          "y": 555.8230361938477
-        },
-        {
-          "x": 1296.2805786132812,
-          "y": 555.8230361938477
-        },
-        {
-          "x": 1296.2805786132812,
-          "y": 518
-        },
-        {
-          "x": 1296.2805786132812,
-          "y": 500
-        }
-      ]
+      "bend": {
+        "x": 1100,
+        "y": 480
+      }
     }
   ]
 }
