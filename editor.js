@@ -662,10 +662,12 @@ function leadTargetDesc(comp){
   if(lead.targetType==='pipe') return '管道 · '+lead.pipeId;
   return '自由点 · ('+Math.round(lead.x)+', '+Math.round(lead.y)+')';
 }
-// 监控器数值格式化：四舍五入保留最多 2 位小数（869.71234 → 869.71，12 → 12）
-function fmtMonVal(v){
+// 监控器数值格式化：默认四舍五入保留最多 2 位小数（869.71234 → 869.71，12 → 12）
+// asInt=true 时取整（温度类测点：899.76 → 900）
+function fmtMonVal(v, asInt){
   const n = Number(v);
-  return isNaN(n) ? String(v) : String(Math.round(n*100)/100);
+  if(isNaN(n)) return String(v);
+  return asInt ? String(Math.round(n)) : String(Math.round(n*100)/100);
 }
 // 开关量类型识别（与 isDiscreteSeries 口径保持一致）：用于把 0/1 显示为"关/开"
 function isDiscreteSensorType(type){
@@ -675,14 +677,18 @@ function isDiscreteSensorType(type){
   if(/(DIGITAL|DISCRETE|SWITCH|BIT|FLAG|ONOFF)/.test(t)) return true;
   return false;
 }
-// 按类型格式化监控器数值：开关量 → "开"/"关"，其他 → fmtMonVal
+// 温度类型识别：温度类测点显示整数（如 899.76 → 900），其余类型保留 2 位小数
+function isTempSensorType(type){
+  return !!type && String(type).indexOf('温度') >= 0;
+}
+// 按类型格式化监控器数值：开关量 → "开"/"关"，温度 → 整数，其他 → fmtMonVal（最多2位小数）
 function fmtMonValByType(v, type){
   if(isDiscreteSensorType(type)){
     const n = Number(v);
     if(isNaN(n)) return '--';
     return n >= 0.5 ? '开' : '关';
   }
-  return fmtMonVal(v);
+  return fmtMonVal(v, isTempSensorType(type));
 }
 // 刷新画布上所有监控器的实时数值/单位（每监控项一行，开关量 → "开/关"且不显示单位）
 function refreshMonitorValues(){

@@ -509,10 +509,10 @@
   }
 
   function fmt(v, type){
-    // 与编辑器属性面板/监控器口径一致：最多保留2位小数，不做整数化（避免与数据库数值对不上）
+    // 与编辑器属性面板/监控器口径一致：温度 → 整数，其他最多保留2位小数（避免与数据库数值对不上）
     if(v==null || isNaN(v)) return '—';
-    // 开关量类型 → "开"/"关"，普通量走原有 fmtMonVal
-    if(type && typeof isDiscreteSensorType==='function' && isDiscreteSensorType(type)) return fmtMonValByType(v, type);
+    // 开关量 → "开"/"关"；温度 → 整数；普通量 → fmtMonVal（最多2位小数）
+    if(type && typeof fmtMonValByType==='function') return fmtMonValByType(v, type);
     return typeof fmtMonVal==='function' ? fmtMonVal(v) : String(Math.round(Number(v)*100)/100);
   }
 
@@ -534,7 +534,9 @@
   try{
     const qp = new URLSearchParams(location.search).get('doc');
     if(qp){                       // 优先使用 ?doc= 传入的项目（URI 编码 JSON）
-      doc = JSON.parse(decodeURIComponent(qp));
+      // URLSearchParams.get() 已完成一次解码，此处直接解析
+      // （再解一次会在文档含字面量 '%' 时抛出 URI malformed，如阀位单位 '%'）
+      doc = JSON.parse(qp);
     } else {
       const s = localStorage.getItem('pfd_doc');
       if(s) doc = JSON.parse(s);
@@ -938,7 +940,7 @@
     let html = '';
     sensors.forEach(s=>{
       const live = adapter.getSensorLive(s);
-      const valStr = live.noData ? '<span style="color:#888">—</span>' : fmt(live.value);
+      const valStr = live.noData ? '<span style="color:#888">—</span>' : fmt(live.value, s.type);
       html += `<div class="hp-row"><span class="k">${esc(s.label)}</span><span><span class="v">${valStr}</span><span class="u">${esc(s.unit||'')}</span></span></div>`;
     });
     box.innerHTML = html;
@@ -1010,7 +1012,7 @@
         let html = '';
         sensors.forEach(s=>{
           const live = adapter.getSensorLive(s);
-          const valStr = live.noData ? '<span style="color:#888">—</span>' : fmt(live.value);
+          const valStr = live.noData ? '<span style="color:#888">—</span>' : fmt(live.value, s.type);
           html += `<div class="dp-sensor" data-key="${esc(s.key)}">
             <span class="sdot"></span><span class="sname">${esc(s.label)}</span>
             <span class="sval">${valStr}</span><span class="sun">${esc(s.unit||'')}</span>
@@ -1051,7 +1053,7 @@
     rows.forEach((row,i)=>{
       if(sensors[i]){
         const live = adapter.getSensorLive(sensors[i]);
-        row.querySelector('.sval').textContent = live.noData ? '—' : fmt(live.value);
+        row.querySelector('.sval').textContent = live.noData ? '—' : fmt(live.value, sensors[i].type);
       }
     });
     // 刷新图表当前值
