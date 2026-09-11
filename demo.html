@@ -1921,6 +1921,7 @@ const TEMPLATES = {
       const hopperBotY = h*0.85;
       const outletY = h - edgePad - 6;
       const inletW = w*0.25;
+      const outletW = w*0.16;   // 底部出料口宽度（比进气口窄，灰斗收口更尖）
       const bodyW = w*0.85;
       const wallT = w*0.05;
 
@@ -1999,13 +2000,13 @@ const TEMPLATES = {
       const hopperLeft = bodyLeft + bodyW*0.1;
       const hopperRight = bodyRight - bodyW*0.1;
       const hopper = `
-        <polygon points="${hopperLeft-wallT},${hopperTopY} ${hopperRight+wallT},${hopperTopY} ${cx-inletW/2},${hopperBotY} ${cx+inletW/2},${hopperBotY}" fill="#0d0b20" stroke="${c}" stroke-width="1.5"/>
-        <polygon points="${hopperLeft},${hopperTopY} ${hopperRight},${hopperTopY} ${cx-inletW/2+2},${hopperBotY-2} ${cx+inletW/2-2},${hopperBotY-2}" fill="url(#gEquip)" stroke="${c}" stroke-width="1.2"/>
-        <polygon points="${hopperLeft+3},${hopperTopY+2} ${hopperRight-3},${hopperTopY+2} ${cx-inletW/2+4},${hopperBotY-4} ${cx+inletW/2-4},${hopperBotY-4}" fill="#0a0818" opacity="0.4"/>`;
+        <polygon points="${hopperLeft-wallT},${hopperTopY} ${hopperRight+wallT},${hopperTopY} ${cx-outletW/2},${hopperBotY} ${cx+outletW/2},${hopperBotY}" fill="#0d0b20" stroke="${c}" stroke-width="1.5"/>
+        <polygon points="${hopperLeft},${hopperTopY} ${hopperRight},${hopperTopY} ${cx-outletW/2+2},${hopperBotY-2} ${cx+outletW/2-2},${hopperBotY-2}" fill="url(#gEquip)" stroke="${c}" stroke-width="1.2"/>
+        <polygon points="${hopperLeft+3},${hopperTopY+2} ${hopperRight-3},${hopperTopY+2} ${cx-outletW/2+4},${hopperBotY-4} ${cx+outletW/2-4},${hopperBotY-4}" fill="#0a0818" opacity="0.4"/>`;
 
       // 星型卸料阀
       const starH = h*0.05;
-      const starW = inletW * 1.2;
+      const starW = outletW * 1.2;
       const starY = outletY - starH;
       const starValve = `
         <rect x="${cx-starW/2}" y="${starY}" width="${starW}" height="${starH}" rx="2" fill="url(#gEquip)" stroke="${c}" stroke-width="1"/>
@@ -2020,10 +2021,10 @@ const TEMPLATES = {
 
       // 出料口法兰
       const outletFlange = `
-        <rect x="${cx-inletW/2-wallT}" y="${starY}" width="${inletW+wallT*2}" height="4" rx="1" fill="#0d0b20" stroke="${c}" stroke-width="0.8"/>
-        <rect x="${cx-inletW/2}" y="${outletY}" width="${inletW}" height="${h-outletY-edgePad}" fill="url(#gEquip)" stroke="${c}" stroke-width="1"/>
-        ${bolt(cx-inletW/2+3, starY+2)}
-        ${bolt(cx+inletW/2-3, starY+2)}`;
+        <rect x="${cx-outletW/2-wallT}" y="${starY}" width="${outletW+wallT*2}" height="4" rx="1" fill="#0d0b20" stroke="${c}" stroke-width="0.8"/>
+        <rect x="${cx-outletW/2}" y="${outletY}" width="${outletW}" height="${h-outletY-edgePad}" fill="url(#gEquip)" stroke="${c}" stroke-width="1"/>
+        ${bolt(cx-outletW/2+3, starY+2)}
+        ${bolt(cx+outletW/2-3, starY+2)}`;
 
       // 净化气出口
       const cleanPortY = bodyTopY + (bodyBotY-bodyTopY)*0.3;
@@ -2050,7 +2051,7 @@ const TEMPLATES = {
           } else {
             const hopperT = (t-0.55)/0.45;
             y = bodyBotY-8 + (hopperBotY-6 - (bodyBotY-8))*hopperT;
-            const currentHopperHalfW = (hopperRight - hopperLeft)/2 - ((hopperRight - hopperLeft)/2 - inletW/2 + 2)*hopperT;
+            const currentHopperHalfW = (hopperRight - hopperLeft)/2 - ((hopperRight - hopperLeft)/2 - outletW/2 + 2)*hopperT;
             const relX = (startX - cx)/((bodyW-20)/2);
             x = cx + relX*currentHopperHalfW*0.85 + Math.sin(hopperT*Math.PI*3 + i)*2;
             op = hopperT > 0.85 ? (1-hopperT)/0.15*0.6 : 0.6;
@@ -2088,7 +2089,7 @@ const TEMPLATES = {
       // clipPath：主体矩形 + 漏斗区域
       const clipDef = `<clipPath id="${clipId}">
         <rect x="${bodyLeft+1}" y="${bodyTopY+1}" width="${bodyW-2}" height="${bodyBotY-bodyTopY-2}"/>
-        <polygon points="${hopperLeft+1},${hopperTopY} ${hopperRight-1},${hopperTopY} ${cx+inletW/2-3},${hopperBotY-3} ${cx-inletW/2+3},${hopperBotY-3}"/>
+        <polygon points="${hopperLeft+1},${hopperTopY} ${hopperRight-1},${hopperTopY} ${cx+outletW/2-3},${hopperBotY-3} ${cx-outletW/2+3},${hopperBotY-3}"/>
       </clipPath>`;
 
       return `
@@ -2097,10 +2098,10 @@ const TEMPLATES = {
         ${pulse}
         <!-- 1. 设备后壁 -->
         <rect x="${bodyLeft-wallT}" y="${bodyTopY}" width="${bodyW+wallT*2}" height="${bodyBotY-bodyTopY}" fill="#0d0b20" stroke="${c}" stroke-width="1.5"/>
-        <polygon points="${hopperLeft-wallT},${hopperTopY} ${hopperRight+wallT},${hopperTopY} ${cx-inletW/2},${hopperBotY} ${cx+inletW/2},${hopperBotY}" fill="#0d0b20" stroke="${c}" stroke-width="1.5"/>
+        <polygon points="${hopperLeft-wallT},${hopperTopY} ${hopperRight+wallT},${hopperTopY} ${cx-outletW/2},${hopperBotY} ${cx+outletW/2},${hopperBotY}" fill="#0d0b20" stroke="${c}" stroke-width="1.5"/>
         <!-- 2. 设备主体金属填充 -->
         <rect x="${bodyLeft}" y="${bodyTopY}" width="${bodyW}" height="${bodyBotY-bodyTopY}" fill="url(#gEquip)" stroke="${c}" stroke-width="1.5"/>
-        <polygon points="${hopperLeft},${hopperTopY} ${hopperRight},${hopperTopY} ${cx-inletW/2+2},${hopperBotY-2} ${cx+inletW/2-2},${hopperBotY-2}" fill="url(#gEquip)" stroke="${c}" stroke-width="1.2"/>
+        <polygon points="${hopperLeft},${hopperTopY} ${hopperRight},${hopperTopY} ${cx-outletW/2+2},${hopperBotY-2} ${cx+outletW/2-2},${hopperBotY-2}" fill="url(#gEquip)" stroke="${c}" stroke-width="1.2"/>
         <!-- 3. 内部深色层（覆盖主体+漏斗） -->
         <g clip-path="url(#${clipId})">
           <rect x="${bodyLeft+3}" y="${bodyTopY+3}" width="${bodyW-6}" height="${(hopperBotY-bodyTopY)-6}" fill="#0a0818" opacity="0.55"/>
