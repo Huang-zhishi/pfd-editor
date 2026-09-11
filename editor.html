@@ -215,6 +215,19 @@
   .sm-add:hover{color:var(--cyan);border-color:var(--cyan)}
   .sm-add:disabled{opacity:.4;cursor:not-allowed}
   .modal-f .ghost{background:var(--panel2);border-color:var(--line2);color:var(--text2)}
+  /* ===== 项目库面板 ===== */
+  .pj-save{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line)}
+  .pj-save input{flex:1;height:30px;background:var(--bg);border:1px solid var(--line2);border-radius:5px;color:var(--text);padding:0 10px;font-size:12px;outline:none}
+  .pj-save input:focus{border-color:var(--purple)}
+  .pj-row{display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;font-size:12px}
+  .pj-row:hover{border-color:var(--line3)}
+  .pj-row.active{border-color:var(--cyan);background:#00E5FF0d}
+  .pj-name{flex:1;color:var(--cyan);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+  .pj-meta{color:var(--text4);font-size:11px;white-space:nowrap}
+  .pj-act{height:24px;padding:0 10px;background:var(--panel2);border:1px solid var(--line2);color:var(--text2);border-radius:4px;font-size:11px;cursor:pointer}
+  .pj-act:hover{color:var(--cyan);border-color:var(--cyan)}
+  .pj-act.del:hover{color:var(--red);border-color:var(--red)}
+  .pj-dir{font-size:11px;color:var(--text4);padding:8px 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body data-page-node-id="YZStSbDBX3ukiC95ZmZ4Il">
@@ -354,6 +367,33 @@
     <div class="modal-f" data-page-node-id="uvWaHIkRqv9cSFE2kOww26">
       <button class="ghost" id="modalCancel" data-page-node-id="glmSRjq1vW0ep79fRnQdNB">取消</button>
       <button class="primary" id="modalOk" data-page-node-id="J0fKXyBdzidbkc8O8gHYix">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 项目库（服务端默认目录，可视化保存/加载） -->
+<div class="modal-bg" id="projModal">
+  <div class="modal modal-lg">
+    <div class="modal-h">
+      <span class="mt">项目库</span>
+      <div class="sm-tools">
+        <button class="sm-btn" id="projRefresh" title="刷新列表">⟳</button>
+        <span class="mc" id="projClose">×</span>
+      </div>
+    </div>
+    <div class="pj-save">
+      <input id="projName" placeholder="项目名称（保存为 .json）">
+      <button class="sm-add" id="projSaveAs">保存到项目库</button>
+    </div>
+    <div class="modal-b" style="padding-top:0">
+      <div class="pj-dir" id="projDir">目录：—</div>
+      <div class="sm-list" id="projList"></div>
+    </div>
+    <div class="modal-f">
+      <span class="sm-hint" id="projHint"></span>
+      <button class="ghost" id="projOpenLocal">从本地文件打开…</button>
+      <button class="ghost" id="projSaveLocal">另存为本地文件…</button>
+      <button class="primary" id="projDone">关闭</button>
     </div>
   </div>
 </div>

@@ -2248,8 +2248,8 @@ function updateStatus(){
  * ============================================================ */
 if(_isEditor){
 $('btnTemplate').onclick = ()=>{ loadTemplate(); };
-$('btnSave').onclick = saveProject;
-$('btnLoad').onclick = loadProject;
+$('btnSave').onclick = saveProject;            // 项目库：已入库原地覆盖，未入库则打开面板命名
+$('btnLoad').onclick = openProjectPanel;       // 项目库：可视化列表中选择加载
 $('btnExportJson').onclick = ()=>{ openModal('导出 JSON', JSON.stringify(doc,null,2), txt=>{ navigator.clipboard?.writeText(txt); flash('已复制到剪贴板'); }); };
 $('btnImport').onclick = ()=>{ openModal('导入 JSON', '', txt=>{ try{ doc=JSON.parse(txt); selClear(); pushHistory(); renderAll(); renderProps(); setDirty(); flash('已导入'); }catch(e){ alert('JSON 解析失败: '+e.message); } }); };
 $('btnPNG').onclick = exportPNG;
@@ -2266,6 +2266,15 @@ $('smAddSel').onclick = smAddToDevice;
 $('smSearch').oninput = e=>{ _smFilter = e.target.value; renderSensorList(); };
 $('smSearch').onkeydown = e=>{ if(e.key==='Enter') renderSensorList(); };
 $('sensorModal').addEventListener('mousedown', e=>{ if(e.target===e.currentTarget) closeSensorPanel(); });
+// 项目库面板
+$('projClose').onclick = closeProjectPanel;
+$('projDone').onclick = closeProjectPanel;
+$('projRefresh').onclick = refreshProjectList;
+$('projSaveAs').onclick = ()=> saveToLibrary($('projName').value);
+$('projName').onkeydown = e=>{ if(e.key==='Enter') saveToLibrary($('projName').value); };
+$('projOpenLocal').onclick = loadProjectFromLocalFile;
+$('projSaveLocal').onclick = saveProjectToLocalFile;
+$('projModal').addEventListener('mousedown', e=>{ if(e.target===e.currentTarget) closeProjectPanel(); });
 $('btnSnap').onclick = ()=>{ snap=!snap; $('btnSnap').classList.toggle('active',snap); };
 $('btnClear').onclick = ()=>{
   confirmDialog('确定清空所有组件和管道？<br>此操作可通过 撤销(Ctrl+Z) 恢复。', ()=>{
@@ -2327,12 +2336,14 @@ window.addEventListener('keyup', e=>{ if(e.code==='Space'){ spaceDown=false; svg
 } // _isEditor toolbar+keyboard
 
 /* ============================================================
- * 21. 项目保存 / 加载
- *     支持 File System Access API 保存到用户指定的磁盘位置，
- *     并提供下载/上传回退方案；含错误处理与视觉反馈。
+ * 21. 项目保存 / 加载（本地文件通道）
+ *     优先 File System Access API 保存到用户指定的磁盘位置，并提供
+ *     下载/上传回退。作为项目库面板（见 21b）的次要入口保留了"另存到
+ *     任意位置"的能力。
  * ============================================================ */
 let _lastFileHandle = null;   // 最近一次保存的文件句柄（用于增量保存）
 let _lastFileName = 'pfd_doc.json';
+let _currentProjectFile = null;   // 当前项目在项目库中的文件名（null = 尚未入库）
 
 // 保存状态栏信息
 function updateFileInfo(name, ts){
@@ -2388,8 +2399,9 @@ function applyProjectData(data){
   setTimeout(zoomFit, 50);
 }
 
-// 保存项目到用户指定位置
-async function saveProject(){
+// 另存为本地文件（File System Access API，回退为下载）
+// 项目库面板内的次要入口，保留"存到磁盘任意位置"的原有能力
+async function saveProjectToLocalFile(){
   try{
     const data = buildProjectData();
     const json = JSON.stringify(data, null, 2);
@@ -2453,8 +2465,9 @@ function sanitizeFileName(name){
   return String(name).replace(/[\\/:*?"<>|]/g, '_').trim() || 'pfd_doc.json';
 }
 
-// 加载项目文件
-async function loadProject(){
+// 从本地文件打开（File System Access API，回退为 <input type=file>）
+// 项目库面板内的次要入口
+async function loadProjectFromLocalFile(){
   try{
     let file = null, fileName = '';
     // 优先使用 File System Access API 选择文件
@@ -2523,13 +2536,154 @@ function restoreFromText(text, fileName){
     } else {
       throw new Error('文件内容不是有效的项目数据');
     }
+    _currentProjectFile = null;   // 来源未知（本地文件/导入），与项目库解除关联
     _lastFileName = fileName || '导入的项目';
     updateFileInfo(_lastFileName, Date.now());
     flash('已加载：' + _lastFileName);
+    return true;
   }catch(err){
     console.error('加载失败', err);
     alert('加载失败：' + (err && err.message ? err.message : '未知错误'));
+    return false;
   }
+}
+
+/* ============================================================
+ * 21b. 项目库（服务端默认目录，可视化保存/加载）
+ *     读写走 server.js 的 /pfd-api/projects 接口，默认目录由服务端
+ *     PROJECT_DIR 决定（默认 <项目根>/projects）。已入库项目直接原地
+ *     覆盖保存；本地文件对话框降为面板内的次要入口。
+ * ============================================================ */
+const PROJ_API = 'pfd-api/projects';
+
+// 规范化项目文件名：清洗非法字符并补全 .json 后缀
+function projFileName(raw){
+  const base = sanitizeFileName(String(raw || '').trim());
+  return /\.json$/i.test(base) ? base : base + '.json';
+}
+
+function openProjectPanel(){
+  const m = $('projModal'); if(!m) return;
+  const nameInput = $('projName');
+  if(nameInput && !nameInput.value){
+    nameInput.value = projFileName((doc.meta && doc.meta.title) || '工艺流程');
+  }
+  m.classList.add('show');
+  refreshProjectList();
+  // 尚未入库时聚焦命名框，一步完成「保存为」
+  if(!_currentProjectFile && nameInput){ nameInput.focus(); nameInput.select(); }
+}
+function closeProjectPanel(){ const m = $('projModal'); if(m) m.classList.remove('show'); }
+
+function fmtFileSize(n){
+  if(n < 1024) return n + ' B';
+  if(n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+  return (n/1024/1024).toFixed(2) + ' MB';
+}
+function fmtFileTime(ms){
+  const d = new Date(ms), p = v => String(v).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+async function refreshProjectList(){
+  const list = $('projList'); if(!list) return;
+  list.innerHTML = '<div class="sm-empty">读取中…</div>';
+  try{
+    const r = await fetch(PROJ_API);
+    const j = await r.json();
+    if(!j || !j.success) throw new Error((j && j.error) || '接口返回异常');
+    const dirEl = $('projDir');
+    if(dirEl){ dirEl.textContent = '目录：' + j.dir; dirEl.title = j.dir; }
+    const hint = $('projHint'); if(hint) hint.textContent = `共 ${j.files.length} 个项目`;
+    renderProjectRows(j.files);
+  }catch(e){
+    list.innerHTML = '<div class="sm-empty">无法读取项目库<br>请确认通过 node server.js 启动（而非直接打开 HTML 文件）</div>';
+    const hint = $('projHint'); if(hint) hint.textContent = '';
+  }
+}
+
+function renderProjectRows(files){
+  const list = $('projList'); if(!list) return;
+  if(!files.length){
+    list.innerHTML = '<div class="sm-empty">项目库为空<br>在上方输入名称后点击「保存到项目库」</div>';
+    return;
+  }
+  list.innerHTML = '';
+  files.forEach(f=>{
+    const row = document.createElement('div');
+    row.className = 'pj-row' + (f.name === _currentProjectFile ? ' active' : '');
+    row.innerHTML = `<span class="pj-name" title="${esc(f.name)}">${esc(f.name)}</span>
+      <span class="pj-meta">${fmtFileSize(f.size)}</span>
+      <span class="pj-meta">${fmtFileTime(f.mtime)}</span>
+      <button class="pj-act load">加载</button>
+      <button class="pj-act del">删除</button>`;
+    row.querySelector('.pj-name').onclick = ()=> loadFromLibrary(f.name);
+    row.querySelector('.load').onclick = ()=> loadFromLibrary(f.name);
+    row.querySelector('.del').onclick = ()=>{
+      confirmDialog(`确定删除项目「${esc(f.name)}」？<br>该文件将从服务器磁盘移除，且不可撤销。`, ()=> deleteFromLibrary(f.name));
+    };
+    list.appendChild(row);
+  });
+}
+
+// 保存到项目库（同名覆盖）
+async function saveToLibrary(name){
+  const target = projFileName(name);
+  const data = buildProjectData();
+  const json = JSON.stringify(data, null, 2);
+  try{
+    const r = await fetch(PROJ_API + '/' + encodeURIComponent(target), {
+      method:'POST', headers:{ 'Content-Type':'application/json' }, body: json
+    });
+    const j = await r.json();
+    if(!j || !j.success) throw new Error((j && j.error) || '保存失败');
+    _currentProjectFile = target;
+    setDirty(false);
+    updateFileInfo(target, Date.now());
+    flash('已保存到项目库：' + target);
+    const nameInput = $('projName'); if(nameInput) nameInput.value = target;
+    refreshProjectList();
+  }catch(e){
+    console.error('保存失败', e);
+    alert('保存到项目库失败：' + (e && e.message ? e.message : '未知错误'));
+  }
+}
+
+// 从项目库读取并应用
+async function loadFromLibrary(name){
+  try{
+    const r = await fetch(PROJ_API + '/' + encodeURIComponent(name));
+    const j = await r.json();
+    if(!j || !j.success) throw new Error((j && j.error) || '读取失败');
+    if(restoreFromText(j.content, name)){
+      _currentProjectFile = name;
+      const nameInput = $('projName'); if(nameInput) nameInput.value = name;
+      closeProjectPanel();
+    }
+  }catch(e){
+    console.error('加载失败', e);
+    alert('加载失败：' + (e && e.message ? e.message : '未知错误'));
+  }
+}
+
+async function deleteFromLibrary(name){
+  try{
+    const r = await fetch(PROJ_API + '/' + encodeURIComponent(name), { method:'DELETE' });
+    const j = await r.json();
+    if(!j || !j.success) throw new Error((j && j.error) || '删除失败');
+    if(_currentProjectFile === name) _currentProjectFile = null;
+    flash('已从项目库删除：' + name);
+    refreshProjectList();
+  }catch(e){
+    console.error('删除失败', e);
+    alert('删除失败：' + (e && e.message ? e.message : '未知错误'));
+  }
+}
+
+// 工具栏「保存」：已入库则原地覆盖，否则打开面板命名
+function saveProject(){
+  if(_currentProjectFile){ saveToLibrary(_currentProjectFile); return; }
+  openProjectPanel();
 }
 
 /* ============================================================

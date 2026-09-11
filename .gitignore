@@ -23,3 +23,6 @@ AGENTS.md
 pfd-editor-ubuntu24.tar.gz
 deploy.sh
 DEPLOY.md
+
+# 项目库运行数据（server.js 默认 PROJECT_DIR，属本机业务数据）
+projects/
