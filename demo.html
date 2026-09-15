@@ -1195,7 +1195,6 @@ const TEMPLATES = {
       const inY = cy;
       const impellerR = R*0.70;
       const hubR = R*0.20;
-      const inletEyeR = R*0.35;
 
       // 蜗壳型线（蜗牛形 - 4段等距扩张近似）
       const volutePoints = [];
@@ -1230,7 +1229,7 @@ const TEMPLATES = {
         <rect x="${outX-6}" y="${outY-5}" width="${outW+12}" height="6" rx="1" fill="#1a1835" stroke="${c}" stroke-width="1.2"/>`;
 
       // 叶轮（后弯式离心叶片，连续旋转）
-      const bladeCount = 12;
+      const bladeCount = 8;
       let blades = '';
       for(let i=0; i<bladeCount; i++){
         const angle = (i/bladeCount) * Math.PI*2;
@@ -1242,54 +1241,8 @@ const TEMPLATES = {
           <animateTransform attributeName="transform" type="rotate" from="0 ${cx} ${cy}" to="360 ${cx} ${cy}" dur="0.5s" repeatCount="indefinite"/>
           <circle cx="${cx}" cy="${cy}" r="${impellerR}" fill="#0f0d24" stroke="${c}" stroke-width="0.8" opacity="0.9"/>
           ${blades}
-          <circle cx="${cx}" cy="${cy}" r="${inletEyeR}" fill="#0d0b20" stroke="${c}" stroke-width="0.8" opacity="0.8"/>
           <circle cx="${cx}" cy="${cy}" r="${hubR}" fill="#1a1835" stroke="${c}" stroke-width="1"/>
-          <circle cx="${cx}" cy="${cy}" r="${hubR*0.4}" fill="${c}" opacity="0.35"/>
         </g>`;
-
-      // 气流粒子（进口→叶轮加速→出口）
-      let airflowParticles = '';
-      const particleCount = 8;
-      for(let i=0; i<particleCount; i++){
-        const delay = (i/particleCount * 1.6).toFixed(2);
-        const startOffset = (i%4 - 1.5)*inDia*0.2;
-        let px=[], py=[], pop=[], pr=[];
-        const pSteps = 28;
-        for(let k=0; k<=pSteps; k++){
-          const t = k/pSteps;
-          let x, y, r, op;
-          if(t < 0.3){
-            const entryT = t/0.3;
-            x = inX + 8 + (cx-inletEyeR - (inX+8))*entryT;
-            y = inY + startOffset*(1-entryT*0.7);
-            r = 1.0 + entryT*0.6;
-            op = entryT < 0.15 ? entryT/0.15*0.4 : 0.4 + entryT*0.2;
-          } else if(t < 0.78){
-            const spinT = (t-0.3)/0.48;
-            const spinAngle = Math.PI*0.6 + spinT*Math.PI*2.8;
-            const spinR = inletEyeR + spinT*spinT*(impellerR-inletEyeR) + (1-spinT*0.3)*R*0.15;
-            x = cx + Math.cos(spinAngle)*spinR;
-            y = cy + Math.sin(spinAngle)*spinR;
-            r = 1.6 - spinT*0.4;
-            op = 0.55 - spinT*0.1;
-          } else {
-            const outT = (t-0.78)/0.22;
-            const easeOut = 1 - Math.pow(1-outT, 2);
-            x = cx + (outX+outW/2 - cx + (outT-0.5)*5)*easeOut;
-            y = cy - R*0.2 + (outY-5 - (cy-R*0.2))*easeOut;
-            r = 1.2 + outT*1.0;
-            op = outT > 0.75 ? (1-outT)/0.25*0.3 : 0.45 - outT*0.15;
-          }
-          px.push(x.toFixed(1)); py.push(y.toFixed(1)); pr.push(r.toFixed(1)); pop.push(op.toFixed(2));
-        }
-        airflowParticles += `
-          <circle cx="${px[0]}" cy="${py[0]}" r="${pr[0]}" fill="#a8ddff" opacity="${pop[0]}">
-            <animate attributeName="cx" values="${px.join(';')}" dur="1.6s" begin="-${delay}s" repeatCount="indefinite"/>
-            <animate attributeName="cy" values="${py.join(';')}" dur="1.6s" begin="-${delay}s" repeatCount="indefinite"/>
-            <animate attributeName="r" values="${pr.join(';')}" dur="1.6s" begin="-${delay}s" repeatCount="indefinite"/>
-            <animate attributeName="opacity" values="${pop.join(';')}" dur="1.6s" begin="-${delay}s" repeatCount="indefinite"/>
-          </circle>`;
-      }
 
       return `
         <!-- 蜗壳后壁（深色底） -->
@@ -1302,16 +1255,6 @@ const TEMPLATES = {
         <path d="${volutePathD}" fill="url(#gEquip)" opacity="0.55" stroke="none"/>
         <path d="${volutePathD}" fill="none" stroke="${c}" stroke-width="1.6"/>
         ${impeller}
-        ${airflowParticles}
-        <!-- 出风口风向指示箭头（脉动） -->
-        <polygon points="${cx-8},${outY+outH*0.68} ${cx+8},${outY+outH*0.68} ${cx},${outY+outH*0.28}" fill="${c}" opacity="0.5">
-          <animate attributeName="opacity" values="0.25;0.8;0.25" dur="0.7s" repeatCount="indefinite"/>
-        </polygon>
-        <!-- 入口气流指示 -->
-        <g opacity="0.4">
-          <line x1="${inX-12}" y1="${inY}" x2="${inX-4}" y2="${inY}" stroke="${c}" stroke-width="1.2"/>
-          <polygon points="${inX-4},${inY-3.5} ${inX-4},${inY+3.5} ${inX+1},${inY}" fill="${c}"/>
-        </g>
       `;
     }
   },
@@ -1319,7 +1262,8 @@ const TEMPLATES = {
     name: '回转窑/旋转煅烧窑', category: '设备',
     defaultSize: { w: 380, h: 180 },
     ports: [
-      {id:'inlet',x:0,y:.44,dir:'left'},
+      // 进料口贴窑尾罩左壁（罩壁绝对位置 = w*0.12 - 24，按默认尺寸 w=380 折算为 0.057）
+      {id:'inlet',x:.057,y:.44,dir:'left'},
       {id:'outlet',x:1,y:.76,dir:'right'},
       {id:'fuel',x:1,y:.55,dir:'right'},
       {id:'flueGas',x:.1,y:.22,dir:'up'}
@@ -1391,7 +1335,8 @@ const TEMPLATES = {
         };
         return drawWheel(tx-trunnionOffset, trunnionCY, 1) + drawWheel(tx+trunnionOffset, trunnionCY, -1);
       };
-      const trunnions = drawTrunnionSet(h_tire1X) + drawTrunnionSet(h_tire2X);
+      // 按需求移除窑尾侧（左侧）托轮组，仅保留窑头侧一组
+      const trunnions = drawTrunnionSet(h_tire2X);
 
       // 3. 挡轮
       const h_thrustX = h_drumL + h_drumW*0.42;
@@ -1579,11 +1524,7 @@ const TEMPLATES = {
         <!-- 顶部法兰 -->
         <rect x="${fluePipeCX-10}" y="${flueTopY}" width="20" height="5" fill="#1a1835" stroke="${c}" stroke-width="0.8"/>
         ${boltPair(fluePipeCX, flueTopY+2.5, 12, 1)}
-        <!-- 进料管（水平延伸到左边缘，右端加喇叭口焊接到烟室壁） -->
-        <rect x="0" y="${inletPipeY}" width="${inletPipeEndX}" height="${inletPipeH}" fill="#151330" stroke="${c}" stroke-width="0.9"/>
-        <rect x="2" y="${inletPipeY+2}" width="${inletPipeEndX-4}" height="2" fill="rgba(255,255,255,0.06)"/>
-        <!-- 进料管与烟室焊接的加强喇叭口 -->
-        <path d="M ${inletPipeEndX-2} ${inletPipeY-2} L ${inletPipeEndX+6} ${inletPipeY-4} L ${inletPipeEndX+6} ${inletPipeY+inletPipeH+4} L ${inletPipeEndX-2} ${inletPipeY+inletPipeH+2} Z" fill="#151330" stroke="${c}" stroke-width="0.7"/>
+        <!-- 注：左端水平进料管与端部喇叭口已按需求移除；inletPipe* 参数仅用于下方罩内溜槽引导线定位 -->
         <!-- 内部溜槽引导线 -->
         <path d="M ${inletPipeEndX+3} ${inletPipeY+inletPipeH-2} L ${tailHoodX-6} ${h_cy+h_R*0.15}" fill="none" stroke="${c}" stroke-width="0.7" opacity="0.4"/>
         ${Array.from({length:8}).map((_,i)=>`<line x1="${tailHoodX}" y1="${h_cy-h_R+i*(h_R*2/7)}" x2="${tailHoodX-6}" y2="${h_cy-h_R+i*(h_R*2/7)+1}" stroke="${c}" stroke-width="0.6" opacity="0.4"/>`).join('')}
@@ -2297,14 +2238,23 @@ const TEMPLATES = {
       <rect x="${bodyX+bodyW}" y="${bodyY-3}" width="3" height="${bodyH+6}" fill="#1c1b40" stroke="${p.color}" stroke-width="0.8" opacity="0.85"/>
       <circle cx="${bodyX}" cy="${cy}" r="2.2" fill="#161534" stroke="${p.color}" stroke-width="0.8" opacity="0.6"/>
       <circle cx="${bodyX+bodyW}" cy="${cy}" r="2.2" fill="#161534" stroke="${p.color}" stroke-width="0.8" opacity="0.6"/>`;
-      const cx = w*0.3;
+      // 顶部进料口 / 底部出料斜槽：必须随组件尺寸缩放，否则组件缩小时管口尺寸不变
+      // 基准尺寸 defaultSize（w=200,h=90）→ 横向量按 w/200、纵向量按 h/90 等比换算
+      const sW = w/200, sH = h/90;
+      const cx = w*0.3;                        // 进料口中心（锚定 w*0.3，与 inlet 端口对齐）
+      const inW = (20*sW).toFixed(2);          // 进料管宽
+      const inH = (8*sH).toFixed(2);           // 进料管高
+      const inBot = bodyY - 2*sH;              // 进料管底（与槽体顶面留 2 的间隙）
+      const inTop = inBot - 8*sH;              // 进料管顶
+      const colW = (28*sW).toFixed(2);         // 进料口法兰宽
+      const colH = (4*sH).toFixed(2);          // 进料口法兰高
       const topInlet = `
-      <rect x="${cx-10}" y="${bodyY-10}" width="20" height="8" fill="#0a0a1a" stroke="${p.color}" stroke-width="1.2"/>
-      <rect x="${cx-14}" y="${bodyY-14}" width="28" height="4" fill="#1c1b40" stroke="${p.color}" stroke-width="1"/>
-      <line x1="${cx-12}" y1="${bodyY-2}" x2="${cx+12}" y2="${bodyY-2}" stroke="${p.color}" stroke-width="0.8" opacity="0.5" stroke-dasharray="2 2"/>`;
+      <rect x="${(cx-10*sW).toFixed(2)}" y="${inTop.toFixed(2)}" width="${inW}" height="${inH}" fill="#0a0a1a" stroke="${p.color}" stroke-width="1.2"/>
+      <rect x="${(cx-14*sW).toFixed(2)}" y="${(inTop-4*sH).toFixed(2)}" width="${colW}" height="${colH}" fill="#1c1b40" stroke="${p.color}" stroke-width="1"/>
+      <line x1="${(cx-12*sW).toFixed(2)}" y1="${inBot.toFixed(2)}" x2="${(cx+12*sW).toFixed(2)}" y2="${inBot.toFixed(2)}" stroke="${p.color}" stroke-width="0.8" opacity="0.5" stroke-dasharray="2 2"/>`;
       const bottomOutlet = `
-      <polygon points="${bodyX+4},${bodyY+bodyH} ${bodyX+4},${bodyY+bodyH+12} ${bodyX+12},${bodyY+bodyH+6}" fill="#1c1b40" stroke="${p.color}" stroke-width="1.2"/>
-      <rect x="${bodyX+2}" y="${bodyY+bodyH+12}" width="10" height="3" fill="#161534" stroke="${p.color}" stroke-width="0.8"/>`;
+      <polygon points="${(bodyX+4*sW).toFixed(2)},${(bodyY+bodyH).toFixed(2)} ${(bodyX+4*sW).toFixed(2)},${(bodyY+bodyH+12*sH).toFixed(2)} ${(bodyX+12*sW).toFixed(2)},${(bodyY+bodyH+6*sH).toFixed(2)}" fill="#1c1b40" stroke="${p.color}" stroke-width="1.2"/>
+      <rect x="${(bodyX+2*sW).toFixed(2)}" y="${(bodyY+bodyH+12*sH).toFixed(2)}" width="${(10*sW).toFixed(2)}" height="${(3*sH).toFixed(2)}" fill="#161534" stroke="${p.color}" stroke-width="0.8"/>`;
       return `
       <clipPath id="${clipId}"><rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${bodyH}" rx="2"/></clipPath>
       <rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${bodyH}" rx="2" fill="url(#gEquip)" stroke="${p.color}" stroke-width="1.5"/>

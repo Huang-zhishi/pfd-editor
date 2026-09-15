@@ -720,7 +720,7 @@ function renderMonitorTagList(comp){
   tags.forEach((t,i)=>{
     const row = document.createElement('div'); row.className='param-row';
     row.innerHTML = `<span class="mon-tag-k" title="${esc(t.tag)}">${esc(t.tag)}</span><input class="pv" value="${esc(t.label||'')}" placeholder="显示标签（默认 Tag）"><button class="pdel" title="删除">×</button>`;
-    row.querySelector('.pv').oninput = e=>{ t.label = e.target.value; renderAll(); setDirty(); };
+    row.querySelector('.pv').oninput = e=>{ t.label = e.target.value; setDirty(); renderAllDebounced(); };
     row.querySelector('.pdel').onclick = ()=>{ tags.splice(i,1); pushHistory(); renderMonitorTagList(comp); renderAll(); setDirty(); };
     el.appendChild(row);
   });
@@ -1429,6 +1429,10 @@ function debounce(fn, ms){
     t = setTimeout(()=>fn.apply(this,args), ms);
   };
 }
+/* 属性面板输入共用的防抖渲染（模块级单例）。
+   必须在模块级只创建一次：若在每次重建属性列表时新建防抖函数，
+   先前排队的定时器会成为孤儿、无法被后续输入取消，防抖即失效。 */
+const renderAllDebounced = debounce(()=>{ renderAll(); setDirty(); }, 180);
 function renderProps(){
   const body = $('prBody');
   const head_icon = $('prIcon'), head_t = $('prTitle'), head_s = $('prSub');
@@ -1469,7 +1473,7 @@ function renderProps(){
       b.onclick = ()=>{ alignSelection(b.dataset.align); };
     });
     const mc = $('mColor');
-    if(mc) mc.oninput = e=>{ selComps().forEach(c=>{ c.props.color=e.target.value; }); renderAll(); setDirty(); };
+    if(mc) mc.oninput = e=>{ selComps().forEach(c=>{ c.props.color=e.target.value; }); setDirty(); renderAllDebounced(); };
     $('btnDup').onclick = duplicateComp;
     $('btnDelComp').onclick = deleteSelected;
     return;
@@ -1967,9 +1971,9 @@ function renderParamsList(comp){
     shown++;
     const row = document.createElement('div'); row.className='param-row';
     row.innerHTML = `<button class="pmove up" title="上移">▲</button><button class="pmove down" title="下移">▼</button><input class="pk" value="${esc(p.k)}" placeholder="Tag 名"><input class="pv" value="${esc(p.v)}" placeholder="值"><input class="pu" value="${esc(p.u)}" placeholder="单位"><button class="pdel" title="删除">×</button>`;
-    row.querySelector('.pk').oninput = e=>{ p.k=e.target.value; renderAll(); setDirty(); };
-    row.querySelector('.pv').oninput = e=>{ p.v=e.target.value; renderAll(); setDirty(); };
-    row.querySelector('.pu').oninput = e=>{ p.u=e.target.value; renderAll(); setDirty(); };
+    row.querySelector('.pk').oninput = e=>{ p.k=e.target.value; setDirty(); renderAllDebounced(); };
+    row.querySelector('.pv').oninput = e=>{ p.v=e.target.value; setDirty(); renderAllDebounced(); };
+    row.querySelector('.pu').oninput = e=>{ p.u=e.target.value; setDirty(); renderAllDebounced(); };
     row.querySelector('.pdel').onclick = ()=>{ comp.props.params.splice(i,1); pushHistory(); renderParamsList(comp); renderAll(); setDirty(); };
     row.querySelector('.up').onclick = ()=>{ if(i>0){ const t=params[i-1]; params[i-1]=params[i]; params[i]=t; pushHistory(); renderParamsList(comp); renderAll(); setDirty(); } };
     row.querySelector('.down').onclick = ()=>{ if(i<params.length-1){ const t=params[i+1]; params[i+1]=params[i]; params[i]=t; pushHistory(); renderParamsList(comp); renderAll(); setDirty(); } };
