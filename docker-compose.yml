@@ -1,0 +1,20 @@
+# PFD Editor · docker compose 部署
+# 用法：docker compose up -d --build
+services:
+  pfd-editor:
+    build: .
+    image: pfd-editor:latest
+    container_name: pfd-editor
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      PORT: "8090"
+      # 后端传感器 API 地址（server.js 中 /api/* 的转发目标）
+      API_TARGET: "http://192.168.1.78"
+    volumes:
+      # 项目库持久化（命名卷由镜像内 /app/projects 初始化，自动继承 pfd 用户属主，容器重建不丢数据）
+      - pfd-projects:/app/projects
+
+volumes:
+  pfd-projects:

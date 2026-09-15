@@ -1,0 +1,86 @@
+# ============================================================
+# PFD Editor · CI
+#   - JS 语法检查（node --check）
+#   - 启动 server.js 的冒烟测试（静态页面 / 项目库 API 回路）
+#   - 验证 Dockerfile 可构建
+# 触发：push 到 main / 所有 pull request
+# ============================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate (syntax + smoke test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Syntax check (node --check)
+        run: |
+          for f in server.js editor.js templates.js; do
+            node --check "$f"
+            echo "OK  $f"
+          done
+
+      - name: Smoke test (serve + curl)
+        run: |
+          PORT=18090
+          PROJECT_DIR="$(mktemp -d)"
+          node server.js >/tmp/pfd-server.log 2>&1 &
+          SRV=$!
+          trap 'kill "$SRV" 2>/dev/null || true' EXIT
+
+          # 等待服务就绪（最长 30s）
+          for _ in $(seq 1 30); do
+            curl -fsS "http://127.0.0.1:${PORT}/editor" >/dev/null 2>&1 && break
+            sleep 1
+          done
+
+          set -e
+          echo "== static endpoints =="
+          for path in /editor /preview /demo /embed-demo.html /pfd-api/projects; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}${path}")
+            echo "${path} -> ${code}"
+            [ "${code}" = "200" ] || { echo "FAIL: ${path}"; exit 1; }
+          done
+
+          echo "== /projects must be hidden (403) =="
+          code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}/projects")
+          echo "/projects -> ${code}"
+          [ "${code}" = "403" ]
+
+          echo "== projects API round-trip =="
+          curl -fsS -X POST "http://127.0.0.1:${PORT}/pfd-api/projects/ci-test.json" \
+            -H 'Content-Type: application/json' \
+            -d '{"version":1,"components":[],"pipes":[],"meta":{"title":"ci"}}' >/dev/null
+          curl -fsS "http://127.0.0.1:${PORT}/pfd-api/projects/ci-test.json" | grep -q '"success":true'
+          curl -fsS -X DELETE "http://127.0.0.1:${PORT}/pfd-api/projects/ci-test.json" >/dev/null
+          echo "projects API round-trip OK"
+
+      - name: Server log on failure
+        if: failure()
+        run: cat /tmp/pfd-server.log
+
+  docker-build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t pfd-editor:ci .

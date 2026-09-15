@@ -1,0 +1,14 @@
+.git
+.gitignore
+.gitattributes
+node_modules
+*.log
+.DS_Store
+Thumbs.db
+*.tar.gz
+docker-compose.yml
+Dockerfile
+.dockerignore
+deploy.sh
+DEPLOY.md
+README.md
