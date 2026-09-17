@@ -3,8 +3,10 @@
  * 全可编辑 · 拖拽搭建 · 端口连线 · 运行动画
  *
  * 运行环境：
- *   - 本文件与 templates.js（组件模板库）配套，加载顺序固定为
- *     templates.js → editor.js（editor.html / preview.html 均如此）；
+ *   - 本文件与模板库配套：templates.js（入口，定义 TEMPLATES 容器）
+ *     与 templates/*.js（按设备拆分，一个设备一个文件），
+ *     加载顺序固定为 templates.js → templates/*.js → editor.js
+ *     （editor.html / preview.html 均如此）；
  *   - 同时服务于两个页面：editor.html（编辑器）与 preview.html（只读预览，
  *     预览页另有本地 IIFE 覆盖部分行为，如 applySMILState）；
  *   - 由页面底部的 document.write 以 ?v= 时间戳加载以绕过缓存。
@@ -461,18 +463,21 @@ function renderAll(){
       g.appendChild(makeSelBox(comp));
     }
     // name label + tag: 移出旋转组，保持在组件顶部水平可读
+    // 标签节点先收集、待组件本体入层后再追加，避免居中显示时被组件遮挡
+    const labelNodes = [];
     const cx = comp.x + comp.w/2, cy = comp.y + comp.h/2;
     const r = (comp.rotation||0) * Math.PI / 180;
     const cos = Math.cos(r), sin = Math.sin(r);
     if(comp.type!=='text' && !isMonitor){
       const lbl = createSVG('text');
-      const ldx = 0, ldy = -(comp.h/2 + 6);
+      // 名称位置：center=组件中心（+4 为 11px 字号的基线视觉补偿）；默认组件顶部上方
+      const ldx = 0, ldy = (comp.props.namePos==='center') ? 4 : -(comp.h/2 + 6);
       lbl.setAttribute('x', cx + ldx*cos - ldy*sin);
       lbl.setAttribute('y', cy + ldx*sin + ldy*cos);
       lbl.setAttribute('text-anchor','middle'); lbl.setAttribute('class','tlabel');
       lbl.dataset.cid = comp.id; lbl.dataset.kind = 'name';
       lbl.textContent = comp.props.name || t.name;
-      layer.appendChild(lbl);
+      labelNodes.push(lbl);
     }
     if(comp.props.tag && !isMonitor){
       const tg = createSVG('text');
@@ -482,7 +487,7 @@ function renderAll(){
       tg.setAttribute('text-anchor','middle'); tg.setAttribute('class','ttag');
       tg.dataset.cid = comp.id; tg.dataset.kind = 'tag';
       tg.textContent = comp.props.tag;
-      layer.appendChild(tg);
+      labelNodes.push(tg);
     }
     // ports（monitor 无交互端口）
     if(!isMonitor) t.ports.forEach(pt=>{
@@ -492,15 +497,9 @@ function renderAll(){
       c.setAttribute('class','port' + (connectState && connectState.from && connectState.from.cid===comp.id && connectState.from.port===pt.id ? ' active':''));
       c.dataset.cid = comp.id; c.dataset.port = pt.id;
       g.appendChild(c);
-      if(comp.props.showPorts !== false){
-        const pl = createSVG('text');
-        pl.setAttribute('x',px); pl.setAttribute('y',py-7);
-        pl.setAttribute('text-anchor','middle'); pl.setAttribute('class','port-label');
-        pl.textContent = pt.id;
-        g.appendChild(pl);
-      }
     });
     layer.appendChild(g);
+    labelNodes.forEach(n=>layer.appendChild(n));   // 名称/位号最后入层，压在组件本体之上
   });
 
   updateStatus();
@@ -508,6 +507,7 @@ function renderAll(){
   applySMILState();
   renderOverlay();
   refreshKilnTemp(sensorValueMap);
+  refreshReactorLevel(sensorValueMap);
 }
 
 /* ============================================================
@@ -772,7 +772,7 @@ function updateCompLabels(comp){
   const cos = Math.cos(r), sin = Math.sin(r);
   const nameLbl = layerEquip.querySelector(`.tlabel[data-cid="${comp.id}"]`);
   if(nameLbl){
-    const ldx=0, ldy=-(comp.h/2+6);
+    const ldx=0, ldy=(comp.props.namePos==='center') ? 4 : -(comp.h/2+6);
     nameLbl.setAttribute('x', cx + ldx*cos - ldy*sin);
     nameLbl.setAttribute('y', cy + ldx*sin + ldy*cos);
   }
@@ -1045,7 +1045,7 @@ function onPaletteDragUp(e){
 
 function addComponent(type, x, y){
   const t = TEMPLATES[type];
-  const props = { name: t.name, tag: '', color: '#9C99FF', params: [], showPorts: true };
+  const props = { name: t.name, tag: '', color: '#9C99FF', params: [] };
   if(type==='monitor'){
     props.color = '#00E5FF';
     props.monitorTags = [];   // [{tag, label}] 任意多个监控项
@@ -1489,6 +1489,7 @@ function renderProps(){
         <div class="fg-title">基本</div>
         <div class="fg-row"><label>名称</label><input id="pName" value="${esc(comp.props.name||'')}"></div>
         ${comp.type!=='monitor' ? `<div class="fg-row"><label>位号</label><input id="pTag" value="${esc(comp.props.tag||'')}"></div>` : ''}
+        ${(comp.type!=='text' && comp.type!=='monitor') ? `<div class="fg-row"><label>名称位置</label><div class="btn-group" id="namePosGroup"><button class="pr-btn s-btn ${comp.props.namePos==='center'?'':'active'}" data-np="top">顶部</button><button class="pr-btn s-btn ${comp.props.namePos==='center'?'active':''}" data-np="center">居中</button></div></div>` : ''}
         <div class="fg-row"><label>颜色</label><div class="color-row"><input type="color" id="pColor" value="${comp.props.color||'#9C99FF'}"><input id="pColorT" value="${comp.props.color||'#9C99FF'}"></div></div>
       </div>
       <div class="fg">
@@ -1532,6 +1533,15 @@ function renderProps(){
         <div class="fg-title">窑体测温点（左→右颜色渐变）</div>
         <div class="kiln-temps" id="kilnTempList"></div>
         <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">4 个测温点对应窑体从左到右的颜色锚点，温度越高颜色越暖（暗红→橙→红→白热，全程无冷色）。填完整位号，如「1#窑体温度TI_206A」。</div>
+      </div>
+      ` : ''}
+      ${comp.type==='reactor' ? `
+      <div class="fg">
+        <div class="fg-title">液位（动态绑定 Tag）</div>
+        <div class="fg-row"><label>液位 Tag</label><input id="rvLevelTag" value="${esc(comp.props.levelTag||'')}" placeholder="如 1#粉煤灰仓料位"></div>
+        <div class="fg-row"><label>满量程</label><input type="number" id="rvLevelMax" value="${comp.props.levelMax||50}" min="1" step="1"></div>
+        <div class="fg-row"><label>当前液位</label><input id="rvLevelNow" readonly value="—"></div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">绑定液位测点（填完整位号）后，罐内液面高度与读数带按实时值/满量程换算并同步更新；未绑定或无数据时按 60% 静态示意、读数显示 --。</div>
       </div>
       ` : ''}
       ${comp.type==='screwConveyorLite' ? `
@@ -1583,7 +1593,6 @@ function renderProps(){
             return `<div class="port-row"><span class="pd"></span><span class="pn">${p.id}</span><span class="pl">${pdir}</span></div>`;
           }).join('')}
         </div>
-        <div class="fg-row" style="margin-top:6px"><label>显示端口</label><input type="checkbox" id="pShowPorts" ${comp.props.showPorts!==false?'checked':''}></div>
       </div>
       ` : ''}
       <div class="pr-actions">
@@ -1604,7 +1613,6 @@ function renderProps(){
     $('pRot').onchange = e=>{ comp.rotation=+e.target.value; pushHistory(); renderAll(); setDirty(); };
     if($('pRotL')) $('pRotL').onclick = ()=>{ rotateCCW(); renderProps(); };
     if($('pRotR')) $('pRotR').onclick = ()=>{ rotateCW(); renderProps(); };
-    if($('pShowPorts')) $('pShowPorts').onchange = e=>{ comp.props.showPorts=e.target.checked; renderAll(); setDirty(); };
     // 三通阀控制：手动模式 + 自动模式（绑定 A/B 开关量 sensor，互斥切换）
     if(comp.type==='switchValve'){
       const sg = $('switchValveGroup');
@@ -1628,11 +1636,23 @@ function renderProps(){
         rs.value = tag ? '运行中（绑定但暂无数据）' : '运行中（未绑定，默认运行）';
       }
     }
+    // 反应釜：液位动态绑定 tag + 满量程
+    if(comp.type==='reactor'){
+      const lt = $('rvLevelTag');
+      if(lt){ lt.onchange = (e)=>{ comp.props.levelTag = (e.target.value||'').trim(); pushHistory(); renderAll(); setDirty(); refreshReactorLevel(sensorValueMap); }; }
+      const lm = $('rvLevelMax');
+      if(lm){ lm.onchange = (e)=>{ const v=+e.target.value; comp.props.levelMax = (isFinite(v)&&v>0)?v:50; pushHistory(); renderAll(); setDirty(); refreshReactorLevel(sensorValueMap); }; }
+      const ln = $('rvLevelNow');
+      if(ln){ const lv = sensorValueMap[(comp.props.levelTag||'').trim()]; ln.value = lv ? (lv.value + (lv.unit||' m')) : '—'; }
+    }
     // 回转窑测温点配置
     if(comp.type==='rotaryKiln') renderKilnTempList(comp);
     // 通用水平镜像控制
     const mg = $('mirrorGroup');
     if(mg){ mg.querySelectorAll('.s-btn').forEach(b=>{ b.onclick=()=>{ comp.props.mirrored=+b.dataset.m===1; pushHistory(); renderAll(); renderProps(); setDirty(); }; }); }
+    // 名称位置：顶部（默认）/ 居中
+    const npg = $('namePosGroup');
+    if(npg){ npg.querySelectorAll('.s-btn').forEach(b=>{ b.onclick=()=>{ comp.props.namePos=b.dataset.np; pushHistory(); renderAll(); renderProps(); setDirty(); }; }); }
     if(comp.type==='monitor'){
       // 监控器：多监控项列表 + 搜索添加 + 归属折线管理
       normalizeMonitorProps(comp);
@@ -1762,6 +1782,7 @@ async function refreshSensorValues(){
       sensorValueMap = m;
       refreshMonitorValues();
       refreshKilnTemp(sensorValueMap);
+      refreshReactorLevel(sensorValueMap);   // 反应釜：绑定液位 tag 时按实时值更新液面与读数
       refreshSwitchValveAuto(sensorValueMap); // 三通阀自动模式：根据 A/B 开关量互斥切换
       refreshScrewConveyorRun(sensorValueMap); // 螺旋输送机(简化)：按开关 tag 驱动动画开/停
     }
@@ -1770,6 +1791,14 @@ async function refreshSensorValues(){
 
 // 更新当前选中组件的 tag 行实时数值（不覆盖正在编辑的输入框）
 function updateTagLiveValues(comp){
+  // 反应釜：液位读数回填（只读框，无编辑冲突）
+  if(comp.type==='reactor'){
+    const ln = $('rvLevelNow');
+    if(ln){
+      const lv = sensorValueMap[(comp.props.levelTag||'').trim()];
+      ln.value = lv ? (lv.value + (lv.unit||' m')) : '—';
+    }
+  }
   const list = $('paramsList'); if(!list) return;
   const rows = list.querySelectorAll('.param-row');
   const params = comp.props.params || [];
@@ -2065,6 +2094,38 @@ function refreshKilnTemp(liveMap, docArg){
       const color = kilnTempColor(v);
       if(color) stop.setAttribute('stop-color', color);
     });
+  });
+}
+// 增量更新反应釜液位（不触发 renderAll，避免无谓重绘）
+// 绑定 props.levelTag 时按实时值换算液面高度并同步读数；未绑定 / 无数据保持 60% 静态示意、读数显示 --
+// geom 换算与模板共用 templates/reactor.js 的 reactorGeom / reactorLevelFrac / reactorLevelText
+// docArg：预览页在 IIFE 内用局部 doc 遮蔽了全局 doc，需显式传入当前文档；编辑器省略则回退全局 doc
+function refreshReactorLevel(liveMap, docArg){
+  const d = docArg || doc;
+  if(!d || !Array.isArray(d.components)) return;
+  d.components.forEach(comp=>{
+    if(comp.type !== 'reactor') return;
+    const g = findCompGroupDom(comp.id);
+    if(!g) return;
+    const gm = reactorGeom(comp.w, comp.h);
+    const live = (liveMap && comp.props.levelTag) ? liveMap[comp.props.levelTag] : null;
+    const frac = reactorLevelFrac(live ? live.value : NaN, comp.props.levelMax);
+    const f = (frac==null) ? 0.6 : frac;
+    const surfaceY = gm.bodyBot - (gm.bodyBot - gm.bodyTop) * f;
+    const liqH = Math.max(0, gm.bodyBot - surfaceY);
+    const liq = g.querySelector('.rv-liquid'), dots = g.querySelector('.rv-liquid-dots'), surf = g.querySelector('.rv-surface');
+    [liq, dots].forEach(el=>{
+      if(!el) return;
+      el.setAttribute('y', surfaceY.toFixed(1));
+      el.setAttribute('height', liqH.toFixed(1));
+    });
+    if(surf){ surf.setAttribute('y1', surfaceY.toFixed(1)); surf.setAttribute('y2', surfaceY.toFixed(1)); }
+    const band = g.querySelector('.rv-band');
+    if(band) band.setAttribute('transform', `translate(0,${surfaceY.toFixed(1)})`);
+    const rd = reactorLevelText(live);
+    const valEl = g.querySelector('.rv-level-value'), unitEl = g.querySelector('.rv-level-unit');
+    if(valEl) valEl.textContent = rd.text;
+    if(unitEl) unitEl.textContent = rd.unit;
   });
 }
 // 三通阀自动模式（控制模式 auto）：根据绑定的 A/B 路开关量 sensor 互斥切换激活路。
@@ -2894,7 +2955,6 @@ function exportPNG(){
     .ttag{font-size:9px;fill:#00E5FF;font-family:"Microsoft YaHei",sans-serif}
     .tval{font-size:9px;fill:#80FFFFFF;font-family:"Microsoft YaHei",sans-serif}
     .port{fill:#0a0a1a;stroke:#9C99FF;stroke-width:1.5}
-    .port-label{font-size:8px;fill:#80FFFFFF;font-family:"Microsoft YaHei",sans-serif}
     .pipe{fill:none;stroke-linecap:round;stroke-linejoin:round}
     text{font-family:"Microsoft YaHei",sans-serif}
   `;
@@ -2932,7 +2992,7 @@ function exportPNG(){
 
 /* ============================================================
  * 26. 导出：自包含单文件 HTML（供官网直接部署）
- *   把 templates.js + editor.js 内联 + 当前流程数据 + 嵌入模式(localStorage独立)
+ *   把 templates/*.js（设备模板）+ editor.js 内联 + 当前流程数据 + 嵌入模式(localStorage独立)
  *   打包成一个不依赖服务器的独立 HTML
  * ============================================================ */
 async function exportStandalone(){
@@ -2948,9 +3008,16 @@ async function exportStandalone(){
     const ee = out.indexOf('\n', es);
     out = out.slice(0, es) + 'const EMBED = true;' + out.slice(ee);
 
-    // 2) 内联 templates.js + editor.js（替换外部加载脚本标签，保持 templates → editor 顺序）
+    // 2) 内联全部设备模板 + editor.js（替换外部加载脚本标签，保持 templates → editor 顺序）
     const fetchSrc = f => fetch(f+'?v='+Date.now()).then(r=>r.text());
-    const tplTxt = await fetchSrc('templates.js');
+    // 模板已按设备拆分到 templates/，清单唯一来源是入口 templates.js 的 TEMPLATE_FILES
+    const loaderTxt = await fetchSrc('templates.js');
+    const mf = /TEMPLATE_FILES\s*=\s*\[([\s\S]*?)\]/.exec(loaderTxt);
+    if(!mf) throw new Error('未找到 TEMPLATE_FILES 清单（templates.js 结构已变化）');
+    const tplFiles = mf[1].split(',').map(s=>s.trim().replace(/^['"]|['"]$/g,'')).filter(Boolean);
+    const tplTxt = ['const TEMPLATES = {};']
+      .concat(await Promise.all(tplFiles.map(f=>fetchSrc('templates/'+f+'.js'))))
+      .join('\n');
     const jsTxt = await fetchSrc('editor.js');
     const safe = t => t.replace(/<\/script/gi, '<\\/script');
     const ls = out.indexOf('<script>document.write');

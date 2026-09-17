@@ -21,8 +21,9 @@
 │  editor.html（编辑器）        preview.html（预览/嵌入页）  │
 │        │                            │                    │
 │        └──────────┬─────────────────┘                    │
-│                   ▼  加载顺序固定：templates.js → editor.js │
-│  templates.js（组件模板库：SVG 定义，纯数据）               │
+│                   ▼  加载顺序固定：templates.js → templates/*.js → editor.js │
+│  templates.js（模板库入口：TEMPLATES 容器 + 设备文件清单）  │
+│  templates/*.js（按设备拆分：一个设备一个文件，纯 SVG 数据） │
 │  editor.js（应用逻辑：渲染/交互/保存/导出，两页面共用）        │
 └──────────────────────────┬───────────────────────────────┘
                            │  /api/*（同源相对路径）
@@ -35,7 +36,7 @@
 
 关键设计：
 
-- **模板与逻辑分离**：`templates.js` 只定义"组件长什么样"（数据 + SVG 字符串），`editor.js` 负责"如何编辑/渲染/联动"。render 函数中引用的工具函数由 `editor.js` 在运行期经全局作用域提供，因此加载顺序必须为 templates → editor。
+- **模板与逻辑分离**：`templates/*.js` 只定义"组件长什么样"（数据 + SVG 字符串），`editor.js` 负责"如何编辑/渲染/联动"。`templates.js` 是入口，只定义 `TEMPLATES` 容器与设备清单 `TEMPLATE_FILES`；render 函数中引用的工具函数由 `editor.js` 在运行期经全局作用域提供，因此加载顺序必须为 templates → editor。
 - **双页面共用一份逻辑**：`editor.js` 通过 `_isEditor` 标记区分编辑器/预览环境；预览页另有本地 IIFE 覆盖个别行为（如 `applySMILState`，避免编辑器的暂停状态冻结预览动画）。
 - **缓存控制**：两个页面均以 `document.write` + `?v=时间戳` 加载脚本，改代码后刷新即生效。
 
@@ -44,7 +45,8 @@
 ```
 ├── editor.html          # 编辑器主页面（工具栏 / 组件面板 / 属性面板）
 ├── editor.js            # 应用逻辑（章节化组织，见文件头目录注释）
-├── templates.js         # 组件模板库（20 种组件的 SVG 定义）
+├── templates.js         # 模板库入口：TEMPLATES 容器 + TEMPLATE_FILES 设备清单
+├── templates/           # 设备模板（24 个设备，一个设备一个文件，纯 SVG 数据）
 ├── preview.html         # 只读预览页（动画 / 实时数据 / 嵌入模式）
 ├── demo.html            # 单文件导出示例（由「导出 HTML」功能生成，可独立打开）
 ├── embed-demo.html      # iframe 嵌入 + postMessage 集成示例
@@ -99,7 +101,7 @@ node server.js
   "version": 1,
   "components": [{
     "id": "cv5i1lk",          // 唯一 id
-    "type": "silo",           // 对应 templates.js 中的模板 key
+    "type": "silo",           // 对应 templates/*.js 的模板 key
     "x": 280, "y": 20,        // 画布坐标
     "w": 90,  "h": 150,       // 尺寸
     "rotation": 0,            // 旋转角度
@@ -122,22 +124,20 @@ node server.js
 
 ## 新增组件模板
 
-在 `templates.js` 的 `TEMPLATES` 中追加一项即可，组件面板按 `category` 自动归组：
+在 `templates/` 下新增一个设备文件（形如 `templates/myTank.js`），并把文件名加入 `templates.js` 的 `TEMPLATE_FILES` 清单；组件面板按 `category` 自动归组，面板内顺序即清单顺序：
 
 ```js
-const TEMPLATES = {
-  // ...
-  myTank: {
-    name: '储罐', category: '设备',
-    defaultSize: { w: 100, h: 120 },
-    ports: [                                  // x/y 为 0-1 相对坐标，dir 为出向
-      { id: 'top',    x: .5, y: 0, dir: 'up' },
-      { id: 'bottom', x: .5, y: 1, dir: 'down' },
-    ],
-    render: (w, h, p) => `                    // 返回内部 SVG 字符串（不含外层 <g>）
-      <rect x="0" y="0" width="${w}" height="${h}" rx="8" class="equip-body" stroke="${p.color}"/>
-    `,
-  },
+/* templates/myTank.js */
+TEMPLATES.myTank = {
+  name: '储罐', category: '设备',
+  defaultSize: { w: 100, h: 120 },
+  ports: [                                  // x/y 为 0-1 相对坐标，dir 为出向
+    { id: 'top',    x: .5, y: 0, dir: 'up' },
+    { id: 'bottom', x: .5, y: 1, dir: 'down' },
+  ],
+  render: (w, h, p) => `                    // 返回内部 SVG 字符串（不含外层 <g>）
+    <rect x="0" y="0" width="${w}" height="${h}" rx="8" class="equip-body" stroke="${p.color}"/>
+  `,
 };
 ```
 
@@ -151,7 +151,7 @@ const TEMPLATES = {
 
 ## 导出与嵌入
 
-**单文件导出**（编辑器工具栏「导出 HTML」）：抓取 `preview.html`，将 `templates.js` + `editor.js` 内联，注入当前流程数据并强制嵌入模式，生成不依赖服务器的独立 HTML（本仓库的 `demo.html` 即由此生成）。
+**单文件导出**（编辑器工具栏「导出 HTML」）：抓取 `preview.html`，按 `TEMPLATE_FILES` 清单把 `templates/*.js` + `editor.js` 内联，注入当前流程数据并强制嵌入模式，生成不依赖服务器的独立 HTML（本仓库的 `demo.html` 即由此生成）。
 
 **iframe 嵌入**（详见 `embed-demo.html`）：
 
@@ -175,7 +175,8 @@ window.addEventListener('message', e => {
 
 ## 开发注意事项
 
-- **加载顺序不可变**：`templates.js` 必须先于 `editor.js` 加载（两个页面均由同一处 `document.write` 保证）。
+- **加载顺序不可变**：`templates.js` 必须先于 `templates/*.js` 和 `editor.js` 加载（两个页面均由同一处 `document.write` 保证；入口内部再逐个 `document.write` 设备文件）。
+- **设备模板按文件维护**：改某个设备只动 `templates/<设备>.js`；新增/删除设备时同步维护 `templates.js` 的 `TEMPLATE_FILES` 清单。
 - **单文件导出对 `preview.html` 结构有文本锚点依赖**（`const EMBED = new URLSearchParams`、`<script>document.write`、`</body>`），重构 `preview.html` 时需同步检查 `editor.js` 中的 `exportStandalone()`。
 - **预览页局部覆盖**：`preview.html` 的 IIFE 覆盖了 `applySMILState` 等函数，修改动画相关逻辑时两处都要看。
 - **`editor.js` 章节编号**：文件头有目录（TOC），新增代码请挂到对应章节并更新目录。

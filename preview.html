@@ -350,6 +350,7 @@
         });
         this.liveMap = m;
         if(typeof refreshKilnTemp==='function') refreshKilnTemp(this.liveMap, this.doc);
+        if(typeof refreshReactorLevel==='function') refreshReactorLevel(this.liveMap, this.doc);
         if(typeof refreshSwitchValveAuto==='function') refreshSwitchValveAuto(this.liveMap, this.doc);
         if(typeof refreshScrewConveyorRun==='function') refreshScrewConveyorRun(this.liveMap, this.doc);
       }
@@ -424,6 +425,38 @@
       const outInner = (typeof running!=='undefined' && running) ? inner : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
       g.innerHTML = outInner;
       g.dataset.run = run ? '1' : '0';
+    });
+  }
+
+  // 反应釜：绑定液位 tag（levelTag）时按实时值/满量程换算液面高度并同步读数；
+  // 未绑定 / 无数据 → 保持 60% 静态示意、读数显示 --（渲染时已如此）
+  // geom 换算与模板共用 templates/reactor.js 的 reactorGeom / reactorLevelFrac / reactorLevelText
+  function refreshReactorLevel(liveMap, docArg){
+    const d = docArg || (typeof doc!=='undefined' ? doc : null);
+    if(!d || !Array.isArray(d.components)) return;
+    d.components.forEach(comp=>{
+      if(comp.type !== 'reactor') return;
+      const g = findCompGroupDom(comp.id);
+      if(!g) return;
+      const gm = reactorGeom(comp.w, comp.h);
+      const live = (liveMap && comp.props.levelTag) ? liveMap[comp.props.levelTag] : null;
+      const frac = reactorLevelFrac(live ? live.value : NaN, comp.props.levelMax);
+      const f = (frac==null) ? 0.6 : frac;
+      const surfaceY = gm.bodyBot - (gm.bodyBot - gm.bodyTop) * f;
+      const liqH = Math.max(0, gm.bodyBot - surfaceY);
+      const liq = g.querySelector('.rv-liquid'), dots = g.querySelector('.rv-liquid-dots'), surf = g.querySelector('.rv-surface');
+      [liq, dots].forEach(el=>{
+        if(!el) return;
+        el.setAttribute('y', surfaceY.toFixed(1));
+        el.setAttribute('height', liqH.toFixed(1));
+      });
+      if(surf){ surf.setAttribute('y1', surfaceY.toFixed(1)); surf.setAttribute('y2', surfaceY.toFixed(1)); }
+      const band = g.querySelector('.rv-band');
+      if(band) band.setAttribute('transform', `translate(0,${surfaceY.toFixed(1)})`);
+      const rd = reactorLevelText(live);
+      const valEl = g.querySelector('.rv-level-value'), unitEl = g.querySelector('.rv-level-unit');
+      if(valEl) valEl.textContent = rd.text;
+      if(unitEl) unitEl.textContent = rd.unit;
     });
   }
 
@@ -834,7 +867,8 @@
       const cos = Math.cos(r), sin = Math.sin(r);
       if(comp.type!=='text' && !isMonitor){
         const lbl = mk('text');
-        const ldx=0, ldy=-(comp.h/2+6);
+        // 名称位置：center=组件中心（+4 为 11px 字号的基线视觉补偿）；默认组件顶部上方
+        const ldx=0, ldy=(comp.props.namePos==='center') ? 4 : -(comp.h/2+6);
         lbl.setAttribute('x', cx+ldx*cos-ldy*sin);
         lbl.setAttribute('y', cy+ldx*sin+ldy*cos);
         lbl.setAttribute('text-anchor','middle'); lbl.setAttribute('class','tlabel');
@@ -872,6 +906,7 @@
     // 重建 DOM 后 SMIL 时间线重置，按 running 状态恢复正确的播放/暂停
     if(typeof applySMILState==='function') applySMILState();
     if(typeof refreshKilnTemp==='function' && adapter && adapter.liveMap) refreshKilnTemp(adapter.liveMap, doc);
+    if(typeof refreshReactorLevel==='function' && adapter && adapter.liveMap) refreshReactorLevel(adapter.liveMap, doc);
   }
 
   // ============================================================
