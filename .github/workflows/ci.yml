@@ -37,18 +37,22 @@ jobs:
           done
 
       - name: Smoke test (serve + curl)
+        env:
+          PORT: 18090
         run: |
-          PORT=18090
-          PROJECT_DIR="$(mktemp -d)"
+          # 必须 export：裸赋值不会传给子进程，node 会退回默认端口 8090
+          export PROJECT_DIR="$(mktemp -d)"
           node server.js >/tmp/pfd-server.log 2>&1 &
           SRV=$!
           trap 'kill "$SRV" 2>/dev/null || true' EXIT
 
           # 等待服务就绪（最长 30s）
+          ready=''
           for _ in $(seq 1 30); do
-            curl -fsS "http://127.0.0.1:${PORT}/editor" >/dev/null 2>&1 && break
+            curl -fsS "http://127.0.0.1:${PORT}/editor" >/dev/null 2>&1 && { ready=1; break; }
             sleep 1
           done
+          [ -n "$ready" ] || { echo "FAIL: server not ready on port ${PORT}"; cat /tmp/pfd-server.log; exit 1; }
 
           set -e
           echo "== static endpoints =="
