@@ -5,7 +5,7 @@ rem   - Kills any stale server bound on the chosen port
 rem   - Launches node server.js in a fully detached window
 rem     (start /B + cmd /C so the process tree survives this script)
 rem   - Falls back to python http.server if Node missing
-rem   - Falls back to opening demo.html directly if no runtime at all
+rem   - Falls back to opening editor.html directly if no runtime at all
 rem   - Opens the editor in your default browser once the port binds
 rem Optional arg: a port number, e.g. `start.cmd 9000`
 rem ============================================================
@@ -57,8 +57,9 @@ if defined NODE_EXE (
   echo [start] log:    %LOG%
   start "PFD-Editor-Server" /B cmd /c "cd /d "%CD%" && "%PY_EXE%" -m http.server %PORT% --bind 127.0.0.1 > "%LOG%" 2> "%ERR%""
 ) else (
-  echo [start] no Node/Python found, opening single-file demo.html instead.
-  start "" "%CD%\demo.html"
+  echo [start] no Node/Python found, opening editor.html instead.
+  echo [start] note: project library / realtime data need the server.
+  start "" "%CD%\editor.html"
   echo [start] press any key to close.
   pause >nul
   exit /b 0

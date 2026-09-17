@@ -48,7 +48,6 @@
 ├── templates.js         # 模板库入口：TEMPLATES 容器 + TEMPLATE_FILES 设备清单
 ├── templates/           # 设备模板（24 个设备，一个设备一个文件，纯 SVG 数据）
 ├── preview.html         # 只读预览页（动画 / 实时数据 / 嵌入模式）
-├── demo.html            # 单文件导出示例（由「导出 HTML」功能生成，可独立打开）
 ├── embed-demo.html      # iframe 嵌入 + postMessage 集成示例
 ├── demo-template.json   # 默认模板「1#还原系统」的流程数据
 ├── server.js            # 开发服务器：静态文件 + /api/* 反向代理（推荐）
@@ -75,7 +74,6 @@ node server.js
 | --- | --- |
 | http://localhost:8090/editor | 编辑器 |
 | http://localhost:8090/preview | 只读预览页 |
-| http://localhost:8090/demo | 单文件导出示例（离线可用） |
 | http://localhost:8090/embed-demo.html | iframe 嵌入示例 |
 
 备选方式：`powershell -File serve.ps1` 或 `python -m http.server 8090`。注意二者均无 API 代理，实时数据、传感器目录检索不可用（页面仍可正常搭建流程）。
@@ -151,7 +149,7 @@ TEMPLATES.myTank = {
 
 ## 导出与嵌入
 
-**单文件导出**（编辑器工具栏「导出 HTML」）：抓取 `preview.html`，按 `TEMPLATE_FILES` 清单把 `templates/*.js` + `editor.js` 内联，注入当前流程数据并强制嵌入模式，生成不依赖服务器的独立 HTML（本仓库的 `demo.html` 即由此生成）。
+**单文件导出**（编辑器工具栏「导出 HTML」）：抓取 `preview.html`，按 `TEMPLATE_FILES` 清单把 `templates/*.js` + `editor.js` 内联，注入当前流程数据并强制嵌入模式，生成不依赖服务器的独立 HTML。
 
 **iframe 嵌入**（详见 `embed-demo.html`）：
 

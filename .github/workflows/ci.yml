@@ -52,7 +52,7 @@ jobs:
 
           set -e
           echo "== static endpoints =="
-          for path in /editor /preview /demo /embed-demo.html /pfd-api/projects; do
+          for path in /editor /preview /embed-demo.html /pfd-api/projects; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}${path}")
             echo "${path} -> ${code}"
             [ "${code}" = "200" ] || { echo "FAIL: ${path}"; exit 1; }

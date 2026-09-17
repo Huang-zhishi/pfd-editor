@@ -1,6 +1,6 @@
 /* ============================================================
  * PFD Editor · 本地开发服务器（server.js）
- *   - 静态文件服务（项目根目录，含 /editor /preview /demo 别名）
+ *   - 静态文件服务（项目根目录，含 /editor /preview 别名）
  *   - /api/* 反向代理到后端传感器服务，绕过浏览器 CORS 限制
  * 配置（环境变量，可选）：
  *   PORT        监听端口，默认 8090
@@ -34,7 +34,6 @@ const ALIASES = {
   '/': '/editor.html',
   '/editor': '/editor.html',
   '/preview': '/preview.html',
-  '/demo': '/demo.html',
 };
 
 // 项目库默认目录（可用 PROJECT_DIR 环境变量覆盖），不存在时自动创建
@@ -253,7 +252,6 @@ server.listen(PORT, () => {
   console.log('  PFD Editor Server Started (with API proxy)');
   console.log('========================================');
   console.log('  Editor:  http://localhost:' + PORT + '/editor');
-  console.log('  Demo:    http://localhost:' + PORT + '/demo');
   console.log('  Preview: http://localhost:' + PORT + '/preview');
   console.log('  API:     /api/* -> ' + API_TARGET + '/api/*');
   console.log('  项目库:  ' + PROJECT_DIR);
