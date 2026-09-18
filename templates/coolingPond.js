@@ -20,11 +20,40 @@ TEMPLATES.coolingPond = {
       const metalId = 'pond_metal_'+uid;
       const metalVId = 'pond_metalv_'+uid;
       const boltAt = (bx,by,r)=>`<circle cx="${bx}" cy="${by}" r="${r}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.5"/><circle cx="${bx}" cy="${by}" r="${r*0.4}" fill="#8e96b6" opacity="0.5"/>`;
+      const f = n => Number(n).toFixed(2);
       // 池体几何
       const wall=6, rimY=16, rimBottom=h-10;
       const innerX=wall+4, innerW=w-(wall+4)*2;
       const waterY=Math.round(h*0.46), waterBottom=rimBottom-wall-2, waterH=waterBottom-waterY;
       const inletX=w*0.5, outletX=w*0.5;
+      const clamp = (v, lo, hi)=>Math.max(lo, Math.min(hi, v));
+      // 接管 / 法兰 / 螺栓定尺封顶（进 / 出水管为竖管，管身沿 y 走向、管宽沿 x 走向）
+      const pipeW = clamp(w*0.0375, 3, 8);                    // 管身宽（默认 160 → 6）
+      const wallT = clamp(pipeW*0.18, 0.6, 1.4);              // 管壁厚
+      const flW   = clamp(pipeW*1.7, 6, 14);                  // 端面法兰宽（默认 → 约 10）
+      const flH   = clamp(pipeW*0.7, 2, 5);                   // 端面法兰厚（默认 → 约 4）
+      const boltR = clamp(flW*0.12, 0.6, 1.4);                // 螺栓半径
+      /* 进 / 出水管统一画法 —— 对齐泵 / 阀接管：
+         金属管壁（metalId：竖管取横向渐变）+ 深色管腔（#12162b / #6a7192）
+         + 端面把合法兰（#2a2f45 / #3f445c）+ 两颗螺栓（#8e96b6）。
+         管口最外端即端口锚点（进水管口顶边 y=0、出水管口底边 y=h），端面法兰画在管口内侧。 */
+      const makeVPipe = (x, y0, y1, end)=>{
+        const x0 = x - pipeW/2;
+        const cavW = Math.max(0.4, pipeW - wallT*2);
+        const flY = (end === 'top') ? y0 : y1 - flH;
+        const boltY = flY + flH/2;
+        const bX1 = x - flW*0.3, bX2 = x + flW*0.3;
+        return `<rect x="${f(x0)}" y="${f(y0)}" width="${f(pipeW)}" height="${f(y1-y0)}" fill="url(#${metalId})" stroke="#3f445c" stroke-width="0.8"/>
+          <rect x="${f(x0+wallT)}" y="${f(y0)}" width="${f(cavW)}" height="${f(y1-y0)}" fill="#12162b" stroke="#6a7192" stroke-width="0.5"/>
+          <rect x="${f(x-flW/2)}" y="${f(flY)}" width="${f(flW)}" height="${f(flH)}" rx="0.8" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>
+          ${boltAt(bX1, boltY, boltR)}${boltAt(bX2, boltY, boltR)}`;
+      };
+      // 池体接口把合法兰（竖管与池壁交接处，螺栓左右分列）
+      const jFlW = pipeW + clamp(pipeW*0.8, 2, 6);
+      const jFlH = clamp(pipeW*0.4, 1.6, 3);
+      const jBoltR = clamp(jFlH*0.3, 0.5, 1);
+      const makeJointV = (x, y)=>`<rect x="${f(x-jFlW/2)}" y="${f(y-jFlH/2)}" width="${f(jFlW)}" height="${f(jFlH)}" rx="0.8" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>
+        ${boltAt(x-jFlW*0.30, y, jBoltR)}${boltAt(x+jFlW*0.30, y, jBoltR)}`;
       // 局部渐变 / 裁剪定义（须置于 <defs>，id 带 uid 后缀保证跨实例唯一）
       const defs = `
         <linearGradient id="${metalId}" x1="0" y1="0" x2="1" y2="0">
@@ -80,26 +109,53 @@ TEMPLATES.coolingPond = {
           <animateTransform attributeName="transform" type="translate" values="0 0;${innerW*0.10} 0;0 0" dur="${3+i}s" repeatCount="indefinite"/>
         </path>`;
       }).join('');
-      // 6. 水位刻度
-      const scale = `<g stroke="${c}" stroke-width="0.6" opacity="0.4">
-        <line x1="${innerX+2}" y1="${waterY}" x2="${innerX+8}" y2="${waterY}"/>
-        <line x1="${innerX+4}" y1="${waterY+(waterH/3)}" x2="${innerX+8}" y2="${waterY+(waterH/3)}"/>
-        <line x1="${innerX+4}" y1="${waterY+(2*waterH/3)}" x2="${innerX+8}" y2="${waterY+(2*waterH/3)}"/>
-      </g>`;
-      // 7. 进水管（顶部，法兰+阀门+落水）
-      const inlet = `
-        <rect x="${inletX-3}" y="0" width="6" height="${rimY}" fill="url(#${metalId})" stroke="#6a7192" stroke-width="1"/>
-        <rect x="${inletX-5}" y="0" width="10" height="4" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>
-        ${boltAt(inletX-3,2,1)}${boltAt(inletX+3,2,1)}
-        <rect x="${inletX-4}" y="${rimY-5}" width="8" height="3" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>
-        <rect x="${inletX+4}" y="${rimY-9}" width="4" height="11" rx="2" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>
-        ${waterDrops(inletX, rimY-2, waterY)}`;
-      // 8. 出水管（底部，法兰）
-      const outlet = `
-        <rect x="${outletX-3}" y="${rimBottom}" width="6" height="${h-rimBottom}" fill="url(#${metalId})" stroke="#6a7192" stroke-width="1"/>
-        <rect x="${outletX-5}" y="${h-4}" width="10" height="4" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>
-        ${boltAt(outletX-3,h-2,1)}${boltAt(outletX+3,h-2,1)}
-        <rect x="${outletX-4}" y="${rimBottom}" width="8" height="3" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
+      // 6. 液位标尺（内腔左壁：主刻度 + 次刻度，起点 waterY、等分 waterH）
+      const tickX = innerX + 1;
+      const tickLenMajor = clamp(innerW*0.16, 3, 8);
+      const tickLenMinor = tickLenMajor*0.55;
+      const tickSW = clamp(innerW*0.02, 0.5, 1);
+      const scaleMajorN = 4;
+      let scaleTicks = '';
+      for(let i=0;i<=scaleMajorN;i++){
+        const ty = waterY + waterH*i/scaleMajorN;
+        scaleTicks += `<line x1="${f(tickX)}" y1="${f(ty)}" x2="${f(tickX+tickLenMajor)}" y2="${f(ty)}" stroke="${c}" stroke-width="${f(tickSW)}" opacity="0.7"/>`;
+      }
+      for(let i=0;i<scaleMajorN;i++){
+        const ty = waterY + waterH*(i+0.5)/scaleMajorN;
+        scaleTicks += `<line x1="${f(tickX)}" y1="${f(ty)}" x2="${f(tickX+tickLenMinor)}" y2="${f(ty)}" stroke="${c}" stroke-width="${f(tickSW*0.8)}" opacity="0.4"/>`;
+      }
+      const scale = `<g>${scaleTicks}</g>`;
+      // 7. 进水管（顶部统一画法 + 接口法兰 + 阀门阀体 / 手轮 + 落水）
+      const inletPipe = makeVPipe(inletX, 0, rimY, 'top');
+      const inletJoint = makeJointV(inletX, rimY);
+      // 阀体（管右侧，避开顶部法兰）+ 阀杆 + 顶置手轮
+      const vbW = clamp(pipeW*0.6, 3, 6);                       // 阀体宽
+      const vbH = clamp(rimY*0.55, 5, 9);                       // 阀体高
+      const vbX = inletX + pipeW/2 + clamp(pipeW*0.6, 2, 5);    // 阀体左缘
+      const vbY = rimY - vbH;                                   // 阀体底对齐池顶
+      const stemW = clamp(vbW*0.4, 0.8, 2);
+      const hPad = Math.max(1, rimY*0.06);
+      const wheelR = clamp((vbY-hPad)*0.42, 0, Math.min(w*0.14, vbH*0.55));
+      const wheelCX = vbX + vbW/2;
+      const wheelCY = hPad + wheelR;
+      const handleR = clamp(wheelR*0.24, 0.6, 1.8);
+      let inletValve = `<rect x="${f(vbX)}" y="${f(vbY)}" width="${f(vbW)}" height="${f(vbH)}" rx="${f(Math.min(2, vbW*0.4))}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>`;
+      if(wheelR >= 1.4){
+        const spokeN = wheelR >= 2.2 ? 5 : 4;
+        let spokes = '';
+        for(let i=0;i<spokeN;i++){
+          const a = i*(360/spokeN)*Math.PI/180 - Math.PI/2;
+          spokes += `<line x1="${f(wheelCX)}" y1="${f(wheelCY)}" x2="${f(wheelCX+Math.cos(a)*wheelR*0.82)}" y2="${f(wheelCY+Math.sin(a)*wheelR*0.82)}" stroke="#9aa2bc" stroke-width="0.9"/>`;
+        }
+        inletValve += `<rect x="${f(wheelCX-stemW/2)}" y="${f(wheelCY)}" width="${f(stemW)}" height="${f(vbY-wheelCY+0.5)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.6"/>
+          <circle cx="${f(wheelCX)}" cy="${f(wheelCY)}" r="${f(wheelR)}" fill="none" stroke="#9aa2bc" stroke-width="1.4"/>
+          <circle cx="${f(wheelCX)}" cy="${f(wheelCY)}" r="${f(Math.max(0.6, wheelR*0.26))}" fill="#5b6280" stroke="#9aa2bc" stroke-width="0.7"/>
+          ${spokes}
+          <circle cx="${f(wheelCX)}" cy="${f(wheelCY-wheelR)}" r="${f(handleR)}" fill="#8e96b6" opacity="0.7" stroke="#3a4060" stroke-width="0.5"/>`;
+      }
+      const inlet = `${inletPipe}${inletJoint}${inletValve}${waterDrops(inletX, rimY-2, waterY)}`;
+      // 8. 出水管（底部统一画法 + 接口法兰）
+      const outlet = `${makeVPipe(outletX, rimBottom, h, 'bottom')}${makeJointV(outletX, rimBottom)}`;
       // 9. 溢流口（完全收进池壁内，不伸出设备边界）
       //    端口 overflow(1, .4, right) 锚点 = (w, 0.4h)：管口最外侧固定在 x=w，
       //    整组（短管 + 左侧封头竖板）垂直中心对齐 overflowY，须与上方 ports 定义保持同步（修 P7 错位）。
@@ -111,12 +167,18 @@ TEMPLATES.coolingPond = {
       const overflow = `
         <rect x="${w-overflowW}" y="${overflowY-overflowH/2}" width="${overflowW}" height="${overflowH}" rx="1" fill="url(#${metalVId})" stroke="#3f445c" stroke-width="0.8"/>
         <rect x="${w-overflowW}" y="${overflowY-overflowPlateH/2}" width="${overflowPlateW}" height="${overflowPlateH}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>`;
-      // 10. 爬梯（左侧池壁）
-      const ladder = `
-        <g stroke="${c}" stroke-width="0.8" opacity="0.6">
-          <line x1="3" y1="${rimY+4}" x2="3" y2="${rimBottom-4}"/>
-          <line x1="9" y1="${rimY+4}" x2="9" y2="${rimBottom-4}"/>
-          ${Array.from({length:6}).map((_,i)=>`<line x1="3" y1="${rimY+8+i*(rimBottom-rimY-12)/5}" x2="9" y2="${rimY+8+i*(rimBottom-rimY-12)/5}"/>`).join('')}
+      // 10. 爬梯（左侧池壁：双竖杆 + 横档，档数按池高 clamp）
+      const ladderPad = clamp((rimBottom-rimY)*0.12, 2, 4);
+      const railX1 = clamp(w*0.02, 2, 4);
+      const railGap = clamp(w*0.04, 3, 6);
+      const railX2 = railX1 + railGap;
+      const rungN = Math.max(3, Math.min(8, Math.round((rimBottom-rimY)/14)));
+      const rungTop = rimY + ladderPad, rungBot = rimBottom - ladderPad;
+      const rungGap = (rungBot-rungTop)/Math.max(1, rungN-1);
+      const ladder = `<g stroke="${c}" stroke-width="0.8" opacity="0.6">
+          <line x1="${f(railX1)}" y1="${f(rungTop)}" x2="${f(railX1)}" y2="${f(rungBot)}"/>
+          <line x1="${f(railX2)}" y1="${f(rungTop)}" x2="${f(railX2)}" y2="${f(rungBot)}"/>
+          ${Array.from({length:rungN}).map((_,i)=>`<line x1="${f(railX1)}" y1="${f(rungTop+i*rungGap)}" x2="${f(railX2)}" y2="${f(rungTop+i*rungGap)}"/>`).join('')}
         </g>`;
       // 11. 铭牌
       const nameplate = `<rect x="${w-30}" y="${rimY+8}" width="24" height="10" rx="1" fill="#0d0b20" stroke="${c}" stroke-width="0.6"/>
