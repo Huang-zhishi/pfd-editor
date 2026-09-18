@@ -101,9 +101,16 @@ TEMPLATES.coolingPond = {
         ${boltAt(outletX-3,h-2,1)}${boltAt(outletX+3,h-2,1)}
         <rect x="${outletX-4}" y="${rimBottom}" width="8" height="3" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
       // 9. 溢流口（完全收进池壁内，不伸出设备边界）
+      //    端口 overflow(1, .4, right) 锚点 = (w, 0.4h)：管口最外侧固定在 x=w，
+      //    整组（短管 + 左侧封头竖板）垂直中心对齐 overflowY，须与上方 ports 定义保持同步（修 P7 错位）。
+      const overflowY = h*0.4;
+      const overflowW = Math.max(5, Math.min(14, w/16));                        // 管身长（定尺封顶）
+      const overflowH = Math.max(4, Math.min(12, h/15));                        // 管身高（定尺封顶）
+      const overflowPlateW = Math.max(2, Math.min(4, overflowW*0.3));           // 封头竖板宽
+      const overflowPlateH = overflowH + Math.max(2, Math.min(6, overflowH*0.5)); // 封头竖板高
       const overflow = `
-        <rect x="${w-10}" y="${waterY}" width="10" height="8" rx="1" fill="url(#${metalVId})" stroke="#3f445c" stroke-width="0.8"/>
-        <rect x="${w-10}" y="${waterY-2}" width="3" height="12" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>`;
+        <rect x="${w-overflowW}" y="${overflowY-overflowH/2}" width="${overflowW}" height="${overflowH}" rx="1" fill="url(#${metalVId})" stroke="#3f445c" stroke-width="0.8"/>
+        <rect x="${w-overflowW}" y="${overflowY-overflowPlateH/2}" width="${overflowPlateW}" height="${overflowPlateH}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>`;
       // 10. 爬梯（左侧池壁）
       const ladder = `
         <g stroke="${c}" stroke-width="0.8" opacity="0.6">
