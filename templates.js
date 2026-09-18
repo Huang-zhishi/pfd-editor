@@ -36,6 +36,7 @@ const TEMPLATE_FILES = [
   'blower',
   'blowerSingle',
   'rotaryKiln',
+  'miningDryer',
   'switchValve',
   'dustCollector',
   'screwConveyor',
