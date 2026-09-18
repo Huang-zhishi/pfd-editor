@@ -124,29 +124,8 @@ TEMPLATES.weighFeeder = {
         `<line x1="${f(doorX+doorW*0.74)}" y1="${f(doorY+1.4)}" x2="${f(doorX+doorW*0.74)}" y2="${f(doorY+doorH-1.4)}" stroke="#3a4060" stroke-width="1"/>` +
         `<circle cx="${f(doorX+doorW*0.5)}" cy="${f(doorY+doorH*0.5)}" r="${f(Math.max(0.6, Math.min(doorW,doorH)*0.13))}" fill="#8e96b6" opacity="0.75"/>`;
 
-      /* 称重支腿组（左右各一）：耳座（贴筒壁外伸）→ 称重传感器（件体色）→ 支腿 → 基础板，
-         件体画法沿用提升机链斗 / 螺旋叶片（#9aa2bc + #5b6280）；
-         传感器保留指示圆点（${c} 着色，运行态闪烁）。尺寸全部定尺封顶。*/
-      const legW = Math.max(2, Math.min(5, w*0.036));          // 支腿宽
-      const senW = Math.max(legW+2, Math.min(9, w*0.075));     // 传感器宽
-      const senH = Math.max(2.5, Math.min(7, h*0.045));        // 传感器高
-      const armH = Math.max(1.2, Math.min(3, w*0.026));        // 耳座板厚
-      const armW = Math.max(2, Math.min(6, w*0.05));           // 耳座外伸长
-      const baseH = Math.max(1.5, Math.min(4, h*0.022));       // 基础板厚
-      const armY = coneTopY - armH*0.5;                        // 耳座中心线（筒体下沿）
-      const senTopY = armY + armH*0.5, senBotY = senTopY + senH;
-      const legBotY = h - baseH;
-      const senCxL = topX - armW*0.5, senCxR = topX + topW + armW*0.5;   // 传感器中心（筒壁外 armW/2）
-      const sensor = (scx)=>`
-        <rect x="${f(scx-senW*0.5)}" y="${f(armY-armH*0.5)}" width="${f(senW)}" height="${f(armH)}" fill="#9aa2bc" stroke="#5b6280" stroke-width="0.7"/>
-        <rect x="${f(scx-senW*0.5)}" y="${f(senTopY)}" width="${f(senW)}" height="${f(senH)}" rx="1" fill="#9aa2bc" stroke="#5b6280" stroke-width="0.9"/>
-        <circle cx="${f(scx)}" cy="${f(senTopY+senH*0.5)}" r="${f(Math.max(0.6, Math.min(senW,senH)*0.17))}" fill="${c}" opacity="0.55"/>
-        <rect x="${f(scx-legW*0.5)}" y="${f(senBotY)}" width="${f(legW)}" height="${f(Math.max(0, legBotY-senBotY))}" fill="#9aa2bc" stroke="#5b6280" stroke-width="0.8"/>
-        <rect x="${f(scx-legW*1.2)}" y="${f(legBotY)}" width="${f(legW*2.4)}" height="${f(baseH)}" rx="0.8" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
-      const sensors = sensor(senCxL) + sensor(senCxR);
-
       /* 称重仪表：面板 #2a2f45 + 深色屏幕 #12162b / #6a7192 + kg 读数（${c}）+ 绿色指示灯，
-         信号线改 #6a7192 虚线，自仪表下沿接到右侧传感器顶部。*/
+         信号线改 #6a7192 虚线，自仪表下沿接到筒体右下侧壁（原右支腿顶部的接点位置）。*/
       const boxW = Math.max(6, Math.min(16, w*0.135));
       const boxH = Math.max(5, Math.min(boxW, h*0.20));
       const boxPad = Math.max(1, Math.min(4, w*0.027));
@@ -155,13 +134,13 @@ TEMPLATES.weighFeeder = {
       const fs = Math.max(3, Math.min(8, scrH*0.95));
       const lampR = Math.max(0.5, Math.min(2, boxW*0.10));
       const lampX = boxX+boxW*0.5, lampY = boxY+boxH*0.80;
-      const signalY = Math.max(senTopY, boxY+boxH);
+      const signalY = Math.max(coneTopY, boxY+boxH);
       const meter = `
         <rect x="${f(boxX)}" y="${f(boxY)}" width="${f(boxW)}" height="${f(boxH)}" rx="2" fill="#2a2f45" stroke="#3f445c" stroke-width="1"/>
         <rect x="${f(scrX)}" y="${f(scrY)}" width="${f(scrW)}" height="${f(scrH)}" rx="1" fill="#12162b" stroke="#6a7192" stroke-width="0.6"/>
         <text x="${f(boxX+boxW*0.5)}" y="${f(scrY+scrH*0.82)}" text-anchor="middle" fill="${c}" font-size="${f(fs)}" font-family="inherit">kg</text>
         <circle cx="${f(lampX)}" cy="${f(lampY)}" r="${f(lampR)}" fill="#33aa33" stroke="#3f445c" stroke-width="0.4"><animate attributeName="opacity" values="1;0.22;1" dur="1.6s" repeatCount="indefinite"/></circle>
-        <path d="M ${f(boxX+boxW*0.25)} ${f(boxY+boxH)} L ${f(boxX+boxW*0.25)} ${f(signalY+Math.max(1, senH*0.25))} L ${f(senCxR)} ${f(signalY+Math.max(1, senH*0.25))}" fill="none" stroke="#6a7192" stroke-width="0.6" stroke-dasharray="2 1.5" opacity="0.75"/>`;
+        <path d="M ${f(boxX+boxW*0.25)} ${f(boxY+boxH)} L ${f(boxX+boxW*0.25)} ${f(signalY)} L ${f(topX+topW)} ${f(signalY)}" fill="none" stroke="#6a7192" stroke-width="0.6" stroke-dasharray="2 1.5" opacity="0.75"/>`;
 
       return `
         <defs>
@@ -197,8 +176,7 @@ TEMPLATES.weighFeeder = {
         ${botFl}
         ${bolt(botX-wallT*0.5, coneBotY+botFlH*0.5)}
         ${bolt(botX+botW+wallT*0.5, coneBotY+botFlH*0.5)}
-        <!-- 6. 称重支腿组与称重仪表 -->
-        ${sensors}
+        <!-- 6. 称重仪表 -->
         ${meter}
       `;
     }

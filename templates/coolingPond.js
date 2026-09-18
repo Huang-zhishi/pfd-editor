@@ -38,7 +38,11 @@ TEMPLATES.coolingPond = {
       const innerSpan    = poolInnerBot - poolInnerTop;
       const waterY       = Math.round(poolInnerTop + innerSpan*0.40);             // 常水位（默认 ≈ 55）
       const waterH       = Math.max(1.5, Math.min(Math.round(innerSpan*0.57), poolInnerBot - waterY));
-      const cavTop       = clamp(h*0.05, 3, 6);                  // 内腔上探（水面之上的气相空间，定尺封顶）
+      /* 内腔上沿直接取池内顶（气相空间 + 水体一体）：
+         原先把「内腔上探量」封顶在 ≤6，水面之上就留出一大块金属渐变，
+         观感像贴在池口的一块大金属板；内腔铺满池内高后，水面上方是空的深色气相空间。 */
+      const cavTopY      = Math.min(poolInnerTop, rimBottom - 1);    // 内腔上沿 = 池内顶（极小 h 下夹在池身外沿内）
+      const cavH         = Math.max(1, Math.min(poolInnerBot, rimBottom) - cavTopY); // 内腔总高
       const edgeW        = clamp(wall*0.33, 1, 2);               // 内腔左右侧壁亮 / 暗收边
       // 接管 / 法兰 / 螺栓定尺封顶（进 / 出水管为竖管，管身沿 y 走向、管宽沿 x 走向）
       const pipeW = clamp(w*0.0375, 3, 8);                    // 管身宽（默认 160 → 6）
@@ -106,9 +110,9 @@ TEMPLATES.coolingPond = {
       const cavInnerSW = clamp(wall*0.17, 0.5, 1);
       const wallBody = `
         <rect x="${f(wall)}" y="${f(rimY)}" width="${f(w-wall*2)}" height="${f(rimBottom-rimY)}" rx="${f(wallRX)}" fill="url(#${metalId})" stroke="#3f445c" stroke-width="${f(wallSW)}"/>
-        <rect x="${f(innerX)}" y="${f(waterY-cavTop)}" width="${f(innerW)}" height="${f(waterH+cavTop)}" fill="#12162b" stroke="#6a7192" stroke-width="${f(cavInnerSW)}" opacity="0.9"/>
-        <rect x="${f(innerX-edgeW)}" y="${f(waterY-cavTop)}" width="${f(edgeW)}" height="${f(waterH+cavTop)}" fill="#5b6280"/>
-        <rect x="${f(innerX+innerW)}" y="${f(waterY-cavTop)}" width="${f(edgeW)}" height="${f(waterH+cavTop)}" fill="#0c1020"/>`;
+        <rect x="${f(innerX)}" y="${f(cavTopY)}" width="${f(innerW)}" height="${f(cavH)}" fill="#12162b" stroke="#6a7192" stroke-width="${f(cavInnerSW)}" opacity="0.9"/>
+        <rect x="${f(innerX-edgeW)}" y="${f(cavTopY)}" width="${f(edgeW)}" height="${f(cavH)}" fill="#5b6280"/>
+        <rect x="${f(innerX+innerW)}" y="${f(cavTopY)}" width="${f(edgeW)}" height="${f(cavH)}" fill="#0c1020"/>`;
       // 3. 池顶压顶（外挑 / 上沿 / 圆角 / 高光均按池壁厚或池高封顶）
       const rimOverhang = clamp(wall*0.5, 1.5, 3);
       const rimTop = rimY - clamp(h*0.033, 2.5, 4);

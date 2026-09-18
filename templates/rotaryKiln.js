@@ -37,6 +37,7 @@ TEMPLATES.rotaryKiln = {
       const h_clipIdInner = `clip_kiln_in_${Math.random().toString(36).substr(2,6)}`;
       const kilnShadeId = `kiln_shade_${Math.random().toString(36).substr(2,6)}`;
       const kilnTempGradId = `kiln_temp_${Math.random().toString(36).substr(2,6)}`;
+      const kilnTempBaseId = `kiln_tempbase_${Math.random().toString(36).substr(2,6)}`;
       const rkMetalId = `rk_metal_${Math.random().toString(36).substr(2,6)}`;
       const rkMetalVId = `rk_metalv_${Math.random().toString(36).substr(2,6)}`;
       const baseY = h*0.94;
@@ -164,8 +165,21 @@ TEMPLATES.rotaryKiln = {
       </linearGradient>`;
       // 温度渐变（测温点 → 颜色锚点，从左到右）
       const tempPoints = (p && p.tempPoints && p.tempPoints.length) ? p.tempPoints : [];
-      const tempGrad = tempPoints.length ? `<linearGradient id="${kilnTempGradId}" x1="0" y1="0" x2="1" y2="0" class="kiln-temp-grad">${tempPoints.map((pt,i)=>`<stop class="kiln-temp-stop" data-kidx="${i}" offset="${((i/(tempPoints.length-1||1))*100).toFixed(1)}%" stop-color="#9C99FF"/>`).join('')}</linearGradient>` : '';
-      const tempOverlay = tempPoints.length ? `<rect class="kiln-temp-overlay" x="${h_drumL}" y="${h_drumTop}" width="${h_drumW}" height="${h_R*2}" rx="${h_R*0.25}" ry="${h_R}" fill="url(#${kilnTempGradId})" opacity="0.55" clip-path="url(#${h_clipId})"/>` : '';
+      // 无实时数据时的占位色：沿筒体方向的暖色坡（暗红→亮橙），替代原先的淡紫默认色（在亮金属筒体上会泛白成雾）
+      const tempCold = [122, 26, 8], tempHot = [255, 191, 92];
+      const tempGrad = tempPoints.length ? `<linearGradient id="${kilnTempGradId}" x1="0" y1="0" x2="1" y2="0" class="kiln-temp-grad">${tempPoints.map((pt,i)=>{
+        const f = tempPoints.length > 1 ? i/(tempPoints.length-1) : 0;
+        const col = 'rgb(' + tempCold.map((v,j)=>Math.round(v+(tempHot[j]-v)*f)).join(',') + ')';
+        return `<stop class="kiln-temp-stop" data-kidx="${i}" offset="${(f*100).toFixed(1)}%" stop-color="${col}"/>`;
+      }).join('')}</linearGradient>` : '';
+      // 温度区底衬：暗色柱面渐变，为温度色提供高对比背景（直接叠在亮金属筒体上会泛白起雾）
+      const tempBaseDef = tempPoints.length ? `<linearGradient id="${kilnTempBaseId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#160b08"/>
+        <stop offset="50%" stop-color="#2e160c"/>
+        <stop offset="100%" stop-color="#160b08"/>
+      </linearGradient>` : '';
+      const tempBase = tempPoints.length ? `<rect x="${h_drumL}" y="${h_drumTop}" width="${h_drumW}" height="${h_R*2}" rx="${h_R*0.25}" ry="${h_R}" fill="url(#${kilnTempBaseId})" clip-path="url(#${h_clipId})"/>` : '';
+      const tempOverlay = tempPoints.length ? `<rect class="kiln-temp-overlay" x="${h_drumL}" y="${h_drumTop}" width="${h_drumW}" height="${h_R*2}" rx="${h_R*0.25}" ry="${h_R}" fill="url(#${kilnTempGradId})" opacity="0.82" clip-path="url(#${h_clipId})"/>` : '';
       const clipDef = `<clipPath id="${h_clipId}"><rect x="${h_drumL}" y="${h_drumTop}" width="${h_drumW}" height="${h_R*2}" rx="${h_R*0.25}" ry="${h_R}"/></clipPath>`;
       const clipDefInner = `<clipPath id="${h_clipIdInner}"><rect x="${F(h_drumL+tubeInset)}" y="${F(h_drumTop+tubeInset)}" width="${F(h_drumW-2*tubeInset)}" height="${F(h_R*2-2*tubeInset)}" rx="${F(h_R*0.2)}" ry="${F(Math.max(1,h_R-tubeInset))}"/></clipPath>`;
 
@@ -593,12 +607,12 @@ TEMPLATES.rotaryKiln = {
         <circle cx="${F(plateX+plateW*0.88)}" cy="${F(plateY+plateH*0.25)}" r="${F(clamp(plateH*0.06,0.6,1.2))}" fill="${c}" opacity="0.5"/>`;
 
       return `
-        ${metalDef}${metalVDef}${drumShade}${tempGrad}${clipDef}${clipDefInner}
+        ${metalDef}${metalVDef}${drumShade}${tempGrad}${tempBaseDef}${clipDef}${clipDefInner}
         ${foundations}
         ${tailHood}${flueParticles}
         ${trunnions}${h_thrustWheel}
         ${burnerCar}
-        ${drumBody}${tempOverlay}${weldRings}${tires}${h_girthGear}
+        ${drumBody}${tempBase}${tempOverlay}${weldRings}${tires}${h_girthGear}
         ${heatGlow}${refractory}${flights}${materialParticles}${flames}
         ${rotMarks}${ringBolts}
         ${h_driveSystem}
