@@ -32,6 +32,7 @@ const TEMPLATE_FILES = [
   'circle',
   'hopper',
   'heater',
+  'hotAirFurnace',
   'blower',
   'blowerSingle',
   'rotaryKiln',
