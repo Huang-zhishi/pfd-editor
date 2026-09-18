@@ -21,12 +21,25 @@ TEMPLATES.coolingPond = {
       const metalVId = 'pond_metalv_'+uid;
       const boltAt = (bx,by,r)=>`<circle cx="${bx}" cy="${by}" r="${r}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.5"/><circle cx="${bx}" cy="${by}" r="${r*0.4}" fill="#8e96b6" opacity="0.5"/>`;
       const f = n => Number(n).toFixed(2);
-      // 池体几何
-      const wall=6, rimY=16, rimBottom=h-10;
-      const innerX=wall+4, innerW=w-(wall+4)*2;
-      const waterY=Math.round(h*0.46), waterBottom=rimBottom-wall-2, waterH=waterBottom-waterY;
-      const inletX=w*0.5, outletX=w*0.5;
       const clamp = (v, lo, hi)=>Math.max(lo, Math.min(hi, v));
+      /* 池体几何 —— 全部按池宽 / 池高封顶（定尺）：
+         尺寸放大时只有中间段变长，池壁厚 / 压顶 / 内壁内缩 / 地面高等定尺量不随之变粗
+         （替换原先固定 wall=6 / rimY=16 / rimBottom=h-10 / innerX=wall+4 / waterBottom=-wall-2）。*/
+      const wall       = clamp(Math.min(w,h)*0.05, 3, 6);        // 池壁厚（默认 160×120 → 6）
+      const rimH       = clamp(h*0.05, 4, 6);                    // 池顶压顶高
+      const rimY       = clamp(h*0.1333, 10, 16);                // 压顶上沿（池顶 y）
+      const rimBottom  = h - clamp(h*0.0833, 6, 10);             // 池底外沿
+      const innerInset = clamp(Math.min(w,h)*0.0333, 2, 4);      // 内壁相对外壁再内缩
+      const innerX = wall + innerInset, innerW = Math.max(1, w-(wall+innerInset)*2);
+      const inletX = w*0.5, outletX = w*0.5;
+      // 水面 / 水体：按池内腔高度比例铺排，矮尺寸下水体仍保留下限高度（不消失 / 不糊成一条线）
+      const poolInnerTop = rimY + rimH;
+      const poolInnerBot = Math.max(poolInnerTop + 1, rimBottom - wall);
+      const innerSpan    = poolInnerBot - poolInnerTop;
+      const waterY       = Math.round(poolInnerTop + innerSpan*0.40);             // 常水位（默认 ≈ 55）
+      const waterH       = Math.max(1.5, Math.min(Math.round(innerSpan*0.57), poolInnerBot - waterY));
+      const cavTop       = clamp(h*0.05, 3, 6);                  // 内腔上探（水面之上的气相空间，定尺封顶）
+      const edgeW        = clamp(wall*0.33, 1, 2);               // 内腔左右侧壁亮 / 暗收边
       // 接管 / 法兰 / 螺栓定尺封顶（进 / 出水管为竖管，管身沿 y 走向、管宽沿 x 走向）
       const pipeW = clamp(w*0.0375, 3, 8);                    // 管身宽（默认 160 → 6）
       const wallT = clamp(pipeW*0.18, 0.6, 1.4);              // 管壁厚
@@ -67,30 +80,42 @@ TEMPLATES.coolingPond = {
           <stop offset="100%" stop-color="#1E5AA8" stop-opacity="0.9"/>
         </linearGradient>
         <clipPath id="${clipId}"><rect x="${innerX}" y="${waterY}" width="${innerW}" height="${waterH}"/></clipPath>`;
-      // 落水滴（进水管口→水面，持续水流）
+      // 落水滴（进水管口→水面，持续水流）；粒半径 / 横向散开量按池宽 clamp（替换固定 1.2 / 1.5 / 1.3）
+      const dropR = clamp(w*0.0075, 0.6, 1.2);
+      const dropSpread = clamp(w*0.008, 0.5, 1.6);
+      const dropY0 = rimY - clamp(h*0.017, 1, 2);            // 落水起点（池顶下方定尺留边）
       const waterDrops = (x,yStart,yEnd)=>{
         return Array.from({length:6}).map((_,i)=>{
           const delay = -i*0.4;
           const dur = 1.3 + (i%3)*0.15;
-          return `<circle r="${1.2+(i%2)*0.5}" fill="${c}" opacity="0.9">
-            <animate attributeName="cx" values="${x};${x+(i-2.5)*1.3}" dur="${dur}s" begin="${delay}s" repeatCount="indefinite"/>
+          return `<circle r="${f(dropR*(i%2?1.42:1))}" fill="${c}" opacity="0.9">
+            <animate attributeName="cx" values="${x};${x+(i-2.5)*dropSpread}" dur="${dur}s" begin="${delay}s" repeatCount="indefinite"/>
             <animate attributeName="cy" values="${yStart};${yEnd}" dur="${dur}s" begin="${delay}s" repeatCount="indefinite"/>
             <animate attributeName="opacity" values="0;1;0" dur="${dur}s" begin="${delay}s" repeatCount="indefinite"/>
           </circle>`;
         }).join('');
       };
-      // 1. 混凝土地面
-      const ground = `<rect x="0" y="${h-6}" width="${w}" height="6" fill="#12162b" stroke="#6a7192" stroke-width="0.8"/>
-        <line x1="2" y1="${h-3}" x2="${w-2}" y2="${h-3}" stroke="#6a7192" stroke-width="0.6" opacity="0.4"/>`;
-      // 2. 池壁（外壁金属渐变 + 内腔）
+      // 1. 混凝土地面（高 / 分隔线按池高 / 池宽 clamp）
+      const groundH = clamp(h*0.05, 3, 6);
+      const groundX = clamp(w*0.012, 1, 3);
+      const ground = `<rect x="0" y="${f(h-groundH)}" width="${w}" height="${f(groundH)}" fill="#12162b" stroke="#6a7192" stroke-width="0.8"/>
+        <line x1="${f(groundX)}" y1="${f(h-groundH/2)}" x2="${f(w-groundX)}" y2="${f(h-groundH/2)}" stroke="#6a7192" stroke-width="0.6" opacity="0.4"/>`;
+      // 2. 池壁（外壁金属渐变 + 内腔；圆角 / 描边 / 内腔上探 / 收边均定尺封顶）
+      const wallRX    = clamp(wall*0.5, 1, 3);
+      const wallSW    = clamp(wall*0.33, 1, 2);
+      const cavInnerSW = clamp(wall*0.17, 0.5, 1);
       const wallBody = `
-        <rect x="${wall}" y="${rimY}" width="${w-wall*2}" height="${rimBottom-rimY}" rx="3" fill="url(#${metalId})" stroke="#3f445c" stroke-width="2"/>
-        <rect x="${innerX}" y="${waterY-6}" width="${innerW}" height="${waterH+6}" fill="#12162b" stroke="#6a7192" stroke-width="1" opacity="0.9"/>
-        <rect x="${innerX-2}" y="${waterY-6}" width="2" height="${waterH+6}" fill="#5b6280"/>
-        <rect x="${innerX+innerW}" y="${waterY-6}" width="2" height="${waterH+6}" fill="#0c1020"/>`;
-      // 3. 池顶压顶
-      const rim = `<rect x="${wall-3}" y="${rimY-4}" width="${w-wall*2+6}" height="6" rx="2" fill="#2a2f45" stroke="#3f445c" stroke-width="0.9"/>
-        <rect x="${wall-1}" y="${rimY-2}" width="${w-wall*2+2}" height="1.5" fill="#5b6280"/>`;
+        <rect x="${f(wall)}" y="${f(rimY)}" width="${f(w-wall*2)}" height="${f(rimBottom-rimY)}" rx="${f(wallRX)}" fill="url(#${metalId})" stroke="#3f445c" stroke-width="${f(wallSW)}"/>
+        <rect x="${f(innerX)}" y="${f(waterY-cavTop)}" width="${f(innerW)}" height="${f(waterH+cavTop)}" fill="#12162b" stroke="#6a7192" stroke-width="${f(cavInnerSW)}" opacity="0.9"/>
+        <rect x="${f(innerX-edgeW)}" y="${f(waterY-cavTop)}" width="${f(edgeW)}" height="${f(waterH+cavTop)}" fill="#5b6280"/>
+        <rect x="${f(innerX+innerW)}" y="${f(waterY-cavTop)}" width="${f(edgeW)}" height="${f(waterH+cavTop)}" fill="#0c1020"/>`;
+      // 3. 池顶压顶（外挑 / 上沿 / 圆角 / 高光均按池壁厚或池高封顶）
+      const rimOverhang = clamp(wall*0.5, 1.5, 3);
+      const rimTop = rimY - clamp(h*0.033, 2.5, 4);
+      const rimRX = clamp(rimH*0.33, 1, 2);
+      const rimHiH = clamp(rimH*0.25, 0.8, 1.5);
+      const rim = `<rect x="${f(wall-rimOverhang)}" y="${f(rimTop)}" width="${f(w-wall*2+rimOverhang*2)}" height="${f(rimH)}" rx="${f(rimRX)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.9"/>
+        <rect x="${f(wall-rimOverhang*0.33)}" y="${f(rimTop+rimH*0.33)}" width="${f(w-wall*2+rimOverhang*0.66)}" height="${f(rimHiH)}" fill="#5b6280"/>`;
       // 4. 水面（蓝色渐变）
       const water = `<rect x="${innerX}" y="${waterY}" width="${innerW}" height="${waterH}" fill="url(#${gid})"/>`;
       // 5. 动态波纹（正弦波左右往复，裁剪在水面内不溢出）
@@ -104,17 +129,19 @@ TEMPLATES.coolingPond = {
         return d;
       };
       const waves = [0,0.5,1].map((ph,i)=>{
-        const amp = (i===1?3:5);
-        return `<path d="${waveD(ph,amp)}" fill="none" stroke="#d9dded" stroke-width="${i===1?1.2:0.8}" opacity="0.6" clip-path="url(#${clipId})">
-          <animateTransform attributeName="transform" type="translate" values="0 0;${innerW*0.10} 0;0 0" dur="${3+i}s" repeatCount="indefinite"/>
+        // 振幅 / 线宽按水体高 waterH 比例并设上下限（替换固定 3 / 5 与 1.2 / 0.8）
+        const amp = clamp(waterH*(i===1?0.064:0.106), 0.8, 6);
+        const sw  = clamp(waterH*(i===1?0.0255:0.017), 0.6, 1.2);
+        return `<path d="${waveD(ph,amp)}" fill="none" stroke="#d9dded" stroke-width="${f(sw)}" opacity="0.6" clip-path="url(#${clipId})">
+          <animateTransform attributeName="transform" type="translate" values="0 0;${f(innerW*0.10)} 0;0 0" dur="${3+i}s" repeatCount="indefinite"/>
         </path>`;
       }).join('');
       // 6. 液位标尺（内腔左壁：主刻度 + 次刻度，起点 waterY、等分 waterH）
-      const tickX = innerX + 1;
+      const tickX = innerX + clamp(innerW*0.007, 0.5, 1);        // 刻度起点（贴内壁，定尺封顶）
       const tickLenMajor = clamp(innerW*0.16, 3, 8);
       const tickLenMinor = tickLenMajor*0.55;
       const tickSW = clamp(innerW*0.02, 0.5, 1);
-      const scaleMajorN = 4;
+      const scaleMajorN = Math.max(1, Math.min(6, Math.round(waterH/12)));   // 主刻度段数按水体高 clamp（默认 4 → 9 条）
       let scaleTicks = '';
       for(let i=0;i<=scaleMajorN;i++){
         const ty = waterY + waterH*i/scaleMajorN;
@@ -139,21 +166,24 @@ TEMPLATES.coolingPond = {
       const wheelCX = vbX + vbW/2;
       const wheelCY = hPad + wheelR;
       const handleR = clamp(wheelR*0.24, 0.6, 1.8);
+      const spokeSW = clamp(wheelR*0.35, 0.6, 1.1);             // 辐条线宽按手轮半径 clamp
+      const rimSW   = clamp(wheelR*0.54, 0.8, 1.6);             // 轮缘线宽按手轮半径 clamp
+      const stemEx  = clamp(h*0.004, 0.3, 0.8);                 // 阀杆插入阀体的余量（定尺封顶）
       let inletValve = `<rect x="${f(vbX)}" y="${f(vbY)}" width="${f(vbW)}" height="${f(vbH)}" rx="${f(Math.min(2, vbW*0.4))}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>`;
       if(wheelR >= 1.4){
         const spokeN = wheelR >= 2.2 ? 5 : 4;
         let spokes = '';
         for(let i=0;i<spokeN;i++){
           const a = i*(360/spokeN)*Math.PI/180 - Math.PI/2;
-          spokes += `<line x1="${f(wheelCX)}" y1="${f(wheelCY)}" x2="${f(wheelCX+Math.cos(a)*wheelR*0.82)}" y2="${f(wheelCY+Math.sin(a)*wheelR*0.82)}" stroke="#9aa2bc" stroke-width="0.9"/>`;
+          spokes += `<line x1="${f(wheelCX)}" y1="${f(wheelCY)}" x2="${f(wheelCX+Math.cos(a)*wheelR*0.82)}" y2="${f(wheelCY+Math.sin(a)*wheelR*0.82)}" stroke="#9aa2bc" stroke-width="${f(spokeSW)}"/>`;
         }
-        inletValve += `<rect x="${f(wheelCX-stemW/2)}" y="${f(wheelCY)}" width="${f(stemW)}" height="${f(vbY-wheelCY+0.5)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.6"/>
-          <circle cx="${f(wheelCX)}" cy="${f(wheelCY)}" r="${f(wheelR)}" fill="none" stroke="#9aa2bc" stroke-width="1.4"/>
+        inletValve += `<rect x="${f(wheelCX-stemW/2)}" y="${f(wheelCY)}" width="${f(stemW)}" height="${f(vbY-wheelCY+stemEx)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.6"/>
+          <circle cx="${f(wheelCX)}" cy="${f(wheelCY)}" r="${f(wheelR)}" fill="none" stroke="#9aa2bc" stroke-width="${f(rimSW)}"/>
           <circle cx="${f(wheelCX)}" cy="${f(wheelCY)}" r="${f(Math.max(0.6, wheelR*0.26))}" fill="#5b6280" stroke="#9aa2bc" stroke-width="0.7"/>
           ${spokes}
           <circle cx="${f(wheelCX)}" cy="${f(wheelCY-wheelR)}" r="${f(handleR)}" fill="#8e96b6" opacity="0.7" stroke="#3a4060" stroke-width="0.5"/>`;
       }
-      const inlet = `${inletPipe}${inletJoint}${inletValve}${waterDrops(inletX, rimY-2, waterY)}`;
+      const inlet = `${inletPipe}${inletJoint}${inletValve}${waterDrops(inletX, dropY0, waterY)}`;
       // 8. 出水管（底部统一画法 + 接口法兰）
       const outlet = `${makeVPipe(outletX, rimBottom, h, 'bottom')}${makeJointV(outletX, rimBottom)}`;
       // 9. 溢流口（完全收进池壁内，不伸出设备边界）
@@ -175,14 +205,25 @@ TEMPLATES.coolingPond = {
       const rungN = Math.max(3, Math.min(8, Math.round((rimBottom-rimY)/14)));
       const rungTop = rimY + ladderPad, rungBot = rimBottom - ladderPad;
       const rungGap = (rungBot-rungTop)/Math.max(1, rungN-1);
-      const ladder = `<g stroke="${c}" stroke-width="0.8" opacity="0.6">
+      const rungSW = clamp(w*0.005, 0.5, 1);                 // 横档 / 竖杆线宽按池宽封顶
+      const ladder = `<g stroke="${c}" stroke-width="${f(rungSW)}" opacity="0.6">
           <line x1="${f(railX1)}" y1="${f(rungTop)}" x2="${f(railX1)}" y2="${f(rungBot)}"/>
           <line x1="${f(railX2)}" y1="${f(rungTop)}" x2="${f(railX2)}" y2="${f(rungBot)}"/>
           ${Array.from({length:rungN}).map((_,i)=>`<line x1="${f(railX1)}" y1="${f(rungTop+i*rungGap)}" x2="${f(railX2)}" y2="${f(rungTop+i*rungGap)}"/>`).join('')}
         </g>`;
-      // 11. 铭牌
-      const nameplate = `<rect x="${w-30}" y="${rimY+8}" width="24" height="10" rx="1" fill="#0d0b20" stroke="${c}" stroke-width="0.6"/>
-        <text x="${w-18}" y="${rimY+15}" text-anchor="middle" fill="${c}" font-size="4.5" font-weight="bold" opacity="0.7">冷却水池</text>`;
+      // 11. 铭牌（保留文字 冷却水池；板 / 描边统到基准法兰色系 `#2a2f45` / `#3f445c`，
+      //     文字用主题色 ${c}；宽 / 高 / 字号按池宽池高封顶，竖向嵌在“压顶—常水位”之间的
+      //     气相空间内，极小尺寸下随气相空间收缩，不压住水体，右沿不越出内腔右壁）
+      const gasTop = rimY, gasBot = waterY, gasH = Math.max(2, gasBot - gasTop);
+      const plateW = clamp(w*0.15, 14, 30);
+      const plateH = clamp(Math.min(h*0.083, gasH - 2), 3.5, 12);
+      const plateRight = innerX + innerW - edgeW;
+      const plateX = clamp(w - plateW - clamp(w*0.037, 3, 8), innerX + edgeW, Math.max(innerX + edgeW, plateRight - plateW));
+      const plateY = gasTop + Math.max(0.5, (gasH - plateH)/2);
+      const plateFont = clamp(Math.min(plateW*0.25, plateH*0.45), 2.6, 5.5);
+      const plateSW = clamp(plateH*0.06, 0.4, 0.8);
+      const nameplate = `<rect x="${f(plateX)}" y="${f(plateY)}" width="${f(plateW)}" height="${f(plateH)}" rx="1" fill="#2a2f45" stroke="#3f445c" stroke-width="${f(plateSW)}"/>
+        <text x="${f(plateX+plateW/2)}" y="${f(plateY+plateH*0.72)}" text-anchor="middle" fill="${c}" font-size="${f(plateFont)}" font-weight="bold" opacity="0.7">冷却水池</text>`;
       return `<defs>${defs}</defs>${ground}${wallBody}${rim}${water}${waves}${scale}${inlet}${outlet}${overflow}${ladder}${nameplate}`;
     }
 };
