@@ -16,22 +16,32 @@ TEMPLATES.rotaryKiln = {
       {id:'flueGas',x:.1,y:.22,dir:'up'}
     ],
     render: (w,h,p)=>{
-      const c = p.color;
+      const c = (p && p.color) || '#9C99FF';
       const rotDur = 6;
+      // 端口锚点比例常量（须与文件顶部 ports 定义同步；改动任一处必须同步另一处）
+      const drumCYRatio = 0.55;    // 筒体轴线 y / inlet·fuel 端口 y
+      const tailWallRatio = 0.057; // 窑尾罩左壁 x / inlet 端口 x
+      const outletCYRatio = 0.76;  // 出料管中心 y / outlet 端口 y
+      const fuelXRatio = 0.9713;   // 燃烧器端法兰外沿 x / fuel 端口 x
+      const flueXRatio = 0.1;      // 烟气管中心 x / flueGas 端口 x
+      const flueTopRatio = 0.22;   // 烟气管顶法兰上沿 y / flueGas 端口 y
+      const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
       // 水平筒体参数
       const h_drumL = w*0.12;
       const h_drumR = w*0.84;
       const h_drumW = h_drumR - h_drumL;
-      const h_cy = h*0.55;
+      const h_cy = h*drumCYRatio;
       const h_R = h*0.16;
       const h_drumTop = h_cy - h_R;
       const h_clipId = `clip_kiln_${Math.random().toString(36).substr(2,6)}`;
       const h_clipIdInner = `clip_kiln_in_${Math.random().toString(36).substr(2,6)}`;
       const kilnShadeId = `kiln_shade_${Math.random().toString(36).substr(2,6)}`;
       const kilnTempGradId = `kiln_temp_${Math.random().toString(36).substr(2,6)}`;
+      const rkMetalId = `rk_metal_${Math.random().toString(36).substr(2,6)}`;
+      const rkMetalVId = `rk_metalv_${Math.random().toString(36).substr(2,6)}`;
       const baseY = h*0.94;
-      
-      const bolt = (bx,by,r=1.5)=>`<circle cx="${bx}" cy="${by}" r="${r}" fill="#0d0b20" stroke="${c}" stroke-width="0.5"/><circle cx="${bx}" cy="${by}" r="${r*0.4}" fill="${c}" opacity="0.5"/>`;
+
+      const bolt = (bx,by,r=1.5)=>`<circle cx="${bx}" cy="${by}" r="${r}" fill="#8e96b6" stroke="#5b6280" stroke-width="0.5"/><circle cx="${bx}" cy="${by}" r="${r*0.4}" fill="#0c1020" opacity="0.45"/>`;
       const boltPair = (bx,by,dist=5,r=1.3)=>bolt(bx,by-dist/2,r)+bolt(bx,by+dist/2,r);
 
       // 1. 混凝土基础底座（减速机/电机/托轮下方3个墩）
@@ -45,10 +55,10 @@ TEMPLATES.rotaryKiln = {
       const fTop = h_cy + h_R + 28;
       foundXs.forEach(({x:fx,w:fW})=>{
         foundations += `
-          <rect x="${fx-fW/2}" y="${fTop}" width="${fW}" height="${baseY-fTop}" fill="#1a1835" stroke="${c}" stroke-width="0.8"/>
-          <rect x="${fx-fW/2+2}" y="${fTop+2}" width="${fW-4}" height="${baseY-fTop-4}" fill="#12102a" opacity="0.5"/>
-          <line x1="${fx-fW/2+4}" y1="${fTop+10}" x2="${fx+fW/2-4}" y2="${fTop+10}" stroke="${c}" stroke-width="0.4" opacity="0.3"/>
-          <line x1="${fx-fW/2+4}" y1="${fTop+20}" x2="${fx+fW/2-4}" y2="${fTop+20}" stroke="${c}" stroke-width="0.4" opacity="0.2"/>
+          <rect x="${fx-fW/2}" y="${fTop}" width="${fW}" height="${baseY-fTop}" fill="url(#${rkMetalId})" stroke="#3f445c" stroke-width="0.8"/>
+          <rect x="${fx-fW/2+2}" y="${fTop+2}" width="${fW-4}" height="${baseY-fTop-4}" fill="#12162b" opacity="0.5"/>
+          <line x1="${fx-fW/2+4}" y1="${fTop+10}" x2="${fx+fW/2-4}" y2="${fTop+10}" stroke="#5b6280" stroke-width="0.4" opacity="0.5"/>
+          <line x1="${fx-fW/2+4}" y1="${fTop+20}" x2="${fx+fW/2-4}" y2="${fTop+20}" stroke="#5b6280" stroke-width="0.4" opacity="0.35"/>
           ${bolt(fx-fW/2+5, baseY-2, 1.2)}
           ${bolt(fx+fW/2-5, baseY-2, 1.2)}`;
       });
@@ -65,20 +75,20 @@ TEMPLATES.rotaryKiln = {
           let spokes = '';
           for(let i=0;i<5;i++){
             const sa=i*72*Math.PI/180;
-            spokes += `<line x1="${wx}" y1="${wy}" x2="${(wx+Math.cos(sa)*trunnionR*0.55).toFixed(1)}" y2="${(wy+Math.sin(sa)*trunnionR*0.55).toFixed(1)}" stroke="${c}" stroke-width="0.9" opacity="0.4"/>`;
+            spokes += `<line x1="${wx}" y1="${wy}" x2="${(wx+Math.cos(sa)*trunnionR*0.55).toFixed(1)}" y2="${(wy+Math.sin(sa)*trunnionR*0.55).toFixed(1)}" stroke="#9aa2bc" stroke-width="0.9" opacity="0.5"/>`;
           }
           const bearH = 8, bearW = 14;
           return `<g>
             <animateTransform attributeName="transform" type="rotate" from="${dir>0?0:360} ${wx} ${wy}" to="${dir>0?360:0} ${wx} ${wy}" dur="${rotDur*1.2}s" repeatCount="indefinite"/>
-            <circle cx="${wx}" cy="${wy}" r="${trunnionR}" fill="#1a1835" stroke="${c}" stroke-width="1.3"/>
-            <circle cx="${wx}" cy="${wy}" r="${trunnionR*0.25}" fill="#0d0b20" stroke="${c}" stroke-width="0.7"/>
+            <circle cx="${wx}" cy="${wy}" r="${trunnionR}" fill="url(#${rkMetalId})" stroke="#3f445c" stroke-width="1.3"/>
+            <circle cx="${wx}" cy="${wy}" r="${trunnionR*0.25}" fill="#12162b" stroke="#6a7192" stroke-width="0.7"/>
             ${spokes}
             <circle cx="${wx}" cy="${wy}" r="2" fill="${c}" opacity="0.6"/>
           </g>
-          <rect x="${wx-bearW/2}" y="${wy+trunnionR}" width="${bearW}" height="${bearH}" fill="#151330" stroke="${c}" stroke-width="0.9"/>
+          <rect x="${wx-bearW/2}" y="${wy+trunnionR}" width="${bearW}" height="${bearH}" fill="url(#${rkMetalId})" stroke="#3f445c" stroke-width="0.9"/>
           ${bolt(wx-bearW/2+2, wy+trunnionR+bearH/2, 1.1)}
           ${bolt(wx+bearW/2-2, wy+trunnionR+bearH/2, 1.1)}
-          <rect x="${wx-bearW/2-2}" y="${wy+trunnionR+bearH}" width="${bearW+4}" height="4" fill="#0d0b20" stroke="${c}" stroke-width="0.7"/>`;
+          <rect x="${wx-bearW/2-2}" y="${wy+trunnionR+bearH}" width="${bearW+4}" height="4" fill="#0c1020" stroke="#6a7192" stroke-width="0.7"/>`;
         };
         return drawWheel(tx-trunnionOffset, trunnionCY, 1) + drawWheel(tx+trunnionOffset, trunnionCY, -1);
       };
@@ -89,23 +99,34 @@ TEMPLATES.rotaryKiln = {
       const h_thrustX = h_drumL + h_drumW*0.42;
       const h_thrustWheel = `
         <g>
-          <circle cx="${h_thrustX+12}" cy="${h_cy}" r="7" fill="#1a1835" stroke="${c}" stroke-width="1.2"/>
-          <circle cx="${h_thrustX+12}" cy="${h_cy}" r="3" fill="#0d0b20" stroke="${c}" stroke-width="0.6"/>
-          <rect x="${h_thrustX+5}" y="${h_cy+7}" width="14" height="8" fill="#151330" stroke="${c}" stroke-width="0.8"/>
+          <circle cx="${h_thrustX+12}" cy="${h_cy}" r="7" fill="url(#${rkMetalId})" stroke="#3f445c" stroke-width="1.2"/>
+          <circle cx="${h_thrustX+12}" cy="${h_cy}" r="3" fill="#12162b" stroke="#6a7192" stroke-width="0.6"/>
+          <rect x="${h_thrustX+5}" y="${h_cy+7}" width="14" height="8" fill="url(#${rkMetalId})" stroke="#3f445c" stroke-width="0.8"/>
           ${bolt(h_thrustX+8, h_cy+11, 1)}
           ${bolt(h_thrustX+16, h_cy+11, 1)}
+          <rect x="${h_thrustX+3}" y="${h_cy+15}" width="18" height="4" fill="#0c1020" stroke="#6a7192" stroke-width="0.7"/>
         </g>`;
 
       // 4. 渐变和ClipPath
+      // 局部金属渐变（基准色系）：metal 横向（立式件：基础墩 / 罩体 / 减速机 / 电机）
+      // metalV 竖向（横向筒体 / 横向管：筒体圆柱明暗 / 燃烧器管 / 出料管）
+      const metalDef = `<linearGradient id="${rkMetalId}" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#7d849e"/>
+        <stop offset="50%" stop-color="#d9dded"/>
+        <stop offset="100%" stop-color="#767d97"/>
+      </linearGradient>`;
+      const metalVDef = `<linearGradient id="${rkMetalVId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#7d849e"/>
+        <stop offset="50%" stop-color="#d9dded"/>
+        <stop offset="100%" stop-color="#767d97"/>
+      </linearGradient>`;
       const drumShade = `<linearGradient id="${kilnShadeId}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#2a1a25"/>
-        <stop offset="20%" stop-color="#3d2535"/>
-        <stop offset="50%" stop-color="#4a3040"/>
-        <stop offset="80%" stop-color="#3d2535"/>
-        <stop offset="100%" stop-color="#2a1a25"/>
+        <stop offset="0%" stop-color="#7d849e"/>
+        <stop offset="50%" stop-color="#d9dded"/>
+        <stop offset="100%" stop-color="#767d97"/>
       </linearGradient>`;
       // 温度渐变（测温点 → 颜色锚点，从左到右）
-      const tempPoints = (p.tempPoints && p.tempPoints.length) ? p.tempPoints : [];
+      const tempPoints = (p && p.tempPoints && p.tempPoints.length) ? p.tempPoints : [];
       const tempGrad = tempPoints.length ? `<linearGradient id="${kilnTempGradId}" x1="0" y1="0" x2="1" y2="0" class="kiln-temp-grad">${tempPoints.map((pt,i)=>`<stop class="kiln-temp-stop" data-kidx="${i}" offset="${((i/(tempPoints.length-1||1))*100).toFixed(1)}%" stop-color="#9C99FF"/>`).join('')}</linearGradient>` : '';
       const tempOverlay = tempPoints.length ? `<rect class="kiln-temp-overlay" x="${h_drumL}" y="${h_drumTop}" width="${h_drumW}" height="${h_R*2}" rx="${h_R*0.25}" ry="${h_R}" fill="url(#${kilnTempGradId})" opacity="0.55" clip-path="url(#${h_clipId})"/>` : '';
       const clipDef = `<clipPath id="${h_clipId}"><rect x="${h_drumL}" y="${h_drumTop}" width="${h_drumW}" height="${h_R*2}" rx="${h_R*0.25}" ry="${h_R}"/></clipPath>`;
@@ -113,10 +134,10 @@ TEMPLATES.rotaryKiln = {
 
       // 5. 筒体主体
       const drumBody = `
-        <rect x="${h_drumL}" y="${h_drumTop}" width="${h_drumW}" height="${h_R*2}" rx="${h_R*0.25}" ry="${h_R}" fill="url(#${kilnShadeId})" stroke="${c}" stroke-width="1.8"/>
-        <rect x="${h_drumL+3}" y="${h_drumTop+2}" width="${h_drumW-6}" height="${h_R*0.4}" rx="${h_R*0.2}" ry="${h_R*0.4}" fill="rgba(255,200,150,0.06)"/>
-        <ellipse cx="${h_drumL}" cy="${h_cy}" rx="${h_R*0.3}" ry="${h_R}" fill="#2a1f30" stroke="${c}" stroke-width="1.2" opacity="0.7"/>
-        <ellipse cx="${h_drumR}" cy="${h_cy}" rx="${h_R*0.3}" ry="${h_R}" fill="#2a1f30" stroke="${c}" stroke-width="1.2" opacity="0.7"/>`;
+        <rect x="${h_drumL}" y="${h_drumTop}" width="${h_drumW}" height="${h_R*2}" rx="${h_R*0.25}" ry="${h_R}" fill="url(#${kilnShadeId})" stroke="#3f445c" stroke-width="1.8"/>
+        <rect x="${h_drumL+3}" y="${h_drumTop+2}" width="${h_drumW-6}" height="${h_R*0.4}" rx="${h_R*0.2}" ry="${h_R*0.4}" fill="#5b6280" opacity="0.35"/>
+        <ellipse cx="${h_drumL}" cy="${h_cy}" rx="${h_R*0.3}" ry="${h_R}" fill="#12162b" stroke="#6a7192" stroke-width="1.2" opacity="0.7"/>
+        <ellipse cx="${h_drumR}" cy="${h_cy}" rx="${h_R*0.3}" ry="${h_R}" fill="#12162b" stroke="#6a7192" stroke-width="1.2" opacity="0.7"/>`;
 
       // 6. 轮带（齿轮转盘样式：带齿旋转动画）
       const tireW = 16;
@@ -136,14 +157,14 @@ TEMPLATES.rotaryKiln = {
             tPts.push(`${(tx+(rx+1)*cosA).toFixed(1)},${(h_cy+ry*sinA).toFixed(1)} ${(tx+(rx+tToothH+1)*cosA).toFixed(1)},${(h_cy+(ry+tToothH)*sinA).toFixed(1)} ${(tx+(rx-1)*cosA).toFixed(1)},${(h_cy+ry*sinA).toFixed(1)}`);
             tOp.push(cosA>0?'0.75':'0.1');
           }
-          tTeeth += `<polygon fill="#252545" stroke="${c}" stroke-width="0.4" points="${tPts[0]}" opacity="${tOp[0]}" clip-path="url(#${h_clipId})">
+          tTeeth += `<polygon fill="#0c1020" stroke="#3f445c" stroke-width="0.4" points="${tPts[0]}" opacity="${tOp[0]}" clip-path="url(#${h_clipId})">
             <animate attributeName="points" values="${tPts.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
             <animate attributeName="opacity" values="${tOp.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
           </polygon>`;
         }
-        return `<ellipse cx="${tx}" cy="${h_cy}" rx="${tOuterRx}" ry="${tGearR}" fill="#1a1835" stroke="${c}" stroke-width="1.4"/>
-          <ellipse cx="${tx}" cy="${h_cy}" rx="${tInnerRx}" ry="${tGearR-5}" fill="#12102a" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
-          <ellipse cx="${tx}" cy="${h_cy - h_R*0.7}" rx="${tInnerRx}" ry="${h_R*0.2}" fill="rgba(255,255,255,0.08)"/>
+        return `<ellipse cx="${tx}" cy="${h_cy}" rx="${tOuterRx}" ry="${tGearR}" fill="url(#${rkMetalId})" stroke="#3f445c" stroke-width="1.4"/>
+          <ellipse cx="${tx}" cy="${h_cy}" rx="${tInnerRx}" ry="${tGearR-5}" fill="#12162b" stroke="#6a7192" stroke-width="0.7" opacity="0.5"/>
+          <ellipse cx="${tx}" cy="${h_cy - h_R*0.7}" rx="${tInnerRx}" ry="${h_R*0.2}" fill="#5b6280" opacity="0.4"/>
           ${tTeeth}`;
       };
       const tires = drawTire(h_tire1X) + drawTire(h_tire2X);
@@ -170,10 +191,10 @@ TEMPLATES.rotaryKiln = {
           <animate attributeName="opacity" values="${opVals.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
         </rect>`;
       };
-      rotMarks += makeKilnStrip(0, 5, '#e07040', 0.5);
-      rotMarks += makeKilnStrip(0.35, 2, '#fff', 0.2);
+      rotMarks += makeKilnStrip(0, 5, c, 0.4);
+      rotMarks += makeKilnStrip(0.35, 2, '#d9dded', 0.25);
       rotMarks += makeKilnStrip(0.65, 3, c, 0.4);
-      rotMarks += makeKilnStrip(0.85, 1.5, '#ff9060', 0.3);
+      rotMarks += makeKilnStrip(0.85, 1.5, c, 0.3);
 
       // 焊缝螺栓点
       let ringBolts = '';
@@ -214,7 +235,7 @@ TEMPLATES.rotaryKiln = {
           fOp.push(Math.cos(ang)>0?(0.2+0.3*Math.cos(ang)).toFixed(2):'0');
         }
         const fx=h_drumL+h_drumW*0.3+(fi%3-1)*(h_drumW*0.15);
-        flights += `<line x1="${fx.toFixed(1)}" x2="${fx.toFixed(1)}" y1="${fy1[0]}" y2="${fy2[0]}" stroke="#8B4513" stroke-width="2" stroke-linecap="round" clip-path="url(#${h_clipIdInner})" opacity="${fOp[0]}">
+        flights += `<line x1="${fx.toFixed(1)}" x2="${fx.toFixed(1)}" y1="${fy1[0]}" y2="${fy2[0]}" stroke="#9aa2bc" stroke-width="2" stroke-linecap="round" clip-path="url(#${h_clipIdInner})" opacity="${fOp[0]}">
           <animate attributeName="y1" values="${fy1.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="y2" values="${fy2.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="opacity" values="${fOp.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
@@ -232,19 +253,19 @@ TEMPLATES.rotaryKiln = {
           gPts.push(`${(h_gearX+(rx+1)*cosA).toFixed(1)},${(h_cy+ry*Math.sin(ang)).toFixed(1)} ${(h_gearX+(rx+toothH+1)*cosA).toFixed(1)},${(h_cy+(ry+toothH)*Math.sin(ang)).toFixed(1)} ${(h_gearX+(rx-1)*cosA).toFixed(1)},${(h_cy+ry*Math.sin(ang)).toFixed(1)}`);
           gOp.push(cosA>0?'0.75':'0.1');
         }
-        h_gearTeeth += `<polygon fill="#252545" stroke="${c}" stroke-width="0.4" points="${gPts[0]}" opacity="${gOp[0]}" clip-path="url(#${h_clipId})">
+        h_gearTeeth += `<polygon fill="#0c1020" stroke="#3f445c" stroke-width="0.4" points="${gPts[0]}" opacity="${gOp[0]}" clip-path="url(#${h_clipId})">
           <animate attributeName="points" values="${gPts.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="opacity" values="${gOp.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
         </polygon>`;
       }
       const h_girthGear = `
-        <ellipse cx="${h_gearX}" cy="${h_cy}" rx="${h_gearW/2}" ry="${h_gearR}" fill="#1a1835" stroke="${c}" stroke-width="1.3"/>
-        <ellipse cx="${h_gearX}" cy="${h_cy}" rx="${h_gearW/2-3}" ry="${h_gearR-5}" fill="#12102a" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
+        <ellipse cx="${h_gearX}" cy="${h_cy}" rx="${h_gearW/2}" ry="${h_gearR}" fill="url(#${rkMetalId})" stroke="#3f445c" stroke-width="1.3"/>
+        <ellipse cx="${h_gearX}" cy="${h_cy}" rx="${h_gearW/2-3}" ry="${h_gearR-5}" fill="#12162b" stroke="#6a7192" stroke-width="0.7" opacity="0.5"/>
         ${h_gearTeeth}`;
 
       // 11. 窑尾罩（左端）
-      // 罩宽按 w 比例化（默认尺寸 w=380 时外观不变），保证左端口在任意实例尺寸下都贴合罩壁
-      const tailHoodW=w*(24/380), tailHoodX=h_drumL;
+      // 罩左壁 = w*tailWallRatio（令 inlet 端口严格贴合罩壁），罩宽由筒体左端反推
+      const tailHoodW=h_drumL-w*tailWallRatio, tailHoodX=h_drumL;
       // 进料管：水平管从左边缘接入烟室左侧壁
       const inletPipeCY = h_cy - h_R*0.72;
       const inletPipeH = 14;
@@ -252,7 +273,7 @@ TEMPLATES.rotaryKiln = {
       const inletPipeEndX = tailHoodX - tailHoodW + 1; // 右端接烟室左壁
       // 烟气管：垂直管从烟室顶面接出，高度为烟室顶到包围盒顶部的一半（法兰位于 h*0.22）
       const fluePipeW = 12;
-      const fluePipeCX = w*0.1;
+      const fluePipeCX = w*flueXRatio;
       const fluePipeX = fluePipeCX - fluePipeW/2;
       // 烟室顶面斜边：从(tailHoodX-tailHoodW, h_cy-h_R*0.85)到(tailHoodX, h_cy-h_R*1.1)
       const hoodTopLx = tailHoodX-tailHoodW, hoodTopLy = h_cy-h_R*0.85;
@@ -262,29 +283,31 @@ TEMPLATES.rotaryKiln = {
       const flueBaseL = fluePipeX-4, flueBaseR = fluePipeX+fluePipeW+4;
       const flueBaseLy = hoodYat(flueBaseL), flueBaseRy = hoodYat(flueBaseR);
       const flueBaseY = Math.max(flueBaseLy, flueBaseRy) + 7; // 垂直管底（锥座顶）
-      const flueTopY = h*0.22;  // 管顶法兰上沿：烟囱高度减半（原画到 y=0 顶部）
+      const flueTopY = h*flueTopRatio;  // 管顶法兰上沿 = flueGas 端口 y
       const tailHood = `
-        <path d="M ${tailHoodX} ${h_cy-h_R*1.1} L ${tailHoodX-tailHoodW} ${h_cy-h_R*0.85} L ${tailHoodX-tailHoodW} ${h_cy+h_R*0.85} L ${tailHoodX} ${h_cy+h_R*1.1} Z" fill="#1a1835" stroke="${c}" stroke-width="1.3"/>
-        <path d="M ${tailHoodX-3} ${h_cy-h_R*1.0} L ${tailHoodX-tailHoodW+2} ${h_cy-h_R*0.8} L ${tailHoodX-tailHoodW+2} ${h_cy+h_R*0.8} L ${tailHoodX-3} ${h_cy+h_R*1.0} Z" fill="#12102a" opacity="0.5"/>
+        <path d="M ${tailHoodX} ${h_cy-h_R*1.1} L ${tailHoodX-tailHoodW} ${h_cy-h_R*0.85} L ${tailHoodX-tailHoodW} ${h_cy+h_R*0.85} L ${tailHoodX} ${h_cy+h_R*1.1} Z" fill="url(#${rkMetalId})" stroke="#3f445c" stroke-width="1.3"/>
+        <path d="M ${tailHoodX-3} ${h_cy-h_R*1.0} L ${tailHoodX-tailHoodW+2} ${h_cy-h_R*0.8} L ${tailHoodX-tailHoodW+2} ${h_cy+h_R*0.8} L ${tailHoodX-3} ${h_cy+h_R*1.0} Z" fill="#12162b" opacity="0.5"/>
         <!-- 烟气出口管（锥形底座贴合烟室斜面焊接，垂直管到半高法兰） -->
-        <path d="M ${flueBaseL} ${flueBaseLy} L ${fluePipeX} ${flueBaseY} L ${fluePipeX} ${flueTopY+5} L ${fluePipeX+fluePipeW} ${flueTopY+5} L ${fluePipeX+fluePipeW} ${flueBaseY} L ${flueBaseR} ${flueBaseRy} Z" fill="#151330" stroke="${c}" stroke-width="0.9"/>
-        <rect x="${fluePipeX+2}" y="${flueTopY+8}" width="3" height="${flueBaseY-flueTopY-10}" fill="rgba(255,255,255,0.05)"/>
+        <path d="M ${flueBaseL} ${flueBaseLy} L ${fluePipeX} ${flueBaseY} L ${fluePipeX} ${flueTopY+5} L ${fluePipeX+fluePipeW} ${flueTopY+5} L ${fluePipeX+fluePipeW} ${flueBaseY} L ${flueBaseR} ${flueBaseRy} Z" fill="url(#${rkMetalVId})" stroke="#3f445c" stroke-width="0.9"/>
+        <rect x="${fluePipeX+2}" y="${flueTopY+8}" width="3" height="${flueBaseY-flueTopY-10}" fill="#5b6280" opacity="0.35"/>
         <!-- 顶部法兰 -->
-        <rect x="${fluePipeCX-10}" y="${flueTopY}" width="20" height="5" fill="#1a1835" stroke="${c}" stroke-width="0.8"/>
+        <rect x="${fluePipeCX-10}" y="${flueTopY}" width="20" height="5" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>
         ${boltPair(fluePipeCX, flueTopY+2.5, 12, 1)}
         <!-- 注：左端水平进料管与端部喇叭口已按需求移除；inletPipe* 参数仅用于下方罩内溜槽引导线定位 -->
         <!-- 内部溜槽引导线 -->
-        <path d="M ${inletPipeEndX+3} ${inletPipeY+inletPipeH-2} L ${tailHoodX-6} ${h_cy+h_R*0.15}" fill="none" stroke="${c}" stroke-width="0.7" opacity="0.4"/>
-        ${Array.from({length:8}).map((_,i)=>`<line x1="${tailHoodX}" y1="${h_cy-h_R+i*(h_R*2/7)}" x2="${tailHoodX-6}" y2="${h_cy-h_R+i*(h_R*2/7)+1}" stroke="${c}" stroke-width="0.6" opacity="0.4"/>`).join('')}
-        <rect x="${tailHoodX-tailHoodW+5}" y="${h_cy-6}" width="10" height="12" rx="1" fill="#0d0b20" stroke="${c}" stroke-width="0.7"/>
+        <path d="M ${inletPipeEndX+3} ${inletPipeY+inletPipeH-2} L ${tailHoodX-6} ${h_cy+h_R*0.15}" fill="none" stroke="#5b6280" stroke-width="0.7" opacity="0.4"/>
+        ${Array.from({length:8}).map((_,i)=>`<line x1="${tailHoodX}" y1="${h_cy-h_R+i*(h_R*2/7)}" x2="${tailHoodX-6}" y2="${h_cy-h_R+i*(h_R*2/7)+1}" stroke="#5b6280" stroke-width="0.6" opacity="0.4"/>`).join('')}
+        <rect x="${tailHoodX-tailHoodW+5}" y="${h_cy-6}" width="10" height="12" rx="1" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>
         ${bolt(tailHoodX-tailHoodW+7, h_cy-4, 1)}${bolt(tailHoodX-tailHoodW+13, h_cy-4, 1)}
-        ${bolt(tailHoodX-tailHoodW+7, h_cy+4, 1)}${bolt(tailHoodX-tailHoodW+13, h_cy+4, 1)}`;
+        ${bolt(tailHoodX-tailHoodW+7, h_cy+4, 1)}${bolt(tailHoodX-tailHoodW+13, h_cy+4, 1)}
+        <!-- 检修门把手 -->
+        <rect x="${(tailHoodX-tailHoodW+13.2).toFixed(1)}" y="${(h_cy-2.5).toFixed(1)}" width="1.6" height="5" rx="0.8" fill="#9aa2bc" opacity="0.8"/>`;
 
       // 12. 窑头罩（右端）+ 出料溜槽
       // 罩宽按 w 比例化（默认尺寸 w=380 时外观不变），保证燃烧器管口比例恒定
       const headHoodW=w*(28/380), headHoodX=h_drumR;
       // 出料溜管：从窑头罩底部斜45°接出，末段水平到右边缘端口
-      const outletPipeCY = h*0.76;
+      const outletPipeCY = h*outletCYRatio;
       const outletPipeH = 12;
       const outletPipeY = outletPipeCY - outletPipeH/2;
       // 窑头罩底边参数
@@ -303,46 +326,48 @@ TEMPLATES.rotaryKiln = {
       // 水平管长度
       const horizPipeLen = w - chuteElbowX;
       const headHood = `
-        <path d="M ${headHoodX} ${h_cy-h_R*1.1} L ${headHoodX+headHoodW} ${h_cy-h_R*0.8} L ${headHoodX+headHoodW} ${h_cy+h_R*0.8} L ${headHoodX} ${h_cy+h_R*1.1} Z" fill="#1a1835" stroke="${c}" stroke-width="1.3"/>
-        <path d="M ${headHoodX+3} ${h_cy-h_R*1.0} L ${headHoodX+headHoodW-2} ${h_cy-h_R*0.75} L ${headHoodX+headHoodW-2} ${h_cy+h_R*0.75} L ${headHoodX+3} ${h_cy+h_R*1.0} Z" fill="#12102a" opacity="0.5"/>
-        <circle cx="${headHoodX+headHoodW/2}" cy="${h_cy-h_R*0.2}" r="4" fill="#0d0b20" stroke="${c}" stroke-width="0.8"/>
+        <path d="M ${headHoodX} ${h_cy-h_R*1.1} L ${headHoodX+headHoodW} ${h_cy-h_R*0.8} L ${headHoodX+headHoodW} ${h_cy+h_R*0.8} L ${headHoodX} ${h_cy+h_R*1.1} Z" fill="url(#${rkMetalId})" stroke="#3f445c" stroke-width="1.3"/>
+        <path d="M ${headHoodX+3} ${h_cy-h_R*1.0} L ${headHoodX+headHoodW-2} ${h_cy-h_R*0.75} L ${headHoodX+headHoodW-2} ${h_cy+h_R*0.75} L ${headHoodX+3} ${h_cy+h_R*1.0} Z" fill="#12162b" opacity="0.5"/>
+        <circle cx="${headHoodX+headHoodW/2}" cy="${h_cy-h_R*0.2}" r="4" fill="#0c1020" stroke="#6a7192" stroke-width="0.8"/>
         <circle cx="${headHoodX+headHoodW/2}" cy="${h_cy-h_R*0.2}" r="2.5" fill="#ff6020" opacity="0.6"><animate attributeName="opacity" values="0.4;0.8;0.4" dur="1.2s" repeatCount="indefinite"/></circle>
-        ${Array.from({length:8}).map((_,i)=>`<line x1="${headHoodX}" y1="${h_cy-h_R+i*(h_R*2/7)}" x2="${headHoodX+6}" y2="${h_cy-h_R+i*(h_R*2/7)+1}" stroke="${c}" stroke-width="0.6" opacity="0.4"/>`).join('')}
+        <!-- 观察孔铰链把手 -->
+        <line x1="${(headHoodX+headHoodW/2+4.5).toFixed(1)}" y1="${(h_cy-h_R*0.2).toFixed(1)}" x2="${(headHoodX+headHoodW/2+7).toFixed(1)}" y2="${(h_cy-h_R*0.2).toFixed(1)}" stroke="#9aa2bc" stroke-width="0.8" stroke-linecap="round"/>
+        ${Array.from({length:8}).map((_,i)=>`<line x1="${headHoodX}" y1="${h_cy-h_R+i*(h_R*2/7)}" x2="${headHoodX+6}" y2="${h_cy-h_R+i*(h_R*2/7)+1}" stroke="#5b6280" stroke-width="0.6" opacity="0.4"/>`).join('')}
         <!-- 燃烧器接口（窑头罩正面中心） -->
-        <rect x="${headHoodX+headHoodW}" y="${h_cy-h_R*0.35}" width="6" height="${h_R*0.7}" fill="#151330" stroke="${c}" stroke-width="0.8"/>
+        <rect x="${headHoodX+headHoodW}" y="${h_cy-h_R*0.35}" width="6" height="${h_R*0.7}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>
         <!-- 斜溜槽：从罩底开口斜向下到弯头 -->
-        <path d="M ${chuteOpenL} ${chuteOpenLy} L ${chuteOpenR} ${chuteOpenRy} L ${chuteElbowX+2} ${chuteElbowY} L ${chuteElbowX+2} ${chuteElbowY+outletPipeH} L ${chuteOpenL-4} ${chuteOpenLy+outletPipeH-2} Z" fill="#151330" stroke="${c}" stroke-width="0.9"/>
+        <path d="M ${chuteOpenL} ${chuteOpenLy} L ${chuteOpenR} ${chuteOpenRy} L ${chuteElbowX+2} ${chuteElbowY} L ${chuteElbowX+2} ${chuteElbowY+outletPipeH} L ${chuteOpenL-4} ${chuteOpenLy+outletPipeH-2} Z" fill="url(#${rkMetalVId})" stroke="#3f445c" stroke-width="0.9"/>
         <!-- 水平出料管（弯头到右边缘） -->
-        <rect x="${chuteElbowX}" y="${outletPipeY}" width="${horizPipeLen}" height="${outletPipeH}" fill="#151330" stroke="${c}" stroke-width="0.9"/>
-        <rect x="${chuteElbowX+2}" y="${outletPipeY+2}" width="${horizPipeLen-5}" height="2" fill="rgba(255,255,255,0.06)"/>
+        <rect x="${chuteElbowX}" y="${outletPipeY}" width="${horizPipeLen}" height="${outletPipeH}" fill="url(#${rkMetalVId})" stroke="#3f445c" stroke-width="0.9"/>
+        <rect x="${chuteElbowX+2}" y="${outletPipeY+2}" width="${horizPipeLen-5}" height="2" fill="#5b6280" opacity="0.3"/>
         <!-- 端部法兰 -->
-        <rect x="${w-5}" y="${outletPipeY-2}" width="5" height="${outletPipeH+4}" fill="#1a1835" stroke="${c}" stroke-width="0.7"/>
+        <rect x="${w-5}" y="${outletPipeY-2}" width="5" height="${outletPipeH+4}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>
         ${boltPair(w-2.5, outletPipeY+outletPipeH/2, outletPipeH-2, 1)}`;
 
       // 13. 燃烧器/喷煤管（管长取原设计的 1/2，小车在地面轨道上支撑）
       const burnerX=headHoodX+headHoodW+w*(6/380);   // 管身左端（对接窑头罩）
-      const burnerLen=(w-burnerX+w*(5/380))/2;       // 原管一直伸到右边缘，此处取原长的一半
-      const burnerEndX=burnerX+burnerLen;            // 管端（端部法兰外沿，即 fuel 端口）
+      const burnerEndX=w*fuelXRatio;                 // 管端法兰外沿 = fuel 端口 x
+      const burnerLen=burnerEndX-burnerX;            // 管长由端口锚点反推（默认尺寸≈原设计的 1/2）
       const carX = burnerX + burnerLen - 8;
       const carY = h*0.82;
       const burnerCar = `
         <!-- 轨道 -->
-        <rect x="${carX-16}" y="${carY+8}" width="32" height="3" rx="1" fill="#0d0b20" stroke="${c}" stroke-width="0.5"/>
+        <rect x="${carX-16}" y="${carY+8}" width="32" height="3" rx="1" fill="#0c1020" stroke="#6a7192" stroke-width="0.5"/>
         <!-- 移动小车 -->
-        <rect x="${carX-9}" y="${carY}" width="18" height="4" fill="#0d0b20" stroke="${c}" stroke-width="0.6"/>
-        <circle cx="${carX-5}" cy="${carY+4}" r="3" fill="#151330" stroke="${c}" stroke-width="0.7"/>
-        <circle cx="${carX+5}" cy="${carY+4}" r="3" fill="#151330" stroke="${c}" stroke-width="0.7"/>
+        <rect x="${carX-9}" y="${carY}" width="18" height="4" fill="#0c1020" stroke="#6a7192" stroke-width="0.6"/>
+        <circle cx="${carX-5}" cy="${carY+4}" r="3" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>
+        <circle cx="${carX+5}" cy="${carY+4}" r="3" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>
         <circle cx="${carX-5}" cy="${carY+4}" r="1" fill="${c}" opacity="0.4"/>
         <circle cx="${carX+5}" cy="${carY+4}" r="1" fill="${c}" opacity="0.4"/>
         <!-- 支撑立柱 -->
-        <rect x="${carX-2}" y="${h_cy+5}" width="4" height="${carY-h_cy-5}" fill="#151330" stroke="${c}" stroke-width="0.5"/>`;
+        <rect x="${carX-2}" y="${h_cy+5}" width="4" height="${carY-h_cy-5}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.5"/>`;
       const burner = `
         <!-- 燃烧器主体管（管体延至端部法兰，管端法兰外沿即 fuel 端口） -->
-        <rect x="${burnerX-5}" y="${h_cy-5}" width="${burnerLen+5}" height="10" rx="2" fill="url(#gEquip)" stroke="${c}" stroke-width="1"/>
-        <rect x="${burnerEndX-5}" y="${h_cy-7}" width="5" height="14" fill="#1a1835" stroke="${c}" stroke-width="0.9"/>
+        <rect x="${burnerX-5}" y="${h_cy-5}" width="${burnerLen+5}" height="10" rx="2" fill="url(#${rkMetalVId})" stroke="#3f445c" stroke-width="1"/>
+        <rect x="${burnerEndX-5}" y="${h_cy-7}" width="5" height="14" fill="#2a2f45" stroke="#3f445c" stroke-width="0.9"/>
         ${boltPair(burnerEndX-2.5, h_cy, 10, 1.2)}
-        <ellipse cx="${burnerX-3}" cy="${h_cy}" rx="3" ry="6" fill="#151330" stroke="${c}" stroke-width="0.8"/>
-        <circle cx="${burnerX+burnerLen*0.35}" cy="${h_cy}" r="2.5" fill="#0d0b20" stroke="${c}" stroke-width="0.5"/>`;
+        <ellipse cx="${burnerX-3}" cy="${h_cy}" rx="3" ry="6" fill="#12162b" stroke="#6a7192" stroke-width="0.8"/>
+        <circle cx="${burnerX+burnerLen*0.35}" cy="${h_cy}" r="2.5" fill="#0c1020" stroke="#6a7192" stroke-width="0.5"/>`;
 
       // 14. 火焰（焰长/焰径随筒体尺寸缩放，外橙焰 + 内黄焰 + 焰芯三层叠加）
       const flameStartX = h_drumR - h_drumW*0.02;   // 焰根：筒体右端（窑头侧）内侧
@@ -415,7 +440,7 @@ TEMPLATES.rotaryKiln = {
           else{const ft=(rotPhase-0.85)/0.15; bedY=h_cy+h_R*0.55-h_R*0.3+ft*h_R*0.3;}
           px.push(x.toFixed(1)); py.push((bedY+Math.sin(t*8+i)*2).toFixed(1)); pR.push((1.2+Math.sin(t*6)*0.4).toFixed(1));
         }
-        materialParticles += `<circle cx="${px[0]}" cy="${py[0]}" r="${pR[0]}" fill="#b08060" opacity="0.7" clip-path="url(#${h_clipIdInner})">
+        materialParticles += `<circle cx="${px[0]}" cy="${py[0]}" r="${pR[0]}" fill="${c}" opacity="0.7" clip-path="url(#${h_clipIdInner})">
           <animate attributeName="cx" values="${px.join(';')}" dur="8s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="cy" values="${py.join(';')}" dur="8s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="r" values="${pR.join(';')}" dur="8s" begin="${delay}s" repeatCount="indefinite"/>
@@ -438,31 +463,34 @@ TEMPLATES.rotaryKiln = {
       const h_driveSystem = `
         <g>
           <animateTransform attributeName="transform" type="rotate" from="360 ${h_pinionX} ${h_pinionY}" to="0 ${h_pinionX} ${h_pinionY}" dur="${rotDur/(h_gearR/h_pinionR)}s" repeatCount="indefinite"/>
-          <circle cx="${h_pinionX}" cy="${h_pinionY}" r="${h_pinionR}" fill="#1a1835" stroke="${c}" stroke-width="1.3"/>
-          <circle cx="${h_pinionX}" cy="${h_pinionY}" r="${h_pinionR*0.28}" fill="#0d0b20" stroke="${c}" stroke-width="0.7"/>
-          ${Array.from({length:6}).map((_,i)=>{const sa=i*60*Math.PI/180;return `<line x1="${h_pinionX}" y1="${h_pinionY}" x2="${(h_pinionX+Math.cos(sa)*h_pinionR*0.7).toFixed(1)}" y2="${(h_pinionY+Math.sin(sa)*h_pinionR*0.7).toFixed(1)}" stroke="${c}" stroke-width="0.8" opacity="0.4"/>`;}).join('')}
+          <circle cx="${h_pinionX}" cy="${h_pinionY}" r="${h_pinionR}" fill="url(#${rkMetalId})" stroke="#3f445c" stroke-width="1.3"/>
+          <circle cx="${h_pinionX}" cy="${h_pinionY}" r="${h_pinionR*0.28}" fill="#12162b" stroke="#6a7192" stroke-width="0.7"/>
+          ${Array.from({length:6}).map((_,i)=>{const sa=i*60*Math.PI/180;return `<line x1="${h_pinionX}" y1="${h_pinionY}" x2="${(h_pinionX+Math.cos(sa)*h_pinionR*0.7).toFixed(1)}" y2="${(h_pinionY+Math.sin(sa)*h_pinionR*0.7).toFixed(1)}" stroke="#9aa2bc" stroke-width="0.8" opacity="0.4"/>`;}).join('')}
         </g>
-        <rect x="${h_pinionX-7}" y="${h_pinionY+h_pinionR}" width="14" height="8" fill="#151330" stroke="${c}" stroke-width="0.8"/>
+        <rect x="${h_pinionX-7}" y="${h_pinionY+h_pinionR}" width="14" height="8" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>
         ${bolt(h_pinionX-4, h_pinionY+h_pinionR+4, 1)}${bolt(h_pinionX+4, h_pinionY+h_pinionR+4, 1)}
-        <rect x="${h_reducerX}" y="${h_reducerY}" width="${h_reducerW}" height="${h_reducerH}" rx="3" fill="url(#gEquip)" stroke="${c}" stroke-width="1.1"/>
-        <line x1="${h_pinionX+h_pinionR}" y1="${h_pinionY}" x2="${h_reducerX}" y2="${h_reducerY+h_reducerH/2}" stroke="${c}" stroke-width="1.3"/>
-        <circle cx="${h_reducerX+h_reducerW/2}" cy="${h_reducerY+h_reducerH/2}" r="4" fill="#0d0b20" stroke="${c}" stroke-width="0.6"/>
+        <rect x="${h_reducerX}" y="${h_reducerY}" width="${h_reducerW}" height="${h_reducerH}" rx="3" fill="url(#${rkMetalId})" stroke="#3f445c" stroke-width="1.1"/>
+        <line x1="${h_pinionX+h_pinionR}" y1="${h_pinionY}" x2="${h_reducerX}" y2="${h_reducerY+h_reducerH/2}" stroke="#9aa2bc" stroke-width="1.3"/>
+        <!-- 联轴器护罩（小齿轮轴 → 减速机输入端） -->
+        <rect x="${(h_reducerX-7).toFixed(1)}" y="${(h_reducerY+h_reducerH/2-clamp(h_R*0.22,2.5,5)).toFixed(1)}" width="8" height="${(clamp(h_R*0.44,5,10)).toFixed(1)}" rx="1.2" fill="#5b6280" opacity="0.45" stroke="#9aa2bc" stroke-width="0.5"/>
+        <circle cx="${h_reducerX+h_reducerW/2}" cy="${h_reducerY+h_reducerH/2}" r="4" fill="#12162b" stroke="#6a7192" stroke-width="0.6"/>
         <text x="${h_reducerX+h_reducerW/2}" y="${h_reducerY+h_reducerH/2+2}" text-anchor="middle" fill="${c}" font-size="3.8" opacity="0.6">ZSY</text>
-        <rect x="${h_reducerX-3}" y="${h_reducerY+h_reducerH}" width="${h_reducerW+6}" height="5" fill="#0d0b20" stroke="${c}" stroke-width="0.7"/>
-        <rect x="${h_motorX}" y="${h_motorY}" width="${h_motorW}" height="${h_motorH}" rx="4" fill="url(#gEquip)" stroke="${c}" stroke-width="1.2"/>
-        <ellipse cx="${h_motorX+h_motorW}" cy="${h_motorY+h_motorH/2}" rx="${h_motorH/2+2}" ry="${h_motorH/2+1}" fill="#151330" stroke="${c}" stroke-width="0.9"/>
-        ${Array.from({length:4}).map((_,i)=>{const va=-Math.PI/2+(i-1.5)*0.4;const vx=h_motorX+h_motorW+Math.cos(va)*(h_motorH/2-3);const vy=h_motorY+h_motorH/2+Math.sin(va)*(h_motorH/2-3);return `<circle cx="${vx.toFixed(1)}" cy="${vy.toFixed(1)}" r="1" fill="#0d0b20" opacity="0.5"/>`;}).join('')}
-        <line x1="${h_reducerX+h_reducerW}" y1="${h_reducerY+h_reducerH/2}" x2="${h_motorX}" y2="${h_motorY+h_motorH/2}" stroke="${c}" stroke-width="1.3"/>
-        ${Array.from({length:5}).map((_,i)=>{const mx=h_motorX+4+i*((h_motorW-8)/4);return `<line x1="${mx}" y1="${h_motorY+3}" x2="${mx}" y2="${h_motorY+h_motorH-3}" stroke="${c}" stroke-width="0.4" opacity="0.3"/>`;}).join('')}
-        <rect x="${h_motorX+h_motorW*0.35}" y="${h_motorY-6}" width="${h_motorW*0.28}" height="7" rx="1" fill="#151330" stroke="${c}" stroke-width="0.7"/>
-        <rect x="${h_motorX}" y="${h_motorY+h_motorH}" width="${h_motorW}" height="5" fill="#0d0b20" stroke="${c}" stroke-width="0.7"/>
+        <rect x="${h_reducerX-3}" y="${h_reducerY+h_reducerH}" width="${h_reducerW+6}" height="5" fill="#0c1020" stroke="#6a7192" stroke-width="0.7"/>
+        ${bolt(h_reducerX+1, h_reducerY+h_reducerH+2.5, 1.1)}${bolt(h_reducerX+h_reducerW-1, h_reducerY+h_reducerH+2.5, 1.1)}
+        <rect x="${h_motorX}" y="${h_motorY}" width="${h_motorW}" height="${h_motorH}" rx="4" fill="url(#${rkMetalId})" stroke="#3f445c" stroke-width="1.2"/>
+        <ellipse cx="${h_motorX+h_motorW}" cy="${h_motorY+h_motorH/2}" rx="${h_motorH/2+2}" ry="${h_motorH/2+1}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.9"/>
+        ${Array.from({length:4}).map((_,i)=>{const va=-Math.PI/2+(i-1.5)*0.4;const vx=h_motorX+h_motorW+Math.cos(va)*(h_motorH/2-3);const vy=h_motorY+h_motorH/2+Math.sin(va)*(h_motorH/2-3);return `<circle cx="${vx.toFixed(1)}" cy="${vy.toFixed(1)}" r="1" fill="#0c1020" opacity="0.5"/>`;}).join('')}
+        <line x1="${h_reducerX+h_reducerW}" y1="${h_reducerY+h_reducerH/2}" x2="${h_motorX}" y2="${h_motorY+h_motorH/2}" stroke="#9aa2bc" stroke-width="1.3"/>
+        ${Array.from({length:5}).map((_,i)=>{const mx=h_motorX+4+i*((h_motorW-8)/4);return `<line x1="${mx}" y1="${h_motorY+3}" x2="${mx}" y2="${h_motorY+h_motorH-3}" stroke="#5b6280" stroke-width="0.4" opacity="0.3"/>`;}).join('')}
+        <rect x="${h_motorX+h_motorW*0.35}" y="${h_motorY-6}" width="${h_motorW*0.28}" height="7" rx="1" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>
+        <rect x="${h_motorX}" y="${h_motorY+h_motorH}" width="${h_motorW}" height="5" fill="#0c1020" stroke="#6a7192" stroke-width="0.7"/>
         ${bolt(h_motorX+4, h_motorY+h_motorH+2.5, 1.1)}${bolt(h_motorX+h_motorW-4, h_motorY+h_motorH+2.5, 1.1)}`;
 
       // 18. 测温点
       const instruments = [0.25,0.5,0.75].map(t=>{
         const tx=h_drumL+h_drumW*t;
-        return `<circle cx="${tx}" cy="${h_drumTop-2}" r="2.5" fill="#151330" stroke="${c}" stroke-width="0.6"/><line x1="${tx}" y1="${h_drumTop}" x2="${tx}" y2="${h_drumTop-4}" stroke="${c}" stroke-width="0.6"/>`;
-      }).join('')+`<circle cx="${headHoodX+headHoodW-5}" cy="${h_cy-h_R*0.7}" r="2" fill="#151330" stroke="${c}" stroke-width="0.5"/>`;
+        return `<circle cx="${tx}" cy="${h_drumTop-2}" r="2.5" fill="#2a2f45" stroke="#3f445c" stroke-width="0.6"/><line x1="${tx}" y1="${h_drumTop}" x2="${tx}" y2="${h_drumTop-4}" stroke="#9aa2bc" stroke-width="0.6"/>`;
+      }).join('')+`<circle cx="${headHoodX+headHoodW-5}" cy="${h_cy-h_R*0.7}" r="2" fill="#2a2f45" stroke="#3f445c" stroke-width="0.5"/>`;
 
       // 19. 烟气粒子
       let flueParticles = '';
@@ -475,7 +503,7 @@ TEMPLATES.rotaryKiln = {
           spx.push((sx+Math.sin(t*3+i)*4).toFixed(1)); spy.push((flueStartY-t*25).toFixed(1));
           spr.push((2+t*2).toFixed(1)); spo.push((0.4-t*0.3).toFixed(2));
         }
-        flueParticles += `<ellipse cx="${spx[0]}" cy="${spy[0]}" rx="${spr[0]}" ry="${spr[0]*1.3}" fill="#a0b0c0" opacity="${spo[0]}">
+        flueParticles += `<ellipse cx="${spx[0]}" cy="${spy[0]}" rx="${spr[0]}" ry="${spr[0]*1.3}" fill="${c}" opacity="${spo[0]}">
           <animate attributeName="cx" values="${spx.join(';')}" dur="3s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="cy" values="${spy.join(';')}" dur="3s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="rx" values="${spr.join(';')}" dur="3s" begin="${delay}s" repeatCount="indefinite"/>
@@ -493,7 +521,7 @@ TEMPLATES.rotaryKiln = {
         <circle cx="${h_gearX+54}" cy="${h_cy+h_R+17.5}" r="0.8" fill="${c}" opacity="0.5"/>`;
 
       return `
-        ${drumShade}${tempGrad}${clipDef}${clipDefInner}
+        ${metalDef}${metalVDef}${drumShade}${tempGrad}${clipDef}${clipDefInner}
         ${foundations}
         ${tailHood}${flueParticles}
         ${trunnions}${h_thrustWheel}
