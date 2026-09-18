@@ -39,6 +39,7 @@ const TEMPLATE_FILES = [
   'miningDryer',
   'switchValve',
   'dustCollector',
+  'cyclone',
   'screwConveyor',
   'screwConveyorLite',
   'bucketElevator',
