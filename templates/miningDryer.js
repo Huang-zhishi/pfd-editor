@@ -1,14 +1,15 @@
 /* ============================================================
  * PFD Editor · 组件模板：miningDryer（矿用烘干机）
- *   结构（回转滚筒式）：卧式回转筒体 + 筒内扬料板 + 滚带/托轮支撑
- *     + 大齿圈传动 + 进料箱/出料箱 + 热风进口 + 废气出口
+ *   结构（回转滚筒式）：倾斜回转筒体（倾角≈3.5°，进料端高、出料端低）+ 分段扬料板 + 滚带/托轮/挡轮支撑
+ *     + 大齿圈（切向弹簧板联接）传动 + 进料箱/出料箱 + 端部鳞片密封 + 热风进口 + 废气出口
  *   造型参照 rotaryKiln / tubeCooler 的既有画法：
  *     - 筒体圆柱明暗渐变 + 两端封头椭圆 + 环形焊缝
  *     - 滚带（带齿旋转动画）/ 托轮组（辐条反向旋转）/ 大齿圈 + 小齿轮 + 减速机 + 电机
  *     - 筒内扬料板剪影 + 物料抛落雨幕 + 旋转标记带 + 焊缝螺栓点
  *   烘干机特征：热风进口（下方接热风炉）+ 筒内高温区辉光 + 水蒸气 + 废气出口（上方接除尘器）
+ *   流程为顺流（并流）：物料与热风均自进料端（左）进入，一同向出料端（右）流动；
  *   端口比例（须与文件顶部 ports 定义同步）：
- *     feed.y=0.50、discharge.y=0.50、hotAir.x=0.88、exhaust.x=0.12
+ *     feed.y=0.50、discharge.y=0.50、hotAir.x=0.12、exhaust.x=0.88
  * ============================================================ */
 
 TEMPLATES.miningDryer = {
@@ -16,9 +17,9 @@ TEMPLATES.miningDryer = {
     defaultSize: { w: 340, h: 160 },
     ports: [
       {id:'feed',      x:0,    y:.50, dir:'left'},
-      {id:'hotAir',    x:.88,  y:1,   dir:'down'},
+      {id:'hotAir',    x:.12,  y:1,   dir:'down'},
       {id:'discharge', x:1,    y:.50, dir:'right'},
-      {id:'exhaust',   x:.12,  y:0,   dir:'up'}
+      {id:'exhaust',   x:.88,  y:0,   dir:'up'}
     ],
     render: (w,h,p)=>{
       const c = (p && p.color) || '#9C99FF';
@@ -29,7 +30,7 @@ TEMPLATES.miningDryer = {
       const K = clamp(Math.min(w/340, h/160), 0.3, 2.4);
       const rotDur = 4;
       // —— 端口锚点比例（须与文件顶部 ports 同步）——
-      const hotXR = 0.88, exhXR = 0.12;
+      const hotXR = 0.12, exhXR = 0.88;
       const cy = h*0.5;
       const drumH = h*0.4;
       const R = drumH/2;
@@ -40,6 +41,12 @@ TEMPLATES.miningDryer = {
       const drumW = drumR - drumL;
       const drumCx = (drumL + drumR)/2;
       const drumTop = cy - R;
+      // —— 筒体安装倾角：整体倾斜（进料端高、出料端低），物料靠重力自流前进 ——
+      const tiltRise = clamp(drumW*0.03, 2, 14);             // 半跨垂向抬升量（≈6% 斜度，封顶以适配极端尺寸）
+      const tiltRad = Math.atan2(tiltRise, Math.max(1, drumW/2));
+      const tiltDeg = tiltRad*180/Math.PI;
+      const tiltSin = Math.sin(tiltRad);
+      const dyAt = (x)=> (x - drumCx)*tiltSin;               // 该 x 处相对筒心的垂向随动位移（正=向下）
       // 横截面定尺件统一以筒径 R 为基准，保证与筒体同比例
       const tireW = clamp(R*0.6, 5, 26);
       const baseH = clamp(R*0.5, 4, 22);
@@ -118,7 +125,8 @@ TEMPLATES.miningDryer = {
       // 2. 双托轮（带辐条反向旋转 + 轮轴 + 轴承座块）
       const drawTrunnionPair = (tx)=>{
         const contactAngle = 30 * Math.PI/180;
-        const trunnionCY = baseY - baseH - trunnionR;
+        // 托轮随筒体倾角上下随动，保证与滚带接触
+        const trunnionCY = baseY - baseH - trunnionR + dyAt(tx);
         const offset = (R + tireW/2 + trunnionGap) * Math.sin(contactAngle) * 0.85;
         const brgW = trunnionR;
         const brgH = baseY - baseH - trunnionCY;
@@ -144,6 +152,33 @@ TEMPLATES.miningDryer = {
       };
       const trunnions = drawTrunnionPair(tire1X) + drawTrunnionPair(tire2X);
 
+      // 2b. 挡轮（承受倾斜筒体的轴向推力，防止筒体轴向窜动）：
+      //     装在进料侧滚带的下坡侧面（避开出料侧传动链），由底座支座托起，轮面顶住滚带端面
+      const drawThrustRoller = (tx)=>{
+        const thR = clamp(trunnionR*0.6, 2, 8);
+        const thGap = clamp(K*1.2, 1, 3);
+        const cAng = 60*Math.PI/180;                       // 接触点取滚带右下方 60°（筒体轮廓之外）
+        const contactX = tx + (tireW/2)*Math.cos(cAng);
+        const contactY = cy + dyAt(tx) + (R + tireW/2)*Math.sin(cAng);
+        const thCx = contactX + (thGap + thR)*0.7;         // 挡轮中心（顶住滚带下缘外侧）
+        const thCy = contactY + (thGap + thR)*0.7;
+        const postW = clamp(K*2.4, 1.5, 3.5);
+        let spokes = '';
+        for(let i=0; i<5; i++){
+          const a = i*72*Math.PI/180;
+          spokes += `<line x1="${F(thCx)}" y1="${F(thCy)}" x2="${F(thCx+Math.cos(a)*thR*0.62)}" y2="${F(thCy+Math.sin(a)*thR*0.62)}" stroke="#9aa2bc" stroke-width="${F(spokeSW)}" opacity="0.45"/>`;
+        }
+        return `<line x1="${F(thCx)}" y1="${F(thCy+thR*0.5)}" x2="${F(thCx+postW*0.5)}" y2="${F(baseY)}" stroke="#3f445c" stroke-width="${F(postW)}"/>
+          <rect x="${F(thCx-postW*1.1)}" y="${F(baseY-footH*0.9)}" width="${F(postW*2.2)}" height="${F(footH*0.9)}" rx="1" fill="#0c1020" stroke="#6a7192" stroke-width="0.7"/>
+          <g>
+            <animateTransform attributeName="transform" type="rotate" from="0 ${F(thCx)} ${F(thCy)}" to="360 ${F(thCx)} ${F(thCy)}" dur="${rotDur*0.6}s" repeatCount="indefinite"/>
+            <circle cx="${F(thCx)}" cy="${F(thCy)}" r="${F(thR)}" fill="url(#${metalVId})" stroke="#3f445c" stroke-width="1.2"/>
+            <circle cx="${F(thCx)}" cy="${F(thCy)}" r="${F(thR*0.32)}" fill="#12162b" stroke="#6a7192" stroke-width="0.7"/>
+            ${spokes}
+          </g>`;
+      };
+      const thrustRollers = drawThrustRoller(tire1X);
+
       // 3. ClipPath / 渐变
       const clipDef = `<clipPath id="${clipId}"><rect x="${F(drumL)}" y="${F(drumTop)}" width="${F(drumW)}" height="${F(drumH)}" rx="${F(R*0.3)}" ry="${F(R)}"/></clipPath>`;
       const clipDefInner = `<clipPath id="${clipIdInner}"><rect x="${F(drumL+tubeInset)}" y="${F(drumTop+tubeInset)}" width="${F(drumW-2*tubeInset)}" height="${F(drumH-2*tubeInset)}" rx="${F(R*0.25)}" ry="${F(Math.max(0.5,R-tubeInset))}"/></clipPath>`;
@@ -165,10 +200,10 @@ TEMPLATES.miningDryer = {
         <stop offset="45%" stop-color="#d9dded"/>
         <stop offset="100%" stop-color="#767d97"/>
       </linearGradient>`;
-      // 高温区辉光渐变（右侧热风端）
+      // 高温区辉光渐变（左侧进料端最热，向右递减）
       const hotGlowDef = `<linearGradient id="${hotGlowId}" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="#ff4a10" stop-opacity="0"/>
-        <stop offset="100%" stop-color="#ff9a3c" stop-opacity="1"/>
+        <stop offset="0%" stop-color="#ff9a3c" stop-opacity="1"/>
+        <stop offset="100%" stop-color="#ff4a10" stop-opacity="0"/>
       </linearGradient>`;
 
       // 4. 筒体壁（圆柱明暗渐变 + 两端封头椭圆）
@@ -227,10 +262,16 @@ TEMPLATES.miningDryer = {
       }
 
       // 6c. 内部扬料板/抄板剪影（回转滚筒最标志性结构，随筒旋转）
+      //     分三区：进料端螺旋扬料板（短、带螺旋斜角，导料推进）→ 中段直板（满扬程、抛落）
+      //             → 出料段弧形扬料板（带前弯，抛撒更均匀）
       let flights = '';
       const flightCount = 9;
-      const flightLen = R * 0.35;
+      const flyZoneX = [drumL + drumW*0.13, drumCx + drumW*0.02, drumL + drumW*0.82];
+      const flyLenK  = [0.22, 0.42, 0.36];
+      const flyBend  = [0.55, 0.0, 0.50];
       for(let fi=0; fi<flightCount; fi++){
+        const zi = fi % 3;
+        const flightLen = R * flyLenK[zi];
         const phase = fi/flightCount;
         const delay = -(phase*rotDur).toFixed(2);
         let fy1=[], fy2=[], fOp=[];
@@ -240,13 +281,13 @@ TEMPLATES.miningDryer = {
           const outerR = R - flightInset;
           const innerR = outerR - flightLen;
           const y1 = cy + outerR*sinA;
-          const bendAng = ang + 0.3;
+          const bendAng = ang + flyBend[zi];
           const y2 = cy + innerR*Math.sin(bendAng);
           fy1.push(y1.toFixed(1));
           fy2.push(y2.toFixed(1));
           fOp.push(cosA > 0 ? (0.25 + 0.35*cosA).toFixed(2) : '0');
         }
-        const fx = drumCx + (fi%3-1)*(drumW*0.15);
+        const fx = flyZoneX[zi];
         flights += `<line x1="${fx.toFixed(1)}" x2="${fx.toFixed(1)}" y1="${fy1[0]}" y2="${fy2[0]}" stroke="${c}" stroke-width="${F(clamp(K*1.8,1.2,2.4))}" stroke-linecap="round" clip-path="url(#${clipIdInner})" opacity="${fOp[0]}">
           <animate attributeName="y1" values="${fy1.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="y2" values="${fy2.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
@@ -257,7 +298,7 @@ TEMPLATES.miningDryer = {
       let flightPivots = '';
       for(let fi=0; fi<flightCount; fi++){
         for(let ri=1; ri<=3; ri++){
-          const wx = drumL + drumW*0.25 + drumW*0.5*(ri-1)/2;
+          const wx = flyZoneX[ri-1];
           const phase = fi/flightCount + (ri*0.05);
           const delay = -(phase*rotDur).toFixed(2);
           let py=[], pOp=[];
@@ -332,13 +373,36 @@ TEMPLATES.miningDryer = {
           <animate attributeName="opacity" values="${tOp.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
         </polygon>`;
       }
-      const girthGear = gearBody + gearTeeth;
+      // 8b. 切向弹簧板联接：齿圈不与筒体刚性固接，而是经一圈切向弹簧板弹性联接——
+      //     既可靠传递扭矩，又能吸收传动冲击、补偿筒体热膨胀与圆度偏差（齿圈可微量自定心）
+      //     板一端固定在筒体表面（半径 R），另一端固定在齿圈环内侧，板身沿圆周切向斜置以形成弹性
+      const gearSprings = (()=>{
+        const gInW = gearInnerHalfW;                        // 齿圈内缘水平半轴
+        const gInR = gearOuterR - rimT*1.5;                 // 齿圈内缘垂向半轴
+        const sW = clamp(K*2.0, 1.2, 3);                    // 弹簧板宽度
+        const lean = clamp(gInW*0.45, 1.2, 2.5);            // 切向斜置量（板身沿切向倾斜 = 弹性）
+        const boltR = clamp(K*0.9, 0.6, 1.3);
+        let sp = '';
+        [72, 90, 108, 252, 270, 288].forEach(d=>{
+          const a = d*Math.PI/180, cosA = Math.cos(a), sinA = Math.sin(a);
+          const side = sinA >= 0 ? 1 : -1;                          // +1 下侧 / -1 上侧（SVG y 向下）
+          const gx = gearX + gInW*cosA, gy = cy + (gInR - boltR*1.6)*sinA; // 齿圈环侧端点（略嵌入环体）
+          const sx = gx + lean,         sy = cy + side*R;               // 筒体表面侧端点（贴在筒壁上）
+          const dx = sx-gx, dy = sy-gy, L = Math.hypot(dx,dy) || 1;
+          const nx = -dy/L*sW*0.5, ny = dx/L*sW*0.5;
+          sp += `<polygon points="${F(gx+nx)},${F(gy+ny)} ${F(gx-nx)},${F(gy-ny)} ${F(sx-nx)},${F(sy-ny)} ${F(sx+nx)},${F(sy+ny)}" fill="#9aa2bc" stroke="#5b6280" stroke-width="0.7"/>
+            <circle cx="${F(gx)}" cy="${F(gy)}" r="${F(boltR)}" fill="#8e96b6" stroke="#3f445c" stroke-width="0.5"/>
+            <circle cx="${F(sx)}" cy="${F(sy)}" r="${F(boltR)}" fill="#8e96b6" stroke="#3f445c" stroke-width="0.5"/>`;
+        });
+        return sp;
+      })();
+      const girthGear = gearBody + gearSprings + gearTeeth;
 
       // 9. 小齿轮 + 减速机 + 电机（完整传动链，靠右越界时整体左移）
       const pinionR = clamp(R*0.18, 4, 11);
       const pTeethCount = 14;
       const pinionX = gearX + clamp(K*3, 2, 8);
-      const pinionY = cy + gearOuterR*0.7;
+      const pinionY = cy + gearOuterR*0.7 + dyAt(gearX);   // 小齿轮随齿圈高度随动，保持啮合
       const pinionToothIn = clamp(K, 0.6, 1.6), pinionToothOut = clamp(K*3, 1.5, 4.5);
       let pinionTeeth = '';
       for(let i=0; i<pTeethCount; i++){
@@ -397,8 +461,27 @@ TEMPLATES.miningDryer = {
       };
       const manholes = makeManhole(drumL*0.5) + makeManhole(w - drumL*0.5);
 
-      // 11. 筒内高温区辉光（热风端 / 右侧），呼吸式脉动
-      const hotZone = `<rect x="${F(drumCx)}" y="${F(drumTop)}" width="${F(drumR-drumCx)}" height="${F(drumH)}" fill="url(#${hotGlowId})" opacity="0.4" clip-path="url(#${clipIdInner})">
+      // 10c. 端部鳞片密封：静止料箱与回转筒体端面之间的一圈弹性鳞片（叠压成环），阻断端部漏风
+      const makeScaleSeal = (sealX, out)=>{
+        const sn = 9;                                  // 鳞片数量（恒定，不随尺寸变化）
+        const pLen = clamp(R*0.30, 2, 6);              // 单片鳞片轴向长度
+        const pTop = cy - R*0.95, pBot = cy + R*0.95;  // 鳞片环覆盖范围（≈筒体外缘）
+        const pStep = (pBot - pTop)/sn;
+        const lean = pStep*0.5;                        // 鳞片沿周向的倾斜（叠压贴紧）
+        const sw = clamp(R*0.04, 0.4, 0.9);
+        const xF = sealX + out*pLen;                   // 外缘（静止侧）
+        let s = '';
+        for(let i=0; i<sn; i++){
+          const y0 = pTop + i*pStep;
+          const y1 = y0 + pStep*1.25;                  // 与下一片叠压
+          s += `<path d="M ${F(sealX)} ${F(y0)} L ${F(xF)} ${F(y0-lean)} L ${F(xF)} ${F(y1-lean)} L ${F(sealX)} ${F(y1)} Z" fill="#9aa2bc" stroke="#5b6280" stroke-width="${F(sw)}"/>`;
+        }
+        return s;
+      };
+      const scaleSeals = makeScaleSeal(drumL, -1) + makeScaleSeal(drumR, 1);
+
+      // 11. 筒内高温区辉光（热风端 / 左侧进料端），呼吸式脉动
+      const hotZone = `<rect x="${F(drumL)}" y="${F(drumTop)}" width="${F(drumCx-drumL)}" height="${F(drumH)}" fill="url(#${hotGlowId})" opacity="0.4" clip-path="url(#${clipIdInner})">
         <animate attributeName="opacity" values="0.28;0.5;0.28" dur="${rotDur*1.5}s" repeatCount="indefinite"/>
       </rect>`;
 
@@ -459,18 +542,18 @@ TEMPLATES.miningDryer = {
         </circle>`;
       }
 
-      // 12b. 热气流：自热风端（右）向左流动 + 上飘，暖色粒子
+      // 12b. 热气流：自热风端（左，进料端）向右流动 + 上飘，暖色粒子（顺流）
       const gasParticleCount = 16;
       for(let i=0; i<gasParticleCount; i++){
         const phase = i/gasParticleCount;
         const delay = -(phase*rotDur*1.5).toFixed(2);
-        const startX = drumR - gasMargin*0.75 - ((i*47 % 10)/10)*gasMargin;
+        const startX = drumL + gasMargin*0.75 + ((i*47 % 10)/10)*gasMargin;
         const wiggleA = clamp(K*4, 2, 8) * (1 + (i*13 % 6)*0.15);
         const wiggleB = clamp(K*3, 1.5, 6) * (1 + (i*29 % 5)*0.15);
         let axv=[], ayv=[], aop=[];
         for(let k=0; k<=40; k++){
           const t = k/40, rt = (t+phase)%1;
-          const x = startX - gasSpan*rt + Math.sin(rt*Math.PI*3)*wiggleA;
+          const x = startX + gasSpan*rt + Math.sin(rt*Math.PI*3)*wiggleA;
           const y = cy + R*0.3 - R*0.6*rt + Math.cos(rt*Math.PI*4)*wiggleB;
           const fadeIn = rt < 0.1 ? rt*10 : 1;
           const fadeOut = rt > 0.85 ? (1-rt)*6.7 : 1;
@@ -487,7 +570,7 @@ TEMPLATES.miningDryer = {
       }
 
       // 13. 风管统一画法：金属管壁 + 深色管腔 + 变径短节 + 端面把合法兰 + 2 颗螺栓
-      // hotAirX / exhaustX 须与 ports 中 hotAir(x:0.88,y:1,down) / exhaust(x:0.12,y:0,up) 锚点保持同步
+      // hotAirX / exhaustX 须与 ports 中 hotAir(x:0.12,y:1,down) / exhaust(x:0.88,y:0,up) 锚点保持同步
       const hotAirX = w*hotXR, exhaustX = w*exhXR;
       const makeDuct = (x, yNear, yFar, s)=>{
         const redNearHalf = ductRedTop/2, redFarHalf = ductRedBot/2;
@@ -503,7 +586,7 @@ TEMPLATES.miningDryer = {
         <circle cx="${F(x-ductBoltDx)}" cy="${F(flCy)}" r="${F(ductBoltR)}" fill="#8e96b6" stroke="#3f445c" stroke-width="0.3"/>
         <circle cx="${F(x+ductBoltDx)}" cy="${F(flCy)}" r="${F(ductBoltR)}" fill="#8e96b6" stroke="#3f445c" stroke-width="0.3"/>`;
       };
-      const gasDucts = makeDuct(hotAirX, cy+R+ductGap, h, 1) + makeDuct(exhaustX, cy-R-ductGap, 0, -1);
+      const gasDucts = makeDuct(hotAirX, cy+R+dyAt(hotAirX)+ductGap, h, 1) + makeDuct(exhaustX, cy-R+dyAt(exhaustX)-ductGap, 0, -1);
 
       // 13b. 水蒸气：自筒体顶部上升（烘干过程蒸发的水汽）
       let vaporWaves = '';
@@ -517,11 +600,12 @@ TEMPLATES.miningDryer = {
         const hwDur = 4 + (i%4)*0.8;
         const delay = -(phase*hwDur).toFixed(2);
         const baseX = drumL + hwMargin + ((drumW-2*hwMargin) * (i/(hwCount-1)));
+        const baseTopY = hwTop + dyAt(baseX);   // 蒸汽源点随倾斜筒顶
         const sway = clamp(K*4, 2, 7) * (1 + (i*19 % 5)*0.15);
         let hx=[], hy=[], hr=[], ho=[];
         for(let k=0; k<=24; k++){
           const t = k/24;
-          const y = hwTop - hwRise*t;
+          const y = baseTopY - hwRise*t;
           const x = baseX + Math.sin(t*Math.PI*2 + phase*Math.PI*4)*sway;
           const r = hwRMin + (hwRMax-hwRMin)*t;
           const op = t < 0.2 ? t/0.2*0.3 : (t > 0.75 ? (1-t)/0.25*0.3 : 0.3);
@@ -554,22 +638,26 @@ TEMPLATES.miningDryer = {
         <defs>${clipDef}${clipDefInner}${drumShade}${metalDef}${metalVDef}${hotGlowDef}</defs>
         ${base1}${base2}
         ${trunnions}
+        ${thrustRollers}
         ${gasDucts}
         ${vaporWaves}
         ${inBox}${outBox}${manholes}
-        ${drumBody}
-        <g clip-path="url(#${clipId})">
-          ${hotZone}
-          ${weldRings}
-          ${flights}
-          ${flightPivots}
-          ${rotMarks}
-          ${ringBolts}
-          ${materialBed}
-          ${particles}
+        <g transform="rotate(${F(tiltDeg)} ${F(drumCx)} ${F(cy)})">
+          ${drumBody}
+          ${scaleSeals}
+          <g clip-path="url(#${clipId})">
+            ${hotZone}
+            ${weldRings}
+            ${flights}
+            ${flightPivots}
+            ${rotMarks}
+            ${ringBolts}
+            ${materialBed}
+            ${particles}
+          </g>
+          ${tires}
+          ${girthGear}
         </g>
-        ${tires}
-        ${girthGear}
         ${drive}
         ${nameplate}
       `;
