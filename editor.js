@@ -2823,7 +2823,6 @@ function startFlow(){
     const n = FLOW_TRAIL + 1;
     let need = 0;
     doc.pipes.forEach(pipe=>{ if(pipe._pts && pipe._pts.length>=2) need += 3*n; });
-    doc.components.forEach(comp=>{ if(comp.type==='silo') need += 8*n; });
     ensureNodes(need);
     let idx = 0;
     // 管道粒子（含拖尾：沿路径滞后、渐隐渐小）
@@ -2845,31 +2844,7 @@ function startFlow(){
         }
       }
     });
-    // 料仓落料粒子（含拖尾）
-    const now = performance.now() / 1000;
-    doc.components.forEach(comp=>{
-      if(comp.type !== 'silo') return;
-      const w = comp.w, h = comp.h;
-      const cx = comp.x + w/2, topY = comp.y + 5, bottomY = comp.y + h * 0.92;
-      const pColor = comp.props.color || '#9C99FF';
-      const seed = comp.id.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
-      for(let i=0;i<8;i++){
-        const base = (now * 0.6 + ((seed*0.137 + i*0.618) % 1)) % 1;
-        for(let j=0;j<n;j++){
-          const tt = base - j*0.03;
-          const t = ((tt % 1) + 1) % 1;
-          const y = topY + (bottomY - topY) * t;
-          const sway = Math.sin(now*1.5 + i*2.1 + seed - j*0.5) * w * 0.15;
-          const fade = 1 - j/n;
-          const c = flowNodes[idx++];
-          c.setAttribute('cx', cx + sway);
-          c.setAttribute('cy', y);
-          c.setAttribute('r', (1.5 + 0.8*(1-t)) * (0.35 + 0.65*fade));
-          c.setAttribute('fill', pColor);
-          c.setAttribute('opacity', (0.3 + 0.7*(1-t)) * fade);
-        }
-      }
-    });
+    // 料仓内落料粒子改由模板 SMIL 驱动（见 templates/silo.js），此处不再外挂
     flowRAF = requestAnimationFrame(tick);
   }
   tick();
