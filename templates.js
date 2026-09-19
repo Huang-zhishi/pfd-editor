@@ -40,6 +40,7 @@ const TEMPLATE_FILES = [
   'switchValve',
   'dustCollector',
   'cyclone',
+  'classifier',
   'screwConveyor',
   'screwConveyorLite',
   'bucketElevator',

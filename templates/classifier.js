@@ -1,0 +1,209 @@
+/* ============================================================
+ * PFD Editor · 组件模板：classifier（选粉机 / 动态选粉机）
+ *   由 templates.js 拆分而来（一个设备一个文件）。
+ *   TEMPLATES 容器与加载顺序见 templates.js，本文件只注册 TEMPLATES.classifier。
+ *   配色与画法对齐 vrm（立磨选粉机段）/ dustCollector（除尘布袋）/ cyclone（旋风除尘器）：
+ *     本文件 <defs> 内局部金属渐变（id 带 uid 后缀，避免同页多实例 id 冲突）：
+ *       #7d849e → #d9dded → #767d97（金属筒体 / 收集锥 / 接管）
+ *       #12162b（深色内腔）  #6a7192（内腔描边 / 静叶）  #2a2f45 / #3f445c（法兰与机架）
+ *   结构（切向进风 · 笼式转子型）：
+ *     经粉磨烘干的物料随气流自下部切向进风管进入 → 导风叶片（静叶）使气固两相形成切向旋流
+ *     → 转子笼与导风叶片同向旋转、在两者之间的环形间隙形成离心力场完成分选
+ *     → 粗粉被抛向外壁、受重力下落经锥底由返料装置送回磨机重磨
+ *     → 成品细粉随气流穿过转子笼、经上部出风管排出。
+ *   端口比例（须与文件顶部 ports 定义同步）：
+ *     inlet=左下（切向进风）、product=右上（成品出风）、coarse=右下（粗粉返料）
+ * ============================================================ */
+
+TEMPLATES.classifier = {
+    name: '选粉机', category: '设备',
+    defaultSize: { w: 160, h: 240 },
+    ports: [
+      {id:'inlet',   x:0, y:.68, dir:'left'},    // 含料气流入口（下部 · 切向进风）
+      {id:'product', x:1, y:.18, dir:'right'},   // 成品气粉出口（上部 · 出风管）
+      {id:'coarse',  x:1, y:.92, dir:'right'}    // 粗粉返料口（底部 · 返回磨机）
+    ],
+    render: (w,h,p)=>{
+      const uid = Math.random().toString(36).substr(2,6);
+      const clipId = 'cl_clip_'+uid, metalId = 'cl_metal_'+uid, metalVId = 'cl_metalv_'+uid;
+      const f = n => Number(n).toFixed(2);
+      const c = (p && p.color) || '#9C99FF';
+      const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+      const K = clamp(Math.min(w/160, h/240), 0.3, 2.4);
+      const cx = w/2;
+      const edgePad = 2;
+
+      // —— 纵向分区（自上而下）：驱动装置 → 顶盖 → 筒体（分级区）→ 收集锥 → 机架支腿 ——
+      const driveH = clamp(h*0.12, 8, 32);             // 顶部驱动装置（减速机 + 电机）高度
+      const capT   = clamp(w*0.022, 1.5, 3.5);         // 顶盖厚
+      const legH   = clamp(h*0.075, 4, 18);            // 支腿高
+
+      const D = clamp(w*0.62, 10, 260);                // 筒体外径
+      const halfW = D/2;
+      const topX = cx - halfW, topX2 = cx + halfW;     // 筒体左右缘
+      const wallT = clamp(D*0.035, 1, 2.6);            // 壁厚
+      const padT  = clamp(D*0.05, 1.2, 4);             // 内腔留边
+
+      const capBotY  = edgePad + driveH;               // 顶盖上表面（驱动装置坐落面）
+      const bodyTopY = capBotY + capT;                 // 筒体顶
+      const bodyH0 = clamp(D*1.05, 10, 300);           // 筒体高（分级区）
+      const coneH0 = clamp(D*0.55, 6, 180);            // 收集锥自然高
+      // 按可用高度整体缩放：小尺寸压缩、大尺寸适度拉伸（上限 1.9）填满箱体
+      const coneBotMaxY = h - edgePad - legH;          // 锥底可用下限（让出支腿）
+      const avail = Math.max(2, coneBotMaxY - bodyTopY);
+      const totalK = Math.min(1.9, avail/(bodyH0 + coneH0));
+      const bodyH = bodyH0*totalK;
+      const coneH = coneH0*totalK;
+      const coneTopY = bodyTopY + bodyH;               // 筒体 / 锥体交界
+      const coneBotY = coneTopY + coneH;               // 锥底
+
+      const botW = clamp(D*0.34, 3, 40);               // 锥底收口宽（接返料装置）
+      const botX = cx - botW/2, botX2 = cx + botW/2;
+
+      // —— 步骤1 骨架：机架 + 主体 + 顶盖 + 收集锥 + 驱动装置 + 中心轴/转子笼/导风叶片 ——
+      //    （进/出风管、返料螺旋与流场动画在后续步骤加入）
+
+      // 后壁层（比金属层大 wallT，露在外沿形成壁厚）
+      const backBody = `<rect x="${f(topX-wallT)}" y="${f(bodyTopY)}" width="${f(D+wallT*2)}" height="${f(bodyH)}" fill="#2a2f45" stroke="#3f445c" stroke-width="1.5"/>`;
+      const backCone = `<polygon points="${f(topX-wallT)},${f(coneTopY)} ${f(topX2+wallT)},${f(coneTopY)} ${f(botX2)},${f(coneBotY)} ${f(botX)},${f(coneBotY)}" fill="#2a2f45" stroke="#3f445c" stroke-width="1.5"/>`;
+      // 金属层（筒体 + 收集锥，局部渐变）
+      const metalBody = `<rect x="${f(topX)}" y="${f(bodyTopY)}" width="${f(D)}" height="${f(bodyH)}" fill="url(#${metalId})" stroke="#3f445c" stroke-width="1.4"/>`;
+      const metalCone = `<polygon points="${f(topX)},${f(coneTopY)} ${f(topX2)},${f(coneTopY)} ${f(botX2)},${f(coneBotY)} ${f(botX)},${f(coneBotY)}" fill="url(#${metalId})" stroke="#3f445c" stroke-width="1.4"/>`;
+      // 内部深色腔（筒体矩形 + 锥体梯形，四周留 padT）
+      const cavBody = `<rect x="${f(topX+padT)}" y="${f(bodyTopY+padT)}" width="${f(D-padT*2)}" height="${f(Math.max(0, bodyH-padT))}" fill="#12162b" stroke="#6a7192" stroke-width="0.7"/>`;
+      const cavCone = `<polygon points="${f(topX+padT)},${f(coneTopY)} ${f(topX2-padT)},${f(coneTopY)} ${f(botX2)},${f(coneBotY)} ${f(botX)},${f(coneBotY)}" fill="#12162b" stroke="#6a7192" stroke-width="0.7"/>`;
+
+      // 顶盖法兰条 + 两端螺栓（盖与筒体把合）
+      const boltR = clamp(K*1.3, 0.8, 1.8);
+      const bolt = (bx,by)=>`<circle cx="${f(bx)}" cy="${f(by)}" r="${f(boltR)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.5"/><circle cx="${f(bx)}" cy="${f(by)}" r="${f(boltR*0.4)}" fill="#8e96b6" opacity="0.9"/>`;
+      const capFlange =
+        `<rect x="${f(topX-wallT)}" y="${f(capBotY)}" width="${f(D+wallT*2)}" height="${f(capT)}" rx="1" fill="#2a2f45" stroke="#3f445c" stroke-width="1"/>` +
+        bolt(topX-wallT+boltR+1, capBotY+capT/2) +
+        bolt(topX2+wallT-boltR-1, capBotY+capT/2);
+
+      /* 机架支腿：生根于筒体/锥体交界，落到组件下沿的基础板。
+         两根立柱在锥体收口之外（不与锥壁相交），加斜撑与地脚板，读作"立式悬臂机架"。 */
+      const legTopY = coneTopY;
+      const legBotY = h - edgePad;
+      const legX0 = cx - halfW*0.94, legX1 = cx + halfW*0.94;
+      const legW = clamp(D*0.05, 1.2, 4.5);
+      const footW = legW*2.6, footH = clamp(legH*0.22, 1.2, 4);
+      const leg = (lx, sgn)=>{
+        const braceY = legTopY + (legBotY-legTopY)*0.42;
+        const coneX = cx + sgn*(halfW - (halfW - botW/2)*((braceY-coneTopY)/Math.max(0.01,coneH)));
+        return `<rect x="${f(lx-legW/2)}" y="${f(legTopY)}" width="${f(legW)}" height="${f(legBotY-legTopY)}" fill="#0c1020" stroke="#3f445c" stroke-width="1"/>` +
+          `<line x1="${f(coneX)}" y1="${f(braceY)}" x2="${f(lx)}" y2="${f(braceY)}" stroke="#3f445c" stroke-width="${f(clamp(legW*0.55,0.8,2.4))}" stroke-linecap="round"/>` +
+          `<rect x="${f(lx-footW/2)}" y="${f(legBotY-footH)}" width="${f(footW)}" height="${f(footH)}" rx="1" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>`;
+      };
+      const legs = leg(legX0, -1) + leg(legX1, 1);
+      // 基础环板（把两根支腿连成一体）
+      const basePlate = `<rect x="${f(legX0-footW/2)}" y="${f(legBotY-footH)}" width="${f(legX1-legX0+footW)}" height="${f(footH)}" rx="1" fill="#0c1020" stroke="#3f445c" stroke-width="1"/>`;
+
+      /* 顶部驱动装置：立式减速机（居中，输出轴即中心竖轴）+ 侧置主电机。
+         减速机坐在顶盖上，竖轴穿过顶盖伸入筒体驱动转子笼。 */
+      const gbH = clamp(driveH*0.62, 5, 22);
+      const gbW = clamp(D*0.34, 7, 40);
+      const gbX = cx - gbW/2, gbY = capBotY - gbH;
+      const motorH = clamp(gbH*0.80, 4, 18);
+      const motorW = clamp(D*0.30, 6, 34);
+      const gapM = clamp(D*0.05, 1, 4);
+      const motorX = gbX + gbW + gapM, motorY = capBotY - motorH;
+      const drive =
+        // 减速机底座（与顶盖把合）
+        `<rect x="${f(gbX-boltR-0.6)}" y="${f(gbY-gbH*0.16)}" width="${f(gbW+boltR*2+1.2)}" height="${f(gbH*0.20)}" rx="1" fill="#2a2f45" stroke="#3f445c" stroke-width="0.9"/>` +
+        // 减速机箱体 + 把合面
+        `<rect x="${f(gbX)}" y="${f(gbY)}" width="${f(gbW)}" height="${f(gbH)}" rx="2" fill="url(#${metalId})" stroke="#3f445c" stroke-width="1.1"/>` +
+        `<line x1="${f(gbX+1.5)}" y1="${f(gbY+gbH*0.38)}" x2="${f(gbX+gbW-1.5)}" y2="${f(gbY+gbH*0.38)}" stroke="#5b6280" stroke-width="0.8" stroke-dasharray="4 3"/>` +
+        `<circle cx="${f(cx)}" cy="${f(gbY+gbH*0.5)}" r="${f(clamp(gbH*0.16,1,3.4))}" fill="#12162b" stroke="#6a7192" stroke-width="0.8"/>` +
+        // 主电机：横置圆筒 + 散热筋 + 接线盒 + 输出轴联轴器
+        `<rect x="${f(motorX)}" y="${f(motorY)}" width="${f(motorW)}" height="${f(motorH)}" rx="2" fill="#2f3550" stroke="#6a7192" stroke-width="1.1"/>` +
+        `<line x1="${f(motorX+motorW*0.16)}" y1="${f(motorY+1.6)}" x2="${f(motorX+motorW*0.16)}" y2="${f(motorY+motorH-1.6)}" stroke="#5b6280" stroke-width="0.9"/>` +
+        `<line x1="${f(motorX+motorW*0.40)}" y1="${f(motorY+1.6)}" x2="${f(motorX+motorW*0.40)}" y2="${f(motorY+motorH-1.6)}" stroke="#5b6280" stroke-width="0.9"/>` +
+        `<rect x="${f(motorX+motorW*0.52)}" y="${f(motorY-motorH*0.34)}" width="${f(motorW*0.34)}" height="${f(motorH*0.34)}" rx="1" fill="url(#${metalVId})" stroke="#6a7192" stroke-width="0.8"/>` +
+        `<rect x="${f(motorX+motorW)}" y="${f(motorY+motorH*0.30)}" width="${f(Math.max(1.5, gapM*0.9))}" height="${f(motorH*0.40)}" fill="url(#${metalVId})" stroke="#6a7192" stroke-width="0.8"/>`;
+
+      /* 分级区：导风叶片环（静叶，外圈） + 转子笼（动叶，内圈）。
+         正面投影上：静叶落在转子两侧的环形带内（斜置短片），转子为居中的竖叶片笼。
+         两者同向旋转、其间的环形间隙即离心分选空间——分级区高度取筒体的中段。 */
+      const zoneTopY = bodyTopY + bodyH*0.16;
+      const zoneBotY = bodyTopY + bodyH*0.84;
+      const zoneH = Math.max(1, zoneBotY - zoneTopY);
+      const guideR = Math.max(4, Math.min(D*0.40, halfW - padT*1.6));
+      const rotorR = clamp(D*0.20, 2, 60);
+      const ringH = clamp(D*0.045, 1.2, 4);
+      const bladeW = clamp(D*0.016, 0.8, 2.2);
+
+      // 导风叶片（静叶）：左右各一条环形带，带内斜置叶片，叶片数与带高自适应
+      const vaneBand = (sgn)=>{
+        const xa = cx + sgn*guideR, xb = cx + sgn*rotorR;
+        const bw = Math.abs(xa - xb);
+        const n = Math.max(3, Math.round(zoneH/(Math.max(3, bw)*1.15)));
+        const lean = bw*0.44;
+        let out = '';
+        for(let i=0;i<n;i++){
+          const y = zoneTopY + zoneH*(i+0.5)/n;
+          out += `<line x1="${f(xa)}" y1="${f(y-lean*0.5)}" x2="${f(xb)}" y2="${f(y+lean*0.5)}" stroke="#6a7192" stroke-width="${f(bladeW)}" stroke-linecap="round"/>`;
+        }
+        return out;
+      };
+      const guideVanes = vaneBand(-1) + vaneBand(1);
+
+      // 转子笼：上下环 + 竖向叶片（动叶）
+      const rotorRing = y => `<rect x="${f(cx-rotorR)}" y="${f(y-ringH/2)}" width="${f(rotorR*2)}" height="${f(ringH)}" rx="${f(ringH*0.4)}" fill="url(#${metalId})" stroke="#6a7192" stroke-width="0.9"/>`;
+      const rotorBladeN = 9;
+      let rotorBlades = '';
+      for(let i=0;i<rotorBladeN;i++){
+        const bx = cx - rotorR + (rotorR*2)*(i+0.5)/rotorBladeN;
+        rotorBlades += `<line x1="${f(bx)}" y1="${f(zoneTopY)}" x2="${f(bx)}" y2="${f(zoneBotY)}" stroke="${c}" stroke-width="${f(clamp(bladeW*1.15,1,2.6))}" opacity="0.85"/>`;
+      }
+      const rotor = rotorRing(zoneTopY) + rotorBlades + rotorRing(zoneBotY);
+
+      // 中心竖轴：减速机输出轴穿过顶盖伸入筒体，吊挂转子笼
+      const shaftW = clamp(D*0.045, 1, 3.5);
+      const shaft = `<rect x="${f(cx-shaftW/2)}" y="${f(capBotY)}" width="${f(shaftW)}" height="${f(zoneBotY-capBotY)}" fill="#2b3050" stroke="#6a7192" stroke-width="0.8"/>`;
+      // 轴穿过顶盖处的密封轴承座
+      const shaftSeat = `<rect x="${f(cx-shaftW*1.8)}" y="${f(bodyTopY-padT*0.2)}" width="${f(shaftW*3.6)}" height="${f(clamp(padT*0.9,1.2,3.6))}" rx="1" fill="url(#${metalVId})" stroke="#6a7192" stroke-width="0.8"/>`;
+
+      // 防溢出裁剪区 = 内腔形状（筒体 + 收集锥）
+      const clipDef = `<clipPath id="${clipId}">
+        <rect x="${f(topX+padT)}" y="${f(bodyTopY)}" width="${f(Math.max(0.1, D-padT*2))}" height="${f(bodyH)}"/>
+        <polygon points="${f(topX+padT)},${f(coneTopY)} ${f(topX2-padT)},${f(coneTopY)} ${f(botX2)},${f(coneBotY)} ${f(botX)},${f(coneBotY)}"/>
+      </clipPath>`;
+
+      return `
+        <defs>
+          ${clipDef}
+          <linearGradient id="${metalId}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#7d849e"/><stop offset="0.42" stop-color="#d9dded"/><stop offset="1" stop-color="#767d97"/>
+          </linearGradient>
+          <linearGradient id="${metalVId}" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#7d849e"/><stop offset="0.42" stop-color="#d9dded"/><stop offset="1" stop-color="#767d97"/>
+          </linearGradient>
+        </defs>
+        <!-- 1. 机架支腿（在主体之后绘制，锥体压住支腿内缘） -->
+        ${basePlate}
+        ${legs}
+        <!-- 2. 设备后壁（筒体 + 收集锥，比金属层大一圈 wallT） -->
+        ${backBody}
+        ${backCone}
+        <!-- 3. 设备主体金属填充 -->
+        ${metalBody}
+        ${metalCone}
+        <!-- 4. 内部深色层 -->
+        ${cavBody}
+        ${cavCone}
+        <!-- 5. 顶盖法兰 + 螺栓 -->
+        ${capFlange}
+        <!-- 6. 分级区：导风叶片（静叶）+ 转子笼（动叶），裁剪在内腔内 -->
+        <g clip-path="url(#${clipId})">
+          ${guideVanes}
+          ${rotor}
+        </g>
+        <!-- 7. 中心竖轴 + 穿盖轴封座 -->
+        ${shaftSeat}
+        ${shaft}
+        <!-- 8. 顶部驱动装置（减速机 + 主电机） -->
+        ${drive}
+      `;
+    }
+};
