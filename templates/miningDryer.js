@@ -5,8 +5,8 @@
  *   造型参照 rotaryKiln / tubeCooler 的既有画法：
  *     - 筒体圆柱明暗渐变 + 两端封头椭圆 + 环形焊缝
  *     - 滚带（带齿旋转动画）/ 托轮组（辐条反向旋转）/ 大齿圈 + 小齿轮 + 减速机 + 电机
- *     - 筒内扬料板剪影 + 物料抛落雨幕 + 旋转标记带 + 焊缝螺栓点
- *   烘干机特征：热风进口（下方接热风炉）+ 筒内高温区辉光 + 水蒸气 + 废气出口（上方接除尘器）
+ *     - 筒内扬料板剪影 + 旋转标记带 + 焊缝螺栓点
+ *   烘干机特征：热风进口（下方接热风炉）+ 筒内高温区辉光 + 废气出口（上方接除尘器）
  *   流程为顺流（并流）：物料与热风均自进料端（左）进入，一同向出料端（右）流动；
  *   端口比例（须与文件顶部 ports 定义同步）：
  *     feed.y=0.50、discharge.y=0.50、hotAir.x=0.12、exhaust.x=0.88
@@ -90,8 +90,6 @@ TEMPLATES.miningDryer = {
       const stripThin = clamp(R*0.1, 1.5, 3);
       const stripMargin = clamp(drumW*0.05, 3, 10);
       const matMargin = clamp(drumW*0.1, 6, 25);
-      const matJitter = clamp(drumW*0.05, 3, 12);
-      const bedReturn = clamp(R*0.35, 6, 12);
       const gasMargin = clamp(drumW*0.08, 5, 20);
       const gasSpan = Math.max(0, drumW - 2*gasMargin);
       const drivePlateH = clamp(K*5, 3, 6);
@@ -485,63 +483,11 @@ TEMPLATES.miningDryer = {
         <animate attributeName="opacity" values="0.28;0.5;0.28" dur="${rotDur*1.5}s" repeatCount="indefinite"/>
       </rect>`;
 
-      // 12. 物料床 + 物料抛落雨幕（扬料板带起 → 顶点 → 抛落）+ 热气流
+      // 12. 物料床 + 热气流
       const materialBed = `<path d="M ${F(drumL+matMargin)} ${F(cy+R-bedDepth)} Q ${F(drumCx)} ${F(cy+R-bedEdge)} ${F(drumR-matMargin)} ${F(cy+R-bedDepth)} L ${F(drumR-matMargin)} ${F(cy+R-bedEdge)} L ${F(drumL+matMargin)} ${F(cy+R-bedEdge)} Z" fill="${c}" opacity="0.25"/>
         <path d="M ${F(drumL+matMargin)} ${F(cy+R-bedDepth)} Q ${F(drumCx)} ${F(cy+R-bedEdge)} ${F(drumR-matMargin)} ${F(cy+R-bedDepth)}" fill="none" stroke="${c}" stroke-width="${F(clamp(K*2.5,1.5,3))}" opacity="0.5"/>`;
 
       let particles = '';
-      // 12a. 物料粒子：湿料被扬料板带起 → 顶点 → 抛落（雨幕效果）
-      const matParticleCount = 28;
-      const matSpray = partR*1.8;
-      for(let i=0; i<matParticleCount; i++){
-        const phase = i/matParticleCount;
-        const delay = -(phase*rotDur).toFixed(2);
-        const col = i % 5;
-        const row = Math.floor(i/5);
-        const px = drumL + matMargin + col*((drumW-2*matMargin)/4) + (row%2)*matJitter;
-        const liftH = R * (0.5 + (i*37 % 10)/10 * 0.25);
-        const scatterX = ((i*73 % 10) - 5) * 0.03 * R;
-        let cxv=[], cyv=[], opv=[], rv=[];
-        for(let k=0; k<=32; k++){
-          const t = k/32, rt = (t+phase)%1;
-          let x, y, op, r;
-          if(rt < 0.35){
-            const la = (rt/0.35)*Math.PI - Math.PI/2;
-            x = px + matSpray*Math.cos(la);
-            y = cy + R*0.85*Math.sin(la);
-            op = 0.6 + 0.4*Math.cos(la*0.5);
-            r = partR;
-          } else if(rt < 0.75){
-            const ft = (rt-0.35)/0.4;
-            const startAng = 0.7*Math.PI - Math.PI/2;
-            const sx = px + matSpray*Math.cos(startAng);
-            const sy = cy + R*0.85*Math.sin(startAng);
-            const endX = px + scatterX;
-            const endY = cy + R - bedReturn;
-            x = sx + (endX - sx)*ft;
-            y = sy + (endY - sy)*ft - liftH*Math.sin(ft*Math.PI)*0.4;
-            op = 0.8;
-            r = partR*0.9;
-          } else {
-            const ft = (rt-0.75)/0.25;
-            x = px + scatterX*0.3;
-            y = cy + R - bedEdge*4 - (1-ft)*bedEdge*1.5;
-            op = 0.3 * (1-ft);
-            r = partR*0.9*(1-ft*0.5);
-          }
-          cxv.push(x.toFixed(1));
-          cyv.push(y.toFixed(1));
-          opv.push(op.toFixed(2));
-          rv.push(r.toFixed(1));
-        }
-        particles += `<circle cx="${cxv[0]}" cy="${cyv[0]}" r="${rv[0]}" fill="${c}" clip-path="url(#${clipIdInner})" opacity="${opv[0]}">
-          <animate attributeName="cx" values="${cxv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
-          <animate attributeName="cy" values="${cyv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
-          <animate attributeName="r" values="${rv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
-          <animate attributeName="opacity" values="${opv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
-        </circle>`;
-      }
-
       // 12b. 热气流：自热风端（左，进料端）向右流动 + 上飘，暖色粒子（顺流）
       const gasParticleCount = 16;
       for(let i=0; i<gasParticleCount; i++){
@@ -588,40 +534,6 @@ TEMPLATES.miningDryer = {
       };
       const gasDucts = makeDuct(hotAirX, cy+R+dyAt(hotAirX)+ductGap, h, 1) + makeDuct(exhaustX, cy-R+dyAt(exhaustX)-ductGap, 0, -1);
 
-      // 13b. 水蒸气：自筒体顶部上升（烘干过程蒸发的水汽）
-      let vaporWaves = '';
-      const hwMargin = clamp(drumW*0.12, 6, 20);
-      const hwRise = Math.max(0, Math.min(clamp(R, 4, 28), drumTop - clamp(K*2, 1, 3)));
-      const hwTop = drumTop - clamp(K*2, 1, 3);
-      const hwRMin = clamp(K*1.5, 0.8, 2), hwRMax = clamp(K*5, 2.5, 7);
-      const hwCount = 12;
-      for(let i=0; i<hwCount; i++){
-        const phase = i/hwCount;
-        const hwDur = 4 + (i%4)*0.8;
-        const delay = -(phase*hwDur).toFixed(2);
-        const baseX = drumL + hwMargin + ((drumW-2*hwMargin) * (i/(hwCount-1)));
-        const baseTopY = hwTop + dyAt(baseX);   // 蒸汽源点随倾斜筒顶
-        const sway = clamp(K*4, 2, 7) * (1 + (i*19 % 5)*0.15);
-        let hx=[], hy=[], hr=[], ho=[];
-        for(let k=0; k<=24; k++){
-          const t = k/24;
-          const y = baseTopY - hwRise*t;
-          const x = baseX + Math.sin(t*Math.PI*2 + phase*Math.PI*4)*sway;
-          const r = hwRMin + (hwRMax-hwRMin)*t;
-          const op = t < 0.2 ? t/0.2*0.3 : (t > 0.75 ? (1-t)/0.25*0.3 : 0.3);
-          hx.push(x.toFixed(1));
-          hy.push(y.toFixed(1));
-          hr.push(r.toFixed(1));
-          ho.push(op.toFixed(2));
-        }
-        vaporWaves += `<circle cx="${hx[0]}" cy="${hy[0]}" r="${hr[0]}" fill="#d9dded" opacity="${ho[0]}">
-          <animate attributeName="cx" values="${hx.join(';')}" dur="${hwDur}s" begin="${delay}s" repeatCount="indefinite"/>
-          <animate attributeName="cy" values="${hy.join(';')}" dur="${hwDur}s" begin="${delay}s" repeatCount="indefinite"/>
-          <animate attributeName="r" values="${hr.join(';')}" dur="${hwDur}s" begin="${delay}s" repeatCount="indefinite"/>
-          <animate attributeName="opacity" values="${ho.join(';')}" dur="${hwDur}s" begin="${delay}s" repeatCount="indefinite"/>
-        </circle>`;
-      }
-
       // 14. 铭牌（板 + 文字，板色 / 描边统一到基准色系）
       const plateFs = clamp(h*0.043, 3.5, 9);
       const plateW = clamp(Math.min(plateFs*10.7, w*0.6), 24, 96);
@@ -640,7 +552,6 @@ TEMPLATES.miningDryer = {
         ${trunnions}
         ${thrustRollers}
         ${gasDucts}
-        ${vaporWaves}
         ${inBox}${outBox}${manholes}
         <g transform="rotate(${F(tiltDeg)} ${F(drumCx)} ${F(cy)})">
           ${drumBody}
