@@ -47,6 +47,7 @@ const TEMPLATE_FILES = [
   'bucketElevator',
   'weighFeeder',
   'coolingPond',
+  'filterPress',
   'text',
   'monitor'
 ];
