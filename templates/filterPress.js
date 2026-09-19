@@ -121,6 +121,33 @@ TEMPLATES.filterPress = {
         `<rect x="${f(right-flangeW)}" y="${f(barrelY-cylH*0.05)}" width="${f(flangeW)}" height="${f(cylH*1.1)}" rx="1" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>` +
         `<circle cx="${f(right-flangeW*0.5)}" cy="${f(barrelY-cylH*0.05+cylH*0.16)}" r="${f(Math.max(0.8, cylH*0.09))}" fill="${c}" opacity="0.85"/>`;
 
+      /* ===== 接管 =====
+         · 进料 / 压缩空气：左端固定头板水平接出，端口落在组件左缘（x=0, y=0.36h / 0.60h）
+         · 滤液 / 滤饼出口：下主梁底面立管接出，端口落在组件底缘（x=0.30w / 0.62w, y=h）
+         管件画法与 screwConveyorLite 出料管统一：金属管壁 + 深色管腔 + 端口法兰 */
+      const pFlangeW = Math.max(1.6, Math.min(beamH*0.36, 3.6));
+      const rootXP = xHead + headW*0.35;                 // 左接管根部：插入固定头板
+      const hPipe = (py,ph)=>{                            // 水平左接管（端口朝左，落在 x=0）
+        const top = py - ph*0.5, wall = clamp(ph*0.28, 0.7, 2.0);
+        return `<rect x="0" y="${f(top)}" width="${f(rootXP)}" height="${f(ph)}" rx="1" fill="url(#${metalId})" stroke="#3f445c" stroke-width="0.8"/>` +
+          `<rect x="0" y="${f(top+wall)}" width="${f(rootXP-wall)}" height="${f(ph-wall*2)}" fill="#12162b" stroke="#6a7192" stroke-width="0.6"/>` +
+          `<rect x="0" y="${f(top-ph*0.10)}" width="${f(pFlangeW)}" height="${f(ph*1.20)}" rx="0.8" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
+      };
+      const leftPipes =
+        hPipe(h*0.36, clamp(h*0.09, 4, 10)) +             // 进料管
+        hPipe(h*0.60, clamp(h*0.07, 3, 8));               // 压缩空气管
+
+      const vRootY = botBeamY + beamH;                   // 底接管根部：下主梁底面
+      const vPipe = (px,pw)=>{                            // 竖直下接管（端口朝下，落在 y=h）
+        const wall = clamp(pw*0.26, 0.7, 1.8), x0 = px - pw*0.5;
+        return `<rect x="${f(x0)}" y="${f(vRootY)}" width="${f(pw)}" height="${f(h-vRootY)}" fill="url(#${metalVId})" stroke="#3f445c" stroke-width="0.8"/>` +
+          `<rect x="${f(x0+wall)}" y="${f(vRootY+wall)}" width="${f(pw-wall*2)}" height="${f(h-vRootY-wall)}" fill="#12162b" stroke="#6a7192" stroke-width="0.6"/>` +
+          `<rect x="${f(x0-pw*0.12)}" y="${f(h-pFlangeW)}" width="${f(pw*1.24)}" height="${f(pFlangeW)}" rx="0.8" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
+      };
+      const bottomPipes =
+        vPipe(w*0.30, clamp(w*0.028, 3.5, 8)) +           // 滤液出口（细管）
+        vPipe(w*0.62, clamp(w*0.050, 5, 14));             // 滤饼出口（较粗溜槽）
+
       return `
       <defs>
         <linearGradient id="${metalId}" x1="0" y1="0" x2="0" y2="1">
@@ -139,6 +166,8 @@ TEMPLATES.filterPress = {
       ${followPlate}
       ${plates}
       ${cylinder}
+      ${leftPipes}
+      ${bottomPipes}
       `
     }
 };
