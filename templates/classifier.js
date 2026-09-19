@@ -26,6 +26,7 @@ TEMPLATES.classifier = {
     render: (w,h,p)=>{
       const uid = Math.random().toString(36).substr(2,6);
       const clipId = 'cl_clip_'+uid, metalId = 'cl_metal_'+uid, metalVId = 'cl_metalv_'+uid;
+      const retClipId = 'cl_ret_'+uid;
       const f = n => Number(n).toFixed(2);
       const c = (p && p.color) || '#9C99FF';
       const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -48,20 +49,22 @@ TEMPLATES.classifier = {
       const bodyTopY = capBotY + capT;                 // 筒体顶
       const bodyH0 = clamp(D*1.05, 10, 300);           // 筒体高（分级区）
       const coneH0 = clamp(D*0.55, 6, 180);            // 收集锥自然高
-      // 按可用高度整体缩放：小尺寸压缩、大尺寸适度拉伸（上限 1.9）填满箱体
-      const coneBotMaxY = h - edgePad - legH;          // 锥底可用下限（让出支腿）
-      const avail = Math.max(2, coneBotMaxY - bodyTopY);
-      const totalK = Math.min(1.9, avail/(bodyH0 + coneH0));
+      // 底部先预留返料螺旋输送机的槽体空间：锥底恰好落在槽口上沿，粗粉落锥后即入槽外送
+      const coarseY = h*0.92;                          // 返料口中心线（须与 ports.coarse 同步）
+      const retH    = clamp(h*0.085, 5, 20);           // 返料螺旋槽体外高
+      const coneBotY = coarseY - retH/2;               // 锥底 = 槽口上沿
+      // 筒体 + 锥体按自然高比整体缩放填满可用高度；锥体吸收余量，保证锥底恒落在槽口
+      const avail = Math.max(2, coneBotY - bodyTopY);
+      const totalK = Math.min(2.4, avail/(bodyH0 + coneH0));
       const bodyH = bodyH0*totalK;
-      const coneH = coneH0*totalK;
+      const coneH = Math.max(1, avail - bodyH);
       const coneTopY = bodyTopY + bodyH;               // 筒体 / 锥体交界
-      const coneBotY = coneTopY + coneH;               // 锥底
 
       const botW = clamp(D*0.34, 3, 40);               // 锥底收口宽（接返料装置）
       const botX = cx - botW/2, botX2 = cx + botW/2;
 
       // —— 步骤1 骨架：机架 + 主体 + 顶盖 + 收集锥 + 驱动装置 + 中心轴/转子笼/导风叶片 ——
-      //    （进/出风管、返料螺旋与流场动画在后续步骤加入）
+      //    （步骤2 在此之上加入进/出风管与返料螺旋；流场动画在步骤3加入）
 
       // 后壁层（比金属层大 wallT，露在外沿形成壁厚）
       const backBody = `<rect x="${f(topX-wallT)}" y="${f(bodyTopY)}" width="${f(D+wallT*2)}" height="${f(bodyH)}" fill="#2a2f45" stroke="#3f445c" stroke-width="1.5"/>`;
@@ -170,9 +173,98 @@ TEMPLATES.classifier = {
         <polygon points="${f(topX+padT)},${f(coneTopY)} ${f(topX2-padT)},${f(coneTopY)} ${f(botX2)},${f(coneBotY)} ${f(botX)},${f(coneBotY)}"/>
       </clipPath>`;
 
+      /* ============================================================
+       * 步骤2：接管（下部切向进风管 + 顶部成品出风管 + 底部返料螺旋输送机）
+       *   端口中心线严格取 h*0.68 / h*0.18 / h*0.92，与文件顶部 ports 一一对应。
+       *   风管画法沿用 cyclone：金属管壁 + 深色管腔 + 端面法兰 + 螺栓。
+       * ============================================================ */
+
+      /* 2a. 下部切向进风管（含料气流入口 · 左侧 · 与 inlet 端口 y=0.68 同轴）：
+         矩形断面风道自左侧水平接入筒体下部，管口越过壁面少许示意"切向切入"。
+         左壁 x 随高度变化：筒体段为 topX，锥体段随收口线性内移，故按高度取交点。 */
+      const inletY = h*0.68;
+      const inDuctH = clamp(D*0.22, 3, 24);
+      const inDuctTop = inletY - inDuctH/2;
+      const wallXAt = yy => {
+        if(yy <= coneTopY) return topX;
+        const t = clamp((yy-coneTopY)/Math.max(0.01, coneH), 0, 1);
+        return topX + (botX-topX)*t;
+      };
+      const inWallX = wallXAt(inletY);                     // 与左壁的交点
+      const inEndX  = inWallX + clamp(D*0.06, 1, 5);       // 管口伸入内腔少许
+      const inLen   = Math.max(2, inEndX - edgePad);
+      const inWall  = clamp(D*0.03, 0.7, 1.6);
+      const inletDuct =
+        `<rect x="${f(edgePad)}" y="${f(inDuctTop)}" width="${f(inLen)}" height="${f(inDuctH)}" fill="url(#${metalVId})" stroke="#3f445c" stroke-width="0.8"/>` +
+        `<rect x="${f(edgePad+inWall)}" y="${f(inDuctTop+inWall)}" width="${f(Math.max(0.5, inLen-inWall*2))}" height="${f(Math.max(0.5, inDuctH-inWall*2))}" fill="#12162b" stroke="#6a7192" stroke-width="0.6"/>` +
+        // 组件左缘的对接法兰（外接风管用）
+        `<rect x="${f(edgePad)}" y="${f(inDuctTop-inDuctH*0.14)}" width="1.8" height="${f(inDuctH*1.28)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.6"/>` +
+        // 与筒壁把合的法兰
+        `<rect x="${f(inWallX-1.2)}" y="${f(inDuctTop-inDuctH*0.14)}" width="1.2" height="${f(inDuctH*1.28)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.6"/>`;
+      const inletFlange = bolt(edgePad+1.5, inDuctTop-inDuctH*0.14+boltR+0.6) + bolt(edgePad+1.5, inDuctTop+inDuctH*1.14-boltR-0.6);
+
+      /* 2b. 顶部成品出风管（成品气粉出口 · 右侧 · 与 product 端口 y=0.18 同轴）：
+         矩形断面风道自筒体上部右壁水平引出，成品细粉随气流经此排出选粉机。 */
+      const productY = h*0.18;
+      const outDuctH = clamp(D*0.20, 3, 22);
+      const outDuctTop = productY - outDuctH/2;
+      const outStartX = topX2;                             // 贴筒体右壁
+      const outLen = Math.max(2, (w-edgePad) - outStartX);
+      const outWall = clamp(D*0.03, 0.7, 1.6);
+      const productDuct =
+        `<rect x="${f(outStartX)}" y="${f(outDuctTop)}" width="${f(outLen)}" height="${f(outDuctH)}" fill="url(#${metalVId})" stroke="#3f445c" stroke-width="0.8"/>` +
+        `<rect x="${f(outStartX)}" y="${f(outDuctTop+outWall)}" width="${f(Math.max(0.5, outLen-outWall*2))}" height="${f(Math.max(0.5, outDuctH-outWall*2))}" fill="#12162b" stroke="#6a7192" stroke-width="0.6"/>` +
+        // 与筒壁把合的法兰
+        `<rect x="${f(outStartX-1.2)}" y="${f(outDuctTop-outDuctH*0.14)}" width="1.2" height="${f(outDuctH*1.28)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.6"/>` +
+        // 组件右缘的对接法兰
+        `<rect x="${f(w-edgePad-1.8)}" y="${f(outDuctTop-outDuctH*0.14)}" width="1.8" height="${f(outDuctH*1.28)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.6"/>`;
+      const productFlange = bolt(w-edgePad-0.9, outDuctTop-outDuctH*0.14+boltR+0.6) + bolt(w-edgePad-0.9, outDuctTop+outDuctH*1.14-boltR-0.6);
+
+      /* 2c. 底部返料螺旋输送机（粗粉返料口 · 右侧 · 与 coarse 端口 y=0.92 同轴）：
+         收集锥落下的粗粉进入横向螺旋槽，被螺旋叶片推送到右端排出、返回磨盘再粉磨。
+         槽体 = 金属外壳 + 深色内腔，腔内斜置螺旋牙（受内腔裁剪）；左端带座轴承、右端出料端面法兰。
+         画法沿用 screwConveyor：端板 / 螺旋牙 / 内腔 clipPath 一套。 */
+      const retTopY = coneBotY;                            // 槽口上沿 = 锥底
+      const screwLX = Math.max(edgePad, botX - clamp(D*0.06, 1, 6));
+      const screwRX = w - edgePad;                         // 出料端贴组件右缘（= coarse 端口）
+      const screwW  = Math.max(4, screwRX - screwLX);
+      const retWall = clamp(retH*0.16, 0.8, 2.4);
+      const retInnerTop = retTopY + retWall, retInnerBot = retTopY + retH - retWall;
+      // 螺旋牙：斜置短片，牙距约等于槽高；两端各冗余一道由内腔裁剪，读作连续螺旋
+      const rzPitch = clamp(screwW/10, Math.max(2, retH*0.9), Math.max(3, retH*1.5));
+      const rzSkew  = rzPitch*0.36;
+      const rzN     = Math.max(3, Math.round(screwW/rzPitch));
+      const rzToothW = clamp(retH*0.10, 0.8, 1.8);
+      let rzTeeth = '';
+      for(let i=0;i<=rzN;i++){
+        const px = screwLX + rzPitch*(i-0.5);
+        rzTeeth += `<line x1="${f(px-rzSkew)}" y1="${f(retInnerBot)}" x2="${f(px+rzSkew)}" y2="${f(retInnerTop)}" stroke="#9aa2bc" stroke-width="${f(rzToothW)}" stroke-linecap="round"/>`;
+      }
+      const retClipDef = `<clipPath id="${retClipId}">
+        <rect x="${f(screwLX+retWall)}" y="${f(retInnerTop)}" width="${f(Math.max(0.1, screwW-retWall*2))}" height="${f(Math.max(0.1, retH-retWall*2))}"/>
+      </clipPath>`;
+      const retEndW = clamp(retH*0.46, 2.5, 11);
+      const retHubR = clamp(retH*0.24, 1, 3.6);
+      const screwConveyor =
+        // 槽体外壳 + 深色内腔
+        `<rect x="${f(screwLX)}" y="${f(retTopY)}" width="${f(screwW)}" height="${f(retH)}" rx="1.5" fill="url(#${metalId})" stroke="#3f445c" stroke-width="1"/>` +
+        `<rect x="${f(screwLX+retWall)}" y="${f(retInnerTop)}" width="${f(Math.max(0.5, screwW-retWall*2))}" height="${f(Math.max(0.5, retH-retWall*2))}" fill="#12162b" stroke="#6a7192" stroke-width="0.7"/>` +
+        // 螺旋牙（内腔裁剪）+ 中心轴
+        `<g clip-path="url(#${retClipId})">` +
+          `${rzTeeth}` +
+          `<line x1="${f(screwLX)}" y1="${f(coarseY)}" x2="${f(screwRX)}" y2="${f(coarseY)}" stroke="#6a7192" stroke-width="${f(clamp(retH*0.12,0.8,2.2))}"/>` +
+        `</g>` +
+        // 左端带座轴承
+        `<rect x="${f(screwLX)}" y="${f(retTopY)}" width="${f(retEndW)}" height="${f(retH)}" rx="1" fill="url(#${metalVId})" stroke="#3f445c" stroke-width="0.8"/>` +
+        `<circle cx="${f(screwLX+retEndW*0.5)}" cy="${f(coarseY)}" r="${f(retHubR)}" fill="#12162b" stroke="#6a7192" stroke-width="0.8"/>` +
+        // 右端出料端面法兰（= coarse 端口面）
+        `<rect x="${f(screwRX-1.8)}" y="${f(retTopY-retH*0.12)}" width="1.8" height="${f(retH*1.24)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
+      const screwFlange = bolt(screwRX-0.9, retTopY-retH*0.12+boltR+0.6) + bolt(screwRX-0.9, retTopY+retH*1.12-boltR-0.6);
+
       return `
         <defs>
           ${clipDef}
+          ${retClipDef}
           <linearGradient id="${metalId}" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stop-color="#7d849e"/><stop offset="0.42" stop-color="#d9dded"/><stop offset="1" stop-color="#767d97"/>
           </linearGradient>
@@ -204,6 +296,15 @@ TEMPLATES.classifier = {
         ${shaft}
         <!-- 8. 顶部驱动装置（减速机 + 主电机） -->
         ${drive}
+        <!-- 9. 下部切向进风管（含料气流入口） -->
+        ${inletDuct}
+        ${inletFlange}
+        <!-- 10. 顶部成品出风管（成品气粉出口） -->
+        ${productDuct}
+        ${productFlange}
+        <!-- 11. 底部返料螺旋输送机（粗粉返料口，返回磨盘再粉磨） -->
+        ${screwConveyor}
+        ${screwFlange}
       `;
     }
 };
