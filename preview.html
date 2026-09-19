@@ -435,10 +435,10 @@
     const d = docArg || (typeof doc!=='undefined' ? doc : null);
     if(!d || !Array.isArray(d.components)) return;
     d.components.forEach(comp=>{
-      if(comp.type !== 'reactor') return;
+      if(comp.type !== 'reactor' && comp.type !== 'storageSilo') return;
       const g = findCompGroupDom(comp.id);
       if(!g) return;
-      const gm = reactorGeom(comp.w, comp.h);
+      const gm = (comp.type === 'storageSilo') ? storageSiloGeom(comp.w, comp.h) : reactorGeom(comp.w, comp.h);
       const live = (liveMap && comp.props.levelTag) ? liveMap[comp.props.levelTag] : null;
       const frac = reactorLevelFrac(live ? live.value : NaN, comp.props.levelMax);
       const f = (frac==null) ? 0.6 : frac;
@@ -451,6 +451,8 @@
         el.setAttribute('height', liqH.toFixed(1));
       });
       if(surf){ surf.setAttribute('y1', surfaceY.toFixed(1)); surf.setAttribute('y2', surfaceY.toFixed(1)); }
+      const fclip = g.querySelector('.rv-flow-clip');
+      if(fclip){ fclip.setAttribute('y', surfaceY.toFixed(1)); fclip.setAttribute('height', liqH.toFixed(1)); }
       const band = g.querySelector('.rv-band');
       if(band) band.setAttribute('transform', `translate(0,${surfaceY.toFixed(1)})`);
       const rd = reactorLevelText(live);

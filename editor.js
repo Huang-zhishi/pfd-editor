@@ -1535,7 +1535,7 @@ function renderProps(){
         <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">4 个测温点对应窑体从左到右的颜色锚点，温度越高颜色越暖（暗红→橙→红→白热，全程无冷色）。填完整位号，如「1#窑体温度TI_206A」。</div>
       </div>
       ` : ''}
-      ${comp.type==='reactor' ? `
+      ${(comp.type==='reactor'||comp.type==='storageSilo') ? `
       <div class="fg">
         <div class="fg-title">液位（动态绑定 Tag）</div>
         <div class="fg-row"><label>液位 Tag</label><input id="rvLevelTag" value="${esc(comp.props.levelTag||'')}" placeholder="如 1#粉煤灰仓料位"></div>
@@ -1636,8 +1636,8 @@ function renderProps(){
         rs.value = tag ? '运行中（绑定但暂无数据）' : '运行中（未绑定，默认运行）';
       }
     }
-    // 反应釜：液位动态绑定 tag + 满量程
-    if(comp.type==='reactor'){
+    // 反应釜 / 储料仓：液位动态绑定 tag + 满量程
+    if(comp.type==='reactor' || comp.type==='storageSilo'){
       const lt = $('rvLevelTag');
       if(lt){ lt.onchange = (e)=>{ comp.props.levelTag = (e.target.value||'').trim(); pushHistory(); renderAll(); setDirty(); refreshReactorLevel(sensorValueMap); }; }
       const lm = $('rvLevelMax');
@@ -1791,8 +1791,8 @@ async function refreshSensorValues(){
 
 // 更新当前选中组件的 tag 行实时数值（不覆盖正在编辑的输入框）
 function updateTagLiveValues(comp){
-  // 反应釜：液位读数回填（只读框，无编辑冲突）
-  if(comp.type==='reactor'){
+  // 反应釜 / 储料仓：液位读数回填（只读框，无编辑冲突）
+  if(comp.type==='reactor' || comp.type==='storageSilo'){
     const ln = $('rvLevelNow');
     if(ln){
       const lv = sensorValueMap[(comp.props.levelTag||'').trim()];
@@ -2104,10 +2104,10 @@ function refreshReactorLevel(liveMap, docArg){
   const d = docArg || doc;
   if(!d || !Array.isArray(d.components)) return;
   d.components.forEach(comp=>{
-    if(comp.type !== 'reactor') return;
+    if(comp.type !== 'reactor' && comp.type !== 'storageSilo') return;
     const g = findCompGroupDom(comp.id);
     if(!g) return;
-    const gm = reactorGeom(comp.w, comp.h);
+    const gm = (comp.type === 'storageSilo') ? storageSiloGeom(comp.w, comp.h) : reactorGeom(comp.w, comp.h);
     const live = (liveMap && comp.props.levelTag) ? liveMap[comp.props.levelTag] : null;
     const frac = reactorLevelFrac(live ? live.value : NaN, comp.props.levelMax);
     const f = (frac==null) ? 0.6 : frac;
@@ -2120,6 +2120,8 @@ function refreshReactorLevel(liveMap, docArg){
       el.setAttribute('height', liqH.toFixed(1));
     });
     if(surf){ surf.setAttribute('y1', surfaceY.toFixed(1)); surf.setAttribute('y2', surfaceY.toFixed(1)); }
+    const fclip = g.querySelector('.rv-flow-clip');
+    if(fclip){ fclip.setAttribute('y', surfaceY.toFixed(1)); fclip.setAttribute('height', liqH.toFixed(1)); }
     const band = g.querySelector('.rv-band');
     if(band) band.setAttribute('transform', `translate(0,${surfaceY.toFixed(1)})`);
     const rd = reactorLevelText(live);
