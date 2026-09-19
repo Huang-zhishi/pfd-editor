@@ -26,7 +26,7 @@ TEMPLATES.classifier = {
     render: (w,h,p)=>{
       const uid = Math.random().toString(36).substr(2,6);
       const clipId = 'cl_clip_'+uid, metalId = 'cl_metal_'+uid, metalVId = 'cl_metalv_'+uid;
-      const retClipId = 'cl_ret_'+uid;
+      const retClipId = 'cl_ret_'+uid, rotorClipId = 'cl_rotor_'+uid, prodClipId = 'cl_prod_'+uid;
       const f = n => Number(n).toFixed(2);
       const c = (p && p.color) || '#9C99FF';
       const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -151,15 +151,26 @@ TEMPLATES.classifier = {
       };
       const guideVanes = vaneBand(-1) + vaneBand(1);
 
-      // 转子笼：上下环 + 竖向叶片（动叶）
+      // 转子笼：上下环 + 竖向叶片（动叶）。叶片在转子环带窗口内沿水平方向平移一个叶距后无缝循环，
+      // 正面投影下读作"转子笼绕竖轴同向旋转"；叶片向窗口两侧各多画一个叶距，平移过程中始终铺满窗口。
       const rotorRing = y => `<rect x="${f(cx-rotorR)}" y="${f(y-ringH/2)}" width="${f(rotorR*2)}" height="${f(ringH)}" rx="${f(ringH*0.4)}" fill="url(#${metalId})" stroke="#6a7192" stroke-width="0.9"/>`;
       const rotorBladeN = 9;
+      const rotorPitch = (rotorR*2)/rotorBladeN;
+      const rotorBladeW = clamp(bladeW*1.15, 1, 2.6);
       let rotorBlades = '';
-      for(let i=0;i<rotorBladeN;i++){
-        const bx = cx - rotorR + (rotorR*2)*(i+0.5)/rotorBladeN;
-        rotorBlades += `<line x1="${f(bx)}" y1="${f(zoneTopY)}" x2="${f(bx)}" y2="${f(zoneBotY)}" stroke="${c}" stroke-width="${f(clamp(bladeW*1.15,1,2.6))}" opacity="0.85"/>`;
+      for(let i=-rotorBladeN;i<rotorBladeN*2;i++){
+        const bx = cx - rotorR + rotorPitch*(i+0.5);
+        rotorBlades += `<line x1="${f(bx)}" y1="${f(zoneTopY)}" x2="${f(bx)}" y2="${f(zoneBotY)}" stroke="${c}" stroke-width="${f(rotorBladeW)}" opacity="0.85"/>`;
       }
-      const rotor = rotorRing(zoneTopY) + rotorBlades + rotorRing(zoneBotY);
+      // 转子环带裁剪窗：把冗余叶片裁到转子宽度内，平移时不外溢到环形间隙
+      const rotorClipDef = `<clipPath id="${rotorClipId}"><rect x="${f(cx-rotorR)}" y="${f(zoneTopY)}" width="${f(rotorR*2)}" height="${f(zoneH)}"/></clipPath>`;
+      const rotor =
+        rotorRing(zoneTopY) +
+        `<g clip-path="url(#${rotorClipId})"><g>` +
+          `<animateTransform attributeName="transform" type="translate" from="0 0" to="${f(rotorPitch)} 0" dur="1.1s" repeatCount="indefinite"/>` +
+          `${rotorBlades}` +
+        `</g></g>` +
+        rotorRing(zoneBotY);
 
       // 中心竖轴：减速机输出轴穿过顶盖伸入筒体，吊挂转子笼
       const shaftW = clamp(D*0.045, 1, 3.5);
@@ -261,10 +272,140 @@ TEMPLATES.classifier = {
         `<rect x="${f(screwRX-1.8)}" y="${f(retTopY-retH*0.12)}" width="1.8" height="${f(retH*1.24)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
       const screwFlange = bolt(screwRX-0.9, retTopY-retH*0.12+boltR+0.6) + bolt(screwRX-0.9, retTopY+retH*1.12-boltR-0.6);
 
+      /* ============================================================
+       * 步骤3：流场动画（转子旋转 · 含料气流上行 · 粗粉下落返料 · 成品气排出）
+       *   全部用 SMIL：编辑态被 stripSMIL 剥离，只留沿轨迹的静态点位；运行态按关键帧循环。
+       *   与 cyclone 同款：局部半宽函数约束轨迹贴内腔；多粒子用负 begin 错相形成连续料流。
+       * ============================================================ */
+
+      // 3a. 局部半宽函数：该高度处内腔的横向半宽（筒体段恒定，锥体段随收口线性收小）
+      const cavTopY = bodyTopY + padT;
+      const cavBotY = coneBotY;
+      const rAt = (y)=>{
+        if(y <= coneTopY) return Math.max(0.2, halfW - padT);
+        const tt = clamp((y-coneTopY)/Math.max(0.01, coneH), 0, 1);
+        return Math.max(0.2, (halfW-padT) + ((botW/2) - (halfW-padT))*tt);
+      };
+
+      // 3b. 上行螺旋导向线（含料气流沿内壁切向盘旋上升）：两条相位错开的虚线，仅作流向提示
+      const swirlTurns = 1.6, swirlN = 54;
+      const upSwirl = (phase, op)=>{
+        let pts = '';
+        for(let i=0;i<=swirlN;i++){
+          const t = i/swirlN, y = cavBotY - (cavBotY-cavTopY)*t;
+          const x = cx + rAt(y)*0.82*Math.sin(2*Math.PI*swirlTurns*t + phase);
+          pts += `${f(x)},${f(y)} `;
+        }
+        return `<polyline points="${pts.trim()}" fill="none" stroke="#00E5FF" stroke-width="0.8" stroke-dasharray="3 2.8" opacity="${op}"/>`;
+      };
+      const swirlGuides = upSwirl(0, 0.30) + upSwirl(Math.PI, 0.20);
+
+      // 3c. 分级区环隙上行箭头（静叶与转子之间的环形间隙即离心分选空间，气流由此上行）
+      const gapMidR = (guideR + rotorR)/2;
+      const upArrow = (x, yLow, yTip, op)=>
+        `<line x1="${f(x)}" y1="${f(yLow)}" x2="${f(x)}" y2="${f(yTip+3)}" stroke="#00E5FF" stroke-width="1.1" opacity="${op}"/>` +
+        `<polygon points="${f(x-2.6)},${f(yTip+3.6)} ${f(x+2.6)},${f(yTip+3.6)} ${f(x)},${f(yTip)}" fill="#00E5FF" opacity="${f(op+0.1)}"/>`;
+      const gapArrows = upArrow(cx-gapMidR, zoneBotY, zoneTopY, 0.5) + upArrow(cx+gapMidR, zoneBotY, zoneTopY, 0.5);
+
+      // 3d. 含料气流粒子：自下部切向进风管进入 → 沿内壁盘旋上行 → 升入分级区（气固两相流）
+      const dustN = 6, dustDur = 4.4, pS = 40;
+      const riseY0 = Math.min(cavBotY, inletY);
+      const riseY1 = Math.min(riseY0 - 1, Math.max(cavTopY + 0.5, zoneTopY + zoneH*0.12));
+      let dustRise = '';
+      for(let i=0;i<dustN;i++){
+        const ph = i*2*Math.PI/dustN;
+        const xs = [], ys = [], ops = [];
+        for(let k=0;k<=pS;k++){
+          const t = k/pS;
+          const y = riseY0 - (riseY0 - riseY1)*t;
+          xs.push(f(cx + rAt(y)*0.80*Math.sin(2*Math.PI*swirlTurns*t + ph)));
+          ys.push(f(y));
+          ops.push(t<0.12 ? f(t/0.12*0.9) : (t>0.90 ? f((1-t)/0.10*0.9) : '0.90'));
+        }
+        const begin = `-${f(i*dustDur/dustN)}s`;
+        dustRise += `<circle cx="${xs[0]}" cy="${ys[0]}" r="${f(clamp(D*0.020, 0.7, 2.2))}" fill="${c}" opacity="0.90">
+            <animate attributeName="cx" values="${xs.join(';')}" dur="${f(dustDur)}s" begin="${begin}" repeatCount="indefinite"/>
+            <animate attributeName="cy" values="${ys.join(';')}" dur="${f(dustDur)}s" begin="${begin}" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="${ops.join(';')}" dur="${f(dustDur)}s" begin="${begin}" repeatCount="indefinite"/>
+          </circle>`;
+      }
+
+      // 3e. 粗粉下落粒子：被抛向内壁 → 受重力沿锥壁下落 → 落至锥底进入返料螺旋槽
+      const coarseN = 5, coarseDur = 4.2, cS = 34;
+      const fallY0 = zoneBotY, fallY1 = Math.max(fallY0 + 1, cavBotY);
+      let coarseFall = '';
+      for(let i=0;i<coarseN;i++){
+        const ph = i*2*Math.PI/coarseN;
+        const xs = [], ys = [], ops = [];
+        for(let k=0;k<=cS;k++){
+          const t = k/cS;
+          const y = fallY0 + (fallY1-fallY0)*t;
+          xs.push(f(cx + rAt(y)*(t<0.15 ? 0.80 : 0.94)*Math.sin(2*Math.PI*0.9*t + ph)));
+          ys.push(f(y));
+          ops.push(t<0.12 ? f(t/0.12*0.85) : (t>0.90 ? f((1-t)/0.10*0.85) : '0.85'));
+        }
+        const begin = `-${f(i*coarseDur/coarseN)}s`;
+        coarseFall += `<circle cx="${xs[0]}" cy="${ys[0]}" r="${f(clamp(D*0.022, 0.7, 2.4))}" fill="#FFB03A" opacity="0.85">
+            <animate attributeName="cx" values="${xs.join(';')}" dur="${f(coarseDur)}s" begin="${begin}" repeatCount="indefinite"/>
+            <animate attributeName="cy" values="${ys.join(';')}" dur="${f(coarseDur)}s" begin="${begin}" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="${ops.join(';')}" dur="${f(coarseDur)}s" begin="${begin}" repeatCount="indefinite"/>
+          </circle>`;
+      }
+
+      // 3f. 成品气排出粒子：穿转子笼上行后转向，经上部出风管排出（净化细粉随气流）
+      const cleanN = 4, cleanDur = 4.0, qS = 36;
+      const exitY = productY, exitX1 = w - edgePad;
+      let cleanOut = '';
+      for(let i=0;i<cleanN;i++){
+        const ph = i*2*Math.PI/cleanN;
+        const xs = [], ys = [], ops = [];
+        for(let k=0;k<=qS;k++){
+          const t = k/qS;
+          let y, x;
+          if(t < 0.45){                                  // 穿转子笼上行段（半径收拢，末端并到轴心）
+            const tt = t/0.45;
+            y = zoneBotY - (zoneBotY - exitY)*tt;
+            x = cx + rotorR*0.50*Math.sin(2*Math.PI*1.3*tt + ph)*(1-tt);
+          } else {                                        // 出风管内水平排出段
+            const tt = (t-0.45)/0.55;
+            y = exitY;
+            x = cx + (exitX1 - cx)*tt;
+          }
+          xs.push(f(x)); ys.push(f(y));
+          ops.push(t<0.12 ? f(t/0.12*0.85) : (t>0.86 ? f((1-t)/0.14*0.85) : '0.85'));
+        }
+        const begin = `-${f(i*cleanDur/cleanN)}s`;
+        cleanOut += `<circle cx="${xs[0]}" cy="${ys[0]}" r="${f(clamp(D*0.018, 0.6, 2.0))}" fill="#d9dded" opacity="0.85">
+            <animate attributeName="cx" values="${xs.join(';')}" dur="${f(cleanDur)}s" begin="${begin}" repeatCount="indefinite"/>
+            <animate attributeName="cy" values="${ys.join(';')}" dur="${f(cleanDur)}s" begin="${begin}" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="${ops.join(';')}" dur="${f(cleanDur)}s" begin="${begin}" repeatCount="indefinite"/>
+          </circle>`;
+      }
+      // 成品气轨迹裁剪窗 = 内腔（筒体段） ∪ 出风管内腔，保证上行段不越壁、排出段只走管内
+      const prodClipDef = `<clipPath id="${prodClipId}">
+        <rect x="${f(topX+padT)}" y="${f(bodyTopY)}" width="${f(Math.max(0.1, D-padT*2))}" height="${f(Math.max(0.1, bodyH))}"/>
+        <rect x="${f(outStartX)}" y="${f(outDuctTop+outWall)}" width="${f(Math.max(0.5, outLen-outWall*2))}" height="${f(Math.max(0.5, outDuctH-outWall*2))}"/>
+      </clipPath>`;
+
+      // 3g. 粗粉螺旋外送粒子：落入返料螺旋槽后被螺旋牙推送至右端排出（裁剪在螺旋内腔）
+      const rzPartN = 4, rzPartDur = 2.6;
+      const rzBodyL = screwLX + retWall, rzBodyR = Math.max(rzBodyL + 1, screwLX + screwW - retWall);
+      let rzParts = '';
+      for(let i=0;i<rzPartN;i++){
+        const px = rzBodyL + (rzBodyR-rzBodyL)*(i+1)/(rzPartN+1);
+        const begin = `-${f(i*rzPartDur/rzPartN)}s`;
+        rzParts += `<circle cx="${f(px)}" cy="${f(coarseY)}" r="${f(clamp(retH*0.16, 0.7, 1.8))}" fill="#FFB03A" opacity="0.85">
+            <animate attributeName="cx" values="${f(px)};${f(rzBodyR)}" dur="${f(rzPartDur)}s" begin="${begin}" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.85;0.85;0.10" dur="${f(rzPartDur)}s" begin="${begin}" repeatCount="indefinite"/>
+          </circle>`;
+      }
+
       return `
         <defs>
           ${clipDef}
           ${retClipDef}
+          ${rotorClipDef}
+          ${prodClipDef}
           <linearGradient id="${metalId}" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stop-color="#7d849e"/><stop offset="0.42" stop-color="#d9dded"/><stop offset="1" stop-color="#767d97"/>
           </linearGradient>
@@ -286,10 +427,17 @@ TEMPLATES.classifier = {
         ${cavCone}
         <!-- 5. 顶盖法兰 + 螺栓 -->
         ${capFlange}
-        <!-- 6. 分级区：导风叶片（静叶）+ 转子笼（动叶），裁剪在内腔内 -->
+        <!-- 6. 分级区：导风叶片（静叶）+ 转子笼（动叶，绕竖轴同向旋转），裁剪在内腔内 -->
         <g clip-path="url(#${clipId})">
           ${guideVanes}
           ${rotor}
+        </g>
+        <!-- 6b. 内腔流场：上行螺旋导向线 + 环隙上行箭头 + 含料气流上行粒子 + 粗粉下落粒子（裁剪在内腔） -->
+        <g clip-path="url(#${clipId})">
+          ${swirlGuides}
+          ${gapArrows}
+          ${dustRise}
+          ${coarseFall}
         </g>
         <!-- 7. 中心竖轴 + 穿盖轴封座 -->
         ${shaftSeat}
@@ -302,9 +450,17 @@ TEMPLATES.classifier = {
         <!-- 10. 顶部成品出风管（成品气粉出口） -->
         ${productDuct}
         ${productFlange}
+        <!-- 10b. 成品气排出粒子（穿转子笼上行 → 经出风管排出，裁剪在内腔 ∪ 出风管内腔，绘制在管体之上才可见） -->
+        <g clip-path="url(#${prodClipId})">
+          ${cleanOut}
+        </g>
         <!-- 11. 底部返料螺旋输送机（粗粉返料口，返回磨盘再粉磨） -->
         ${screwConveyor}
         ${screwFlange}
+        <!-- 11b. 粗粉螺旋外送粒子（落入螺旋槽后被推送至右端排出，裁剪在螺旋内腔，绘制在槽体之上才可见） -->
+        <g clip-path="url(#${retClipId})">
+          ${rzParts}
+        </g>
       `;
     }
 };
