@@ -353,6 +353,7 @@
         if(typeof refreshReactorLevel==='function') refreshReactorLevel(this.liveMap, this.doc);
         if(typeof refreshSwitchValveAuto==='function') refreshSwitchValveAuto(this.liveMap, this.doc);
         if(typeof refreshScrewConveyorRun==='function') refreshScrewConveyorRun(this.liveMap, this.doc);
+        if(typeof refreshFilterPressRun==='function') refreshFilterPressRun(this.liveMap, this.doc);
       }
     }catch(e){
       console.warn('实时数据刷新失败:', e);
@@ -428,6 +429,31 @@
     });
   }
 
+  // 压滤机 数据驱动动画：绑定开关 tag（runTag）时，值>=0.5 → 进料/滤液流动动画运行，否则停止；未绑定/无数据 → 默认运行。
+  function refreshFilterPressRun(liveMap, docArg){
+    const d = docArg || (typeof doc!=='undefined' ? doc : null);
+    if(!liveMap || !d || !Array.isArray(d.components)) return;
+    d.components.forEach(comp=>{
+      if(comp.type !== 'filterPress') return;
+      const tag = (comp.props.runTag || '').trim();
+      if(!tag) return; // 未绑定：渲染时已按默认运行
+      const live = liveMap[tag];
+      const v = live && isFinite(+live.value) ? +live.value : null;
+      const run = v==null ? true : v>=0.5;
+      const g = findCompGroupDom(comp.id);
+      if(!g) return;
+      const cur = g.dataset.run;
+      if(cur!==undefined && cur!=='' && cur!==null && cur===(run?'1':'0')) return;
+      const t = TEMPLATES['filterPress'];
+      if(!t) return;
+      const tmpProps = Object.assign({}, comp.props, { _run: run });
+      const inner = t.render(comp.w, comp.h, tmpProps);
+      const outInner = (typeof running!=='undefined' && running) ? inner : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
+      g.innerHTML = outInner;
+      g.dataset.run = run ? '1' : '0';
+    });
+  }
+
   // 反应釜：绑定液位 tag（levelTag）时按实时值/满量程换算液面高度并同步读数；
   // 未绑定 / 无数据 → 保持 60% 静态示意、读数显示 --（渲染时已如此）
   // geom 换算与模板共用 templates/reactor.js 的 reactorGeom / reactorLevelFrac / reactorLevelText
@@ -435,10 +461,10 @@
     const d = docArg || (typeof doc!=='undefined' ? doc : null);
     if(!d || !Array.isArray(d.components)) return;
     d.components.forEach(comp=>{
-      if(comp.type !== 'reactor') return;
+      if(comp.type !== 'reactor' && comp.type !== 'storageSilo') return;
       const g = findCompGroupDom(comp.id);
       if(!g) return;
-      const gm = reactorGeom(comp.w, comp.h);
+      const gm = (comp.type === 'storageSilo') ? storageSiloGeom(comp.w, comp.h) : reactorGeom(comp.w, comp.h);
       const live = (liveMap && comp.props.levelTag) ? liveMap[comp.props.levelTag] : null;
       const frac = reactorLevelFrac(live ? live.value : NaN, comp.props.levelMax);
       const f = (frac==null) ? 0.6 : frac;
@@ -451,6 +477,8 @@
         el.setAttribute('height', liqH.toFixed(1));
       });
       if(surf){ surf.setAttribute('y1', surfaceY.toFixed(1)); surf.setAttribute('y2', surfaceY.toFixed(1)); }
+      const fclip = g.querySelector('.rv-flow-clip');
+      if(fclip){ fclip.setAttribute('y', surfaceY.toFixed(1)); fclip.setAttribute('height', liqH.toFixed(1)); }
       const band = g.querySelector('.rv-band');
       if(band) band.setAttribute('transform', `translate(0,${surfaceY.toFixed(1)})`);
       const rd = reactorLevelText(live);

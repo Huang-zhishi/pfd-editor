@@ -21,6 +21,7 @@ const TEMPLATES = {};
 const TEMPLATE_FILES = [
   'silo',
   'reactor',
+  'storageSilo',
   'vrm',
   'tubeCooler',
   'desulfTower',
@@ -46,6 +47,7 @@ const TEMPLATE_FILES = [
   'bucketElevator',
   'weighFeeder',
   'coolingPond',
+  'filterPress',
   'text',
   'monitor'
 ];
