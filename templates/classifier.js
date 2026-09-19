@@ -288,7 +288,10 @@ TEMPLATES.classifier = {
       };
 
       // 3b. 上行螺旋导向线（含料气流沿内壁切向盘旋上升）：两条相位错开的虚线，仅作流向提示
+      //     线宽与虚线间隔随 K 缩放，避免小尺寸下标注过粗、大尺寸下过细
       const swirlTurns = 1.6, swirlN = 54;
+      const flowStroke = clamp(0.9*K, 0.5, 1.6);
+      const flowDash = `${f(3*K)} ${f(2.8*K)}`;
       const upSwirl = (phase, op)=>{
         let pts = '';
         for(let i=0;i<=swirlN;i++){
@@ -296,15 +299,19 @@ TEMPLATES.classifier = {
           const x = cx + rAt(y)*0.82*Math.sin(2*Math.PI*swirlTurns*t + phase);
           pts += `${f(x)},${f(y)} `;
         }
-        return `<polyline points="${pts.trim()}" fill="none" stroke="#00E5FF" stroke-width="0.8" stroke-dasharray="3 2.8" opacity="${op}"/>`;
+        return `<polyline points="${pts.trim()}" fill="none" stroke="#00E5FF" stroke-width="${f(flowStroke)}" stroke-dasharray="${flowDash}" opacity="${op}"/>`;
       };
       const swirlGuides = upSwirl(0, 0.30) + upSwirl(Math.PI, 0.20);
 
       // 3c. 分级区环隙上行箭头（静叶与转子之间的环形间隙即离心分选空间，气流由此上行）
+      //     箭头尺寸同样随 K 缩放（固定像素会在小尺寸下放大成三角块）
       const gapMidR = (guideR + rotorR)/2;
+      const arrowW = clamp(2.6*K, 1.1, 5.4);
+      const arrowH = clamp(3.8*K, 1.6, 7);
+      const arrowStroke = clamp(1.1*K, 0.6, 2);
       const upArrow = (x, yLow, yTip, op)=>
-        `<line x1="${f(x)}" y1="${f(yLow)}" x2="${f(x)}" y2="${f(yTip+3)}" stroke="#00E5FF" stroke-width="1.1" opacity="${op}"/>` +
-        `<polygon points="${f(x-2.6)},${f(yTip+3.6)} ${f(x+2.6)},${f(yTip+3.6)} ${f(x)},${f(yTip)}" fill="#00E5FF" opacity="${f(op+0.1)}"/>`;
+        `<line x1="${f(x)}" y1="${f(yLow)}" x2="${f(x)}" y2="${f(yTip+arrowH*0.9)}" stroke="#00E5FF" stroke-width="${f(arrowStroke)}" opacity="${op}"/>` +
+        `<polygon points="${f(x-arrowW)},${f(yTip+arrowH)} ${f(x+arrowW)},${f(yTip+arrowH)} ${f(x)},${f(yTip)}" fill="#00E5FF" opacity="${f(op+0.1)}"/>`;
       const gapArrows = upArrow(cx-gapMidR, zoneBotY, zoneTopY, 0.5) + upArrow(cx+gapMidR, zoneBotY, zoneTopY, 0.5);
 
       // 3d. 含料气流粒子：自下部切向进风管进入 → 沿内壁盘旋上行 → 升入分级区（气固两相流）
