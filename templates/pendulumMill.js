@@ -188,9 +188,9 @@ TEMPLATES.pendulumMill = {
       };
       const rollers = roller(-1)+roller(1);
 
-      /* ---- 公转：梅花架 + 斜摆磨辊绕中心轴缓慢公转（SMIL，绕吊点中心 spiderY）---- */
+      /* ---- 公转：梅花架 + 斜摆磨辊绕中心轴缓慢公转（SMIL，绕吊点中心 spiderY，6s/圈便于观察）---- */
       const orbit = running
-        ? `<g><animateTransform attributeName="transform" type="rotate" from="0 ${F(cx)} ${F(spiderY)}" to="360 ${F(cx)} ${F(spiderY)}" dur="12s" repeatCount="indefinite"/>${spider}${rollers}</g>`
+        ? `<g><animateTransform attributeName="transform" type="rotate" from="0 ${F(cx)} ${F(spiderY)}" to="360 ${F(cx)} ${F(spiderY)}" dur="6s" repeatCount="indefinite"/>${spider}${rollers}</g>`
         : `<g>${spider}${rollers}</g>`;
 
       /* ---- 顶部加压弹簧（螺旋线）+ 压杆 ----
@@ -267,12 +267,13 @@ TEMPLATES.pendulumMill = {
       const feedFlange =
         `<rect x="${F(cx-hopperTopHW*1.14)}" y="0" width="${F(hopperTopHW*2.28)}" height="${F(clamp(h*0.012,2,4))}" rx="0.7" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
 
-      /* ---- 出料接管（右下侧微斜管，端口朝右；中心线在端口处 = ports.discharge.y*h）---- */
+      /* ---- 出料接管（右下侧下倾管，端口朝右；中心线在端口处 = ports.discharge.y*h）
+             根端自壳底上方锥腔接出（上缘在壳底之上），端口略低 → 物料向右下自然流出 ---- */
       const disY   = h*0.60;                              // 端口中心 y（= ports.discharge.y*h，同轴）
       const disH   = clamp(h*0.052, 10, 20);             // 端口处管高
       const disWall = clamp(disH*0.24, 1, 2.5);          // 管壁厚
       const disX0  = cx + shellBotHW*0.92;               // 根端：贴出料锥腔右壁
-      const disYTop0 = shellBot + clamp(h*0.004, 1, 2);  // 根端上缘（自壳底接出）
+      const disYTop0 = shellBot - disH*0.5;              // 根端上缘（壳底上方锥腔内 → 管向下倾）
       const disYBot0 = disYTop0 + disH*1.06;             // 根端下缘
       const disYTop1 = disY - disH/2, disYBot1 = disY + disH/2; // 端口上下缘
       const disFlangeW = clamp(disH*0.22, 2, 4);         // 端口法兰宽
