@@ -10,12 +10,12 @@
  *       #5b6178 → #8f97b0 → #4a5068（机架主梁 / 支腿 深色金属）
  *       #12162b（深色内腔）  #6a7192（内腔描边）  #2a2f45 / #3f445c（法兰与联接件）
  *   四个端口：进料 / 压缩空气（左端固定头板）+ 滤液 / 滤饼出口（底部）。
- *   进料 / 滤液流动用 SMIL 动画驱动，编辑态由 editor.js stripSMIL() 自动剥离；
+ *   滤板张合 + 滤饼掉落用同一 SMIL 循环驱动，编辑态由 editor.js stripSMIL() 自动剥离；
  *   绑定 runTag 时由 refreshFilterPressRun() 注入 props._run 切换运行 / 停止。
  * ============================================================ */
 
 TEMPLATES.filterPress = {
-    name: '压滤机', category: '设备',
+    name: '压滤机', category: '除尘与分离',
     defaultSize: { w: 300, h: 150 },
     ports: [
       {id:'feed',     x:0,    y:0.36, dir:'left'},   // 进料
@@ -30,7 +30,7 @@ TEMPLATES.filterPress = {
       const clamp = (v,lo,hi)=>Math.max(lo,Math.min(hi,v));
       const c = (p && p.color) || '#9C99FF';
       /* 数据驱动动画：绑定压滤机开关 tag（runTag）时由外部注入 _run（true=运行，false=停止）；
-         未绑定 / 未注入 → 默认运行。运行态才画进料 / 滤液流动粒子。*/
+         未绑定 / 未注入 → 默认运行。运行态才挂滤板张合 + 滤饼掉落的 SMIL 动画。*/
       const runTag = (p.runTag || '').trim();
       const running = runTag ? (p._run !== false) : true;
 
@@ -98,14 +98,19 @@ TEMPLATES.filterPress = {
       /* 活动压紧板：液压缸推动它把整叠滤板压紧，结构与头板一致 */
       const followPlate = endPlate(xFollow, followW);
 
-      /* 滤板组：每片 = 金属板体 + 顶部挂耳（搭在上主梁上）+ 中心进料孔（连成进料通道） */
-      let plates = '';
-      for(let i=0;i<nPlates;i++){
+      /* 滤板组：每片 = 金属板体 + 顶部挂耳（搭在上主梁上）+ 中心进料孔（连成进料通道）。
+         板组按张数对半分成左右两半：左半顶住固定头板不动，右半连同活动压紧板一起
+         沿 +x 微移——张开缝因此落在板组中缝，左右对称，不会整叠往一端挤。 */
+      const plateAt = i => {
         const px = xPlates0 + i*pitch;
-        plates +=
-          `<rect x="${f(px+pad)}" y="${f(plateTop)}" width="${f(pw)}" height="${f(plateH)}" rx="${f(pRx)}" fill="url(#${metalId})" stroke="#3f445c" stroke-width="0.7"/>` +
+        return `<rect x="${f(px+pad)}" y="${f(plateTop)}" width="${f(pw)}" height="${f(plateH)}" rx="${f(pRx)}" fill="url(#${metalId})" stroke="#3f445c" stroke-width="0.7"/>` +
           `<rect x="${f(px+pad+pw*0.5-hdW*0.5)}" y="${f(topBeamY-beamH*0.30)}" width="${f(hdW)}" height="${f(hdH)}" rx="0.8" fill="#9aa2bc" stroke="#3f445c" stroke-width="0.6"/>` +
           `<circle cx="${f(px+pad+pw*0.5)}" cy="${f(cy)}" r="${f(eyeR)}" fill="#12162b" stroke="#6a7192" stroke-width="0.6"/>`;
+      };
+      const nLeft = Math.max(1, Math.floor(nPlates/2));   // 左半滤板张数
+      let platesL = '', platesR = '';
+      for(let i=0;i<nPlates;i++){
+        if(i < nLeft) platesL += plateAt(i); else platesR += plateAt(i);
       }
 
       /* 液压缸：活塞杆（连活动压紧板）+ 缸筒 + 缸头导向套 + 缸底法兰 */
@@ -129,8 +134,8 @@ TEMPLATES.filterPress = {
 
       /* ===== 接管 =====
          · 进料 / 压缩空气：左端固定头板水平接出，端口落在组件左缘（x=0, y=0.36h / 0.60h）
-         · 滤液 / 滤饼出口：下主梁底面立管接出，端口落在组件底缘（x=0.30w / 0.62w, y=h）
-         管件画法与 screwConveyorLite 出料管统一：金属管壁 + 深色管腔 + 端口法兰 */
+         管件画法与 screwConveyorLite 出料管统一：金属管壁 + 深色管腔 + 端口法兰。
+         底部滤液 / 滤饼出口不画管件，只在 ports 里保留两个浮空连接点。*/
       const pFlangeW = Math.max(1.6, Math.min(beamH*0.36, 3.6));
       const rootXP = xHead + headW*0.35;                 // 左接管根部：插入固定头板
       const hPipe = (py,ph)=>{                            // 水平左接管（端口朝左，落在 x=0）
@@ -145,53 +150,37 @@ TEMPLATES.filterPress = {
         hPipe(h*0.36, feedPipeH) +                         // 进料管
         hPipe(h*0.60, airPipeH);                           // 压缩空气管
 
-      const vRootY = botBeamY + beamH;                   // 底接管根部：下主梁底面
-      const vPipe = (px,pw)=>{                            // 竖直下接管（端口朝下，落在 y=h）
-        const wall = clamp(pw*0.26, 0.7, 1.8), x0 = px - pw*0.5;
-        return `<rect x="${f(x0)}" y="${f(vRootY)}" width="${f(pw)}" height="${f(h-vRootY)}" fill="url(#${metalVId})" stroke="#3f445c" stroke-width="0.8"/>` +
-          `<rect x="${f(x0+wall)}" y="${f(vRootY+wall)}" width="${f(pw-wall*2)}" height="${f(h-vRootY-wall)}" fill="#12162b" stroke="#6a7192" stroke-width="0.6"/>` +
-          `<rect x="${f(x0-pw*0.12)}" y="${f(h-pFlangeW)}" width="${f(pw*1.24)}" height="${f(pFlangeW)}" rx="0.8" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
-      };
-      const filtratePX = w*0.30, filtratePW = clamp(w*0.028, 3.5, 8);   // 滤液出口位置 / 管宽（细管）
-      const cakePX     = w*0.62, cakePW     = clamp(w*0.050, 5, 14);    // 滤饼出口位置 / 管宽（较粗溜槽）
-      const bottomPipes =
-        vPipe(filtratePX, filtratePW) +
-        vPipe(cakePX, cakePW);
+      /* ===== 运行动画（滤板中缝张合 + 滤饼掉落，同一循环内同步） =====
+         一个 cycle 走完一次压滤节拍：合拢过滤 → 松开 → 中间开板卸饼 → 再合拢。
+         · 张合：板组从正中间分成左右两半——左半顶住固定头板不动，右半连同活动压紧板
+           整体沿 +x 微移 openGap（不逐板），张开缝因此落在板组中缝、左右对称；
+           不在某一端拉开，免得整叠板往一端挤、看着别扭。
+           keyTimes 0~0.55 保持合拢（过滤段），0.68 张开到位，保持到 0.92 回程。
+         · 掉落：滤饼就在中缝正下方落下——哪里张开就在哪里掉饼，
+           张开到位后（0.69）才出现，0.88 落到底、0.92 淡出，与张合同拍。
+         动画刻意越出组件底边（与 desulfTower 排气蒸汽同理，模板不被 bbox 裁剪），
+         行程按 clamp(h*0.30, 10, 45) 限制在 45px 内，以免超出导出 PNG 的 60px 留白。*/
+      const cycle = 5.0;                                 // 一个完整压滤循环(s)
+      const openGap = clamp(pitch*1.40, 4, 14);          // 张开缝加大量（右半板组沿 +x 位移）
+      const plateOpen = running
+        ? `<animateTransform attributeName="transform" type="translate" values="0 0;0 0;${f(openGap)} 0;${f(openGap)} 0;0 0" keyTimes="0;0.55;0.68;0.92;1" dur="${cycle}s" repeatCount="indefinite"/>`
+        : '';
+      const plateGroup = `<g>${plateOpen}${followPlate}${platesR}</g>`;
 
-      /* ===== 运行动画（进料 / 滤液流动） =====
-         · 进料：粒子沿左端进料管由外向内推入；整串粒子用 1 个 animateTransform 平移一个
-           间距后循环（平移量整除间距 → 无缝衔接），并裁剪在管腔内；
-         · 滤液：粒子沿底部滤液细管向下排出，做法同上，方向沿 +y。
-         每路恒定只含 1 个 animateTransform 节点（不随尺寸增减），停止态退化为静态粒子。*/
-      const feedWall = clamp(feedPipeH*0.28, 0.7, 2.0);
-      const feedTop = h*0.36 - feedPipeH*0.5;
-      const feedDotR = clamp(feedPipeH*0.16, 0.5, 1.5);
-      const feedGap = clamp(feedPipeH*1.9, 2.4, 6.5);
-      const feedClipId = 'fpr_feedclip_'+uid;
-      let feedDots = '';
-      for(let x = -feedGap; x <= rootXP; x += feedGap){
-        feedDots += `<circle cx="${f(x)}" cy="${f(h*0.36)}" r="${f(feedDotR)}" fill="#00E5FF" opacity="0.85"/>`;
-      }
-      const feedFlow = running
-        ? `<g clip-path="url(#${feedClipId})"><g><animateTransform attributeName="transform" type="translate" from="0 0" to="${f(feedGap)} 0" dur="1.1s" repeatCount="indefinite"/>${feedDots}</g></g>`
-        : `<g clip-path="url(#${feedClipId})">${feedDots}</g>`;
-
-      const filtWall = clamp(filtratePW*0.26, 0.7, 1.8);
-      const filtDotR = clamp(filtratePW*0.14, 0.5, 1.4);
-      const filtGap = clamp(filtratePW*1.9, 2.4, 6.5);
-      const filtClipId = 'fpr_filtclip_'+uid;
-      let filtrateDots = '';
-      for(let y = vRootY - filtGap; y <= h; y += filtGap){
-        filtrateDots += `<circle cx="${f(filtratePX)}" cy="${f(y)}" r="${f(filtDotR)}" fill="#4FD1FF" opacity="0.8"/>`;
-      }
-      const filtrateFlow = running
-        ? `<g clip-path="url(#${filtClipId})"><g><animateTransform attributeName="transform" type="translate" from="0 0" to="0 ${f(filtGap)}" dur="1.1s" repeatCount="indefinite"/>${filtrateDots}</g></g>`
-        : `<g clip-path="url(#${filtClipId})">${filtrateDots}</g>`;
-
-      // 动画裁剪窗：只露出管腔（左端避开端口法兰，底端避开出口法兰），粒子越界即被裁掉
-      const feedClipX = pFlangeW, feedClipW = Math.max(0.5, rootXP - pFlangeW - feedWall);
-      const feedClipH = Math.max(0.5, feedPipeH - feedWall*2);
-      const filtClipY = vRootY + filtWall, filtClipH = Math.max(0.5, h - pFlangeW - filtClipY);
+      const gapW  = 2*pad + openGap;                     // 中缝净宽
+      const gapCx = xPlates0 + nLeft*pitch + openGap*0.5; // 中缝中心（左半末片与右半首片之间）
+      const dropLen = clamp(h*0.30, 10, 45);             // 允许的下落总行程（含饼自身高度）
+      const cakeW = Math.min(gapW*0.92, pw*1.60);        // 饼比缝略窄：像从缝里挤出来
+      const cakeH = clamp(plateH*0.76, 10, 56);          // 饼厚：按滤板高度取，约占板高七成半
+      const cakeR = Math.min(cakeH*0.30, cakeW*0.30);    // 圆角按饼宽收着，免得饼一高就成胶囊
+      const cakeX = gapCx - cakeW*0.5;                   // 落在中缝正中
+      const cakeY0 = legY0, cakeY1 = h + dropLen - cakeH; // 落到底时饼底刚好停在 h+dropLen
+      const cakeDrop = running
+        ? `<rect x="${f(cakeX)}" y="${f(cakeY0)}" width="${f(cakeW)}" height="${f(cakeH)}" rx="${f(cakeR)}" fill="#a8834f" stroke="#6f5430" stroke-width="0.6" opacity="0">` +
+            `<animate attributeName="y" values="${f(cakeY0)};${f(cakeY0)};${f(cakeY1)};${f(cakeY1)}" keyTimes="0;0.69;0.88;1" dur="${cycle}s" repeatCount="indefinite"/>` +
+            `<animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.66;0.69;0.88;0.92;1" dur="${cycle}s" repeatCount="indefinite"/>` +
+          `</rect>`
+        : '';
 
       return `
       <defs>
@@ -204,19 +193,15 @@ TEMPLATES.filterPress = {
         <linearGradient id="${beamId}" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stop-color="#5b6178"/><stop offset="0.42" stop-color="#8f97b0"/><stop offset="1" stop-color="#4a5068"/>
         </linearGradient>
-        <clipPath id="${feedClipId}"><rect x="${f(feedClipX)}" y="${f(feedTop+feedWall)}" width="${f(feedClipW)}" height="${f(feedClipH)}"/></clipPath>
-        <clipPath id="${filtClipId}"><rect x="${f(filtratePX-filtratePW*0.5+filtWall)}" y="${f(filtClipY)}" width="${f(Math.max(0.5, filtratePW-filtWall*2))}" height="${f(filtClipH)}"/></clipPath>
       </defs>
       ${legs}
       ${beams}
       ${headPlate}
-      ${followPlate}
-      ${plates}
+      ${platesL}
       ${cylinder}
+      ${plateGroup}
       ${leftPipes}
-      ${bottomPipes}
-      ${feedFlow}
-      ${filtrateFlow}
+      ${cakeDrop}
       `
     }
 };
