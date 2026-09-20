@@ -41,6 +41,7 @@ const TEMPLATE_FILES = [
   'weighFeeder',
   // 粉磨与分级
   'vrm',
+  'pendulumMill',
   'classifier',
   // 储存与反应
   'silo',
