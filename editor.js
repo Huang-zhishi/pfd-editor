@@ -215,8 +215,8 @@ function applySMILState(){
 function stripSMIL(markup){
   if(!markup || markup.indexOf('<animate')<0) return markup;
   return markup
-    .replace(/<animate(?:Transform)?\b[^>]*\/>/g,'')
-    .replace(/<animate(?:Transform)?\b[^>]*>[\s\S]*?<\/animate(?:Transform)?>/g,'');
+    .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g,'')
+    .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g,'');
 }
 function portPos(comp, portId){
   const t = TEMPLATES[comp.type];
