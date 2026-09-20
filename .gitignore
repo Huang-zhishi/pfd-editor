@@ -12,6 +12,7 @@ Thumbs.db
 
 # WorkBuddy / AOCI local agent assets (machine-bound; do not commit)
 .workbuddy/
+.workbuddy-ai/
 .aoci/
 aoci.txt
 aoci.code.txt
