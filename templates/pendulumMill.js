@@ -200,6 +200,76 @@ TEMPLATES.pendulumMill = {
       };
       const springs = spring(-1)+spring(1);
 
+      /* ================= 底部传动装置 + 进出料接管（步骤 3）================== */
+      /* ---- 减速机（变速箱）：输出竖轴向上接中心轴，卧式输入轴接联轴器 ---- */
+      const gearH   = Math.min(clamp(h*0.095, 18, 40), Math.max(10, h*0.90 - shellBot)); // 箱体高（矮画布封顶防溢出）
+      const gearW   = clamp(w*0.16, 22, 46);              // 箱体宽
+      const gearTop = shellBot - clamp(h*0.006, 1, 3);    // 箱体顶贴壳底（输出端）
+      const gearBot = gearTop + gearH;
+      const gearX   = cx - gearW*0.5;                     // 箱体左缘
+      const inY     = gearTop + gearH*0.58;               // 输入轴（卧式）中心高
+      const inBearW = clamp(w*0.022, 3.5, 8);             // 输入轴承座宽
+      const cplW    = clamp(w*0.030, 5, 10);              // 联轴器总宽
+      const cplCX   = gearX - inBearW - cplW*0.5;         // 联轴器中心
+      const motH    = clamp(h*0.052, 10, 22);             // 电机壳体高
+      const motW0   = clamp(w*0.20, 30, 60);              // 电机壳体长（期望值）
+      const motX0   = Math.max(0.5, gearX - inBearW - cplW - motW0); // 电机左缘（窄画布截短防溢出）
+      const motW    = Math.max(8, gearX - inBearW - cplW - motX0);   // 电机实际长
+      const motCY   = inY;                                // 电机与输入轴同轴（中心线）
+      const motBaseH = clamp(h*0.018, 3, 7);              // 电机底座高
+
+      /* ---- 电机壳体 + 散热筋 + 端盖 + M 铭牌 + 底座 ---- */
+      const finN = Math.max(2, Math.min(5, Math.floor(motW/7)));
+      let fins = '';
+      for(let i=0;i<finN;i++){
+        const fx = motX0 + motW*(i+0.5)/finN;
+        fins += `<line x1="${F(fx)}" y1="${F(motCY-motH*0.40)}" x2="${F(fx)}" y2="${F(motCY+motH*0.40)}" stroke="#5b6280" stroke-width="0.5" opacity="0.45"/>`;
+      }
+      const motor = `
+      <rect x="${F(motX0)}" y="${F(motCY-motH/2)}" width="${F(motW)}" height="${F(motH)}" rx="${F(2*K)}" fill="url(#${metalId})" stroke="#5b6280" stroke-width="1"/>
+      ${fins}
+      <rect x="${F(motX0+motW-clamp(w*0.022,3,7))}" y="${F(motCY-motH*0.42)}" width="${F(clamp(w*0.022,3,7))}" height="${F(motH*0.84)}" rx="${F(1.2*K)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>
+      <text x="${F(motX0+motW*0.30)}" y="${F(motCY+motH*0.18)}" text-anchor="middle" font-family="sans-serif" font-size="${F(clamp(motH*0.5,4,9))}" fill="${c}" opacity="0.85">M</text>
+      <rect x="${F(motX0-2)}" y="${F(motCY+motH/2)}" width="${F(motW+4)}" height="${F(motBaseH)}" rx="0.8" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
+
+      /* ---- 联轴器（本体 + 十字刻线；刻线分组留待步骤 4 挂旋转动画）---- */
+      const coupling = `
+      <rect x="${F(cplCX-cplW*0.5)}" y="${F(inY-cplW*0.55)}" width="${F(cplW)}" height="${F(cplW*1.10)}" rx="${F(cplW*0.30)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.8"/>
+      <g>
+        <line x1="${F(cplCX-cplW*0.38)}" y1="${F(inY)}" x2="${F(cplCX+cplW*0.38)}" y2="${F(inY)}" stroke="${c}" stroke-width="1" opacity="0.9"/>
+        <line x1="${F(cplCX)}" y1="${F(inY-cplW*0.42)}" x2="${F(cplCX)}" y2="${F(inY+cplW*0.42)}" stroke="${c}" stroke-width="1" opacity="0.9"/>
+      </g>`;
+
+      /* ---- 减速机：箱体 + 把合面 + 顶盖螺栓 + 输入轴承座/输入轴 + 输出法兰（接中心轴）---- */
+      const gbR = clamp(1.2*K, 0.7, 1.8);
+      const reducer = `
+      <rect x="${F(gearX)}" y="${F(gearTop)}" width="${F(gearW)}" height="${F(gearH)}" rx="1.5" fill="url(#${metalId})" stroke="#5b6280" stroke-width="1"/>
+      <line x1="${F(gearX+1.5)}" y1="${F(gearTop+gearH*0.52)}" x2="${F(gearX+gearW-1.5)}" y2="${F(gearTop+gearH*0.52)}" stroke="#3f445c" stroke-width="0.7" stroke-dasharray="3 2"/>
+      <circle cx="${F(gearX+gearW*0.24)}" cy="${F(gearTop+gearH*0.26)}" r="${F(gbR)}" fill="#0c1020" stroke="#6a7192" stroke-width="0.6"/>
+      <circle cx="${F(gearX+gearW*0.76)}" cy="${F(gearTop+gearH*0.26)}" r="${F(gbR)}" fill="#0c1020" stroke="#6a7192" stroke-width="0.6"/>
+      <rect x="${F(gearX-inBearW)}" y="${F(inY-inBearW*0.42)}" width="${F(inBearW)}" height="${F(inBearW*0.84)}" rx="${F(0.8*K)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>
+      <rect x="${F(gearX-inBearW)}" y="${F(inY-clamp(w*0.010,1.5,3))}" width="${F(inBearW)}" height="${F(clamp(w*0.020,3,6))}" fill="#9aa2bc" stroke="#5b6280" stroke-width="0.6"/>
+      <rect x="${F(cx-shaftHW*1.5)}" y="${F(gearTop-clamp(h*0.008,1.5,3))}" width="${F(shaftHW*3)}" height="${F(clamp(h*0.008,1.5,3))}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.6"/>`;
+      const drive = motor + coupling + reducer;
+
+      /* ---- 进料口端口法兰（顶部中心，与 ports.feed 严格同轴）---- */
+      const feedFlange =
+        `<rect x="${F(cx-hopperTopHW*1.14)}" y="0" width="${F(hopperTopHW*2.28)}" height="${F(clamp(h*0.012,2,4))}" rx="0.7" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
+
+      /* ---- 出料接管（右下侧微斜管，端口朝右；中心线在端口处 = ports.discharge.y*h）---- */
+      const disY   = h*0.60;                              // 端口中心 y（= ports.discharge.y*h，同轴）
+      const disH   = clamp(h*0.052, 10, 20);             // 端口处管高
+      const disWall = clamp(disH*0.24, 1, 2.5);          // 管壁厚
+      const disX0  = cx + shellBotHW*0.92;               // 根端：贴出料锥腔右壁
+      const disYTop0 = shellBot + clamp(h*0.004, 1, 2);  // 根端上缘（自壳底接出）
+      const disYBot0 = disYTop0 + disH*1.06;             // 根端下缘
+      const disYTop1 = disY - disH/2, disYBot1 = disY + disH/2; // 端口上下缘
+      const disFlangeW = clamp(disH*0.22, 2, 4);         // 端口法兰宽
+      const discharge = `
+      <polygon points="${F(disX0)},${F(disYTop0)} ${F(disX0)},${F(disYBot0)} ${F(w)},${F(disYBot1)} ${F(w)},${F(disYTop1)}" fill="url(#${metalId})" stroke="#3f445c" stroke-width="0.8"/>
+      <polygon points="${F(disX0+disWall)},${F(disYTop0+disWall)} ${F(disX0+disWall)},${F(disYBot0-disWall)} ${F(w-disWall)},${F(disYBot1-disWall)} ${F(w-disWall)},${F(disYTop1+disWall)}" fill="#12162b" stroke="#6a7192" stroke-width="0.6"/>
+      <rect x="${F(w-disFlangeW)}" y="${F(disYTop1-disH*0.10)}" width="${F(disFlangeW)}" height="${F(disH*1.20)}" rx="0.8" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
+
       return `
       <defs>
         <linearGradient id="${shellId}" x1="0" y1="0" x2="1" y2="0">
@@ -234,9 +304,14 @@ TEMPLATES.pendulumMill = {
       <!-- 顶盖（可拆上盖）+ 螺栓 -->
       <rect x="${F(cx-capHW)}" y="${F(capTop)}" width="${F(capHW*2)}" height="${F(capBot-capTop)}" rx="${F(1.2*K)}" fill="url(#${metalId})" stroke="#6a7192" stroke-width="1.1"/>
       ${capBolts}
-      <!-- 进料口（顶部料斗，梯形）+ 深色腔 -->
+      <!-- 进料口（顶部料斗，梯形）+ 深色腔 + 端口法兰 -->
       <polygon points="${F(cx-hopperTopHW)},${F(hopperTop)} ${F(cx+hopperTopHW)},${F(hopperTop)} ${F(cx+hopperBotHW)},${F(hopperBot)} ${F(cx-hopperBotHW)},${F(hopperBot)}" fill="url(#${metalId})" stroke="#6a7192" stroke-width="1.1"/>
       <polygon points="${F(cx-hopperTopHW+inset)},${F(hopperTop+inset)} ${F(cx+hopperTopHW-inset)},${F(hopperTop+inset)} ${F(cx+hopperBotHW-inset*0.6)},${F(hopperBot)} ${F(cx-hopperBotHW+inset*0.6)},${F(hopperBot)}" fill="#12162b" stroke="#6a7192" stroke-width="0.7"/>
+      ${feedFlange}
+      <!-- 底部传动装置（步骤 3）：主电机 → 联轴器 → 减速机 → 中心轴 -->
+      ${drive}
+      <!-- 出料接管（步骤 3）：右下侧，端口朝右 -->
+      ${discharge}
       `;
     }
 };
