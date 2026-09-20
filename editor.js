@@ -1560,6 +1560,14 @@ function renderProps(){
         <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">绑定压滤机开关量测点后：值为 1 时进料 / 滤液流动动画运行、为 0 时停止；留空则始终运行。填完整位号（含前缀）。</div>
       </div>
       ` : ''}
+      ${comp.type==='pendulumMill' ? `
+      <div class="fg">
+        <div class="fg-title">磨粉机运行控制</div>
+        <div class="fg-row"><label>开关 Tag</label><input id="pmRunTag" value="${esc(comp.props.runTag||'')}" placeholder="如 1#磨粉机主机运行状态"></div>
+        <div class="fg-row"><label>当前状态</label><input id="pmRunState" readonly value="—"></div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">绑定主机开关量测点后：值为 1 时磨辊公转 / 自转、联轴器刻线、落料与出料动画运行，为 0 时停止；留空则始终运行。填完整位号（含前缀）。</div>
+      </div>
+      ` : ''}
       ${comp.type==='monitor' ? `
       <div class="fg">
         <div class="fg-title">监控项（画布实时数值）</div>
@@ -1649,6 +1657,16 @@ function renderProps(){
       const rt = $('fpRunTag');
       if(rt){ rt.onchange = (e)=>{ comp.props.runTag = (e.target.value||'').trim(); pushHistory(); renderAll(); setDirty(); refreshFilterPressRun(sensorValueMap); }; }
       const rs = $('fpRunState');
+      if(rs){
+        const tag = (comp.props.runTag||'').trim();
+        rs.value = tag ? '运行中（绑定但暂无数据）' : '运行中（未绑定，默认运行）';
+      }
+    }
+    // 斜摆瀑料磨粉机：绑定开关 tag，数据驱动公转/自转 + 落料/出料动画开/停
+    if(comp.type==='pendulumMill'){
+      const rt = $('pmRunTag');
+      if(rt){ rt.onchange = (e)=>{ comp.props.runTag = (e.target.value||'').trim(); pushHistory(); renderAll(); setDirty(); refreshPendulumMillRun(sensorValueMap); }; }
+      const rs = $('pmRunState');
       if(rs){
         const tag = (comp.props.runTag||'').trim();
         rs.value = tag ? '运行中（绑定但暂无数据）' : '运行中（未绑定，默认运行）';
@@ -1804,6 +1822,7 @@ async function refreshSensorValues(){
       refreshSwitchValveAuto(sensorValueMap); // 三通阀自动模式：根据 A/B 开关量互斥切换
       refreshScrewConveyorRun(sensorValueMap); // 螺旋输送机(简化)：按开关 tag 驱动动画开/停
       refreshFilterPressRun(sensorValueMap); // 压滤机：按开关 tag 驱动进料/滤液流动动画开/停
+      refreshPendulumMillRun(sensorValueMap); // 斜摆瀑料磨粉机：按开关 tag 驱动公转/自转+落料/出料动画开/停
     }
   }catch(e){ /* 静默 */ }
 }
@@ -2267,6 +2286,42 @@ function refreshFilterPressRun(liveMap, docArg){
     g.dataset.run = run ? '1' : '0';
     // 属性面板「当前状态」readout（仅当面板已渲染）
     const rs = (typeof $==='function') ? $('fpRunState') : null;
+    if(rs){
+      if(v==null) rs.value = '运行中（绑定但暂无数据）';
+      else rs.value = run ? `运行中（值=${v}）` : `已停止（值=${v}）`;
+    }
+  });
+}
+
+// 斜摆瀑料磨粉机 数据驱动动画：绑定开关 tag（runTag）时，值>=0.5 → 磨辊公转/自转 +
+// 联轴器刻线 + 落料/出料动画运行，否则停止；未绑定/无数据 → 默认运行。
+// 仅在运行态真变化时重生成组件 innerHTML，避免无谓的 SMIL 重置。
+// docArg：预览页局部 doc 时需显式传入
+function refreshPendulumMillRun(liveMap, docArg){
+  const d = docArg || doc;
+  if(!liveMap || !d || !Array.isArray(d.components)) return;
+  d.components.forEach(comp=>{
+    if(comp.type !== 'pendulumMill') return;
+    const tag = (comp.props.runTag || '').trim();
+    if(!tag) return; // 未绑定：renderAll 已按默认运行渲染，无需数据驱动
+    const live = liveMap[tag];
+    const v = live && isFinite(+live.value) ? +live.value : null;
+    const run = v==null ? true : v>=0.5;
+    const g = findCompGroupDom(comp.id);
+    if(!g) return;
+    const cur = g.dataset.run;
+    if(cur!==undefined && cur!=='' && cur!==null && cur===(run?'1':'0')) return;
+    const t = TEMPLATES['pendulumMill'];
+    if(!t) return;
+    const tmpProps = Object.assign({}, comp.props, { _run: run });
+    const inner = t.render(comp.w, comp.h, tmpProps);
+    const outInner = (typeof running!=='undefined' && running) ? inner : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
+    const _bodyEl = g.children && g.children[0];
+    if(_bodyEl && String(_bodyEl.tagName).toLowerCase()==='g'){ _bodyEl.innerHTML = outInner; }
+    else { g.innerHTML = outInner; }
+    g.dataset.run = run ? '1' : '0';
+    // 属性面板「当前状态」readout（仅当面板已渲染）
+    const rs = (typeof $==='function') ? $('pmRunState') : null;
     if(rs){
       if(v==null) rs.value = '运行中（绑定但暂无数据）';
       else rs.value = run ? `运行中（值=${v}）` : `已停止（值=${v}）`;

@@ -354,6 +354,7 @@
         if(typeof refreshSwitchValveAuto==='function') refreshSwitchValveAuto(this.liveMap, this.doc);
         if(typeof refreshScrewConveyorRun==='function') refreshScrewConveyorRun(this.liveMap, this.doc);
         if(typeof refreshFilterPressRun==='function') refreshFilterPressRun(this.liveMap, this.doc);
+        if(typeof refreshPendulumMillRun==='function') refreshPendulumMillRun(this.liveMap, this.doc);
       }
     }catch(e){
       console.warn('实时数据刷新失败:', e);
@@ -445,6 +446,32 @@
       const cur = g.dataset.run;
       if(cur!==undefined && cur!=='' && cur!==null && cur===(run?'1':'0')) return;
       const t = TEMPLATES['filterPress'];
+      if(!t) return;
+      const tmpProps = Object.assign({}, comp.props, { _run: run });
+      const inner = t.render(comp.w, comp.h, tmpProps);
+      const outInner = (typeof running!=='undefined' && running) ? inner : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
+      g.innerHTML = outInner;
+      g.dataset.run = run ? '1' : '0';
+    });
+  }
+
+  // 斜摆瀑料磨粉机 数据驱动动画：绑定开关 tag（runTag）时，值>=0.5 → 磨辊公转/自转 +
+  // 联轴器刻线 + 落料/出料动画运行，否则停止；未绑定/无数据 → 默认运行。
+  function refreshPendulumMillRun(liveMap, docArg){
+    const d = docArg || (typeof doc!=='undefined' ? doc : null);
+    if(!liveMap || !d || !Array.isArray(d.components)) return;
+    d.components.forEach(comp=>{
+      if(comp.type !== 'pendulumMill') return;
+      const tag = (comp.props.runTag || '').trim();
+      if(!tag) return; // 未绑定：渲染时已按默认运行
+      const live = liveMap[tag];
+      const v = live && isFinite(+live.value) ? +live.value : null;
+      const run = v==null ? true : v>=0.5;
+      const g = findCompGroupDom(comp.id);
+      if(!g) return;
+      const cur = g.dataset.run;
+      if(cur!==undefined && cur!=='' && cur!==null && cur===(run?'1':'0')) return;
+      const t = TEMPLATES['pendulumMill'];
       if(!t) return;
       const tmpProps = Object.assign({}, comp.props, { _run: run });
       const inner = t.render(comp.w, comp.h, tmpProps);
