@@ -23,6 +23,7 @@ const TEMPLATE_FILES = [
   'reactor',
   'storageSilo',
   'vrm',
+  'pendulumMill',
   'tubeCooler',
   'desulfTower',
   'valve',
