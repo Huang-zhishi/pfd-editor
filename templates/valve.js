@@ -12,7 +12,7 @@
  * ============================================================ */
 
 TEMPLATES.valve = {
-    name: '气密阀', category: '阀门管件',
+    name: '气密阀', category: '风机泵阀',
     defaultSize: { w: 45, h: 35 },
     ports: [{id:'in',x:0,y:.5,dir:'left'},{id:'out',x:1,y:.5,dir:'right'}],
     render: (w,h,p)=>{

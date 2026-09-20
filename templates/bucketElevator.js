@@ -9,7 +9,7 @@
  * ============================================================ */
 
 TEMPLATES.bucketElevator = {
-    name: '斗式提升机', category: '设备',
+    name: '斗式提升机', category: '输送与给料',
     defaultSize: { w: 92, h: 380 },
     ports: [
       {id:'outlet', x:.845, y:.174, dir:'down'},  // 机头下翻转卸料斗口（斗口朝下敞开），向下卸料

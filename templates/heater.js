@@ -5,7 +5,7 @@
  * ============================================================ */
 
 TEMPLATES.heater = {
-    name: '加热炉/燃烧炉', category: '设备',
+    name: '加热炉/燃烧炉', category: '干燥煅烧与冷却',
     defaultSize: { w: 100, h: 140 },
     ports: [{id:'top',x:.5,y:0,dir:'up'},{id:'bottom',x:.5,y:1,dir:'down'},{id:'fuel',x:0,y:.8,dir:'left'}],
     render: (w,h,p)=>`

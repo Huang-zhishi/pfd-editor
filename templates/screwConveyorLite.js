@@ -13,7 +13,7 @@
  * ============================================================ */
 
 TEMPLATES.screwConveyorLite = {
-    name: '螺旋输送机(简化)', category: '设备',
+    name: '螺旋输送机(简化)', category: '输送与给料',
     defaultSize: { w: 250, h: 60 },
     ports: [{id:'inlet',x:0.3,y:0,dir:'up'},{id:'outlet',x:1,y:0.75,dir:'right'},{id:'left',x:0,y:.5,dir:'left'},{id:'right',x:1,y:.5,dir:'right'}],
     render: (w,h,p)=>{

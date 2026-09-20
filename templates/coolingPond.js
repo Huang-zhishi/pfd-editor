@@ -5,7 +5,7 @@
  * ============================================================ */
 
 TEMPLATES.coolingPond = {
-    name: '冷却水池', category: '设备',
+    name: '冷却水池', category: '干燥煅烧与冷却',
     defaultSize: { w: 160, h: 120 },
     ports: [
       {id:'inlet',x:.5,y:0,dir:'up'},

@@ -5,7 +5,7 @@
  * ============================================================ */
 
 TEMPLATES.tubeCooler = {
-    name: '回转滚筒冷却机', category: '设备',
+    name: '回转滚筒冷却机', category: '干燥煅烧与冷却',
     defaultSize: { w: 300, h: 140 },
     ports: [
       {id:'inlet',x:0,y:.5,dir:'left'},

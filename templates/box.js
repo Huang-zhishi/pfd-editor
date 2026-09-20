@@ -5,7 +5,7 @@
  * ============================================================ */
 
 TEMPLATES.box = {
-    name: '通用方框', category: '通用',
+    name: '通用方框', category: '通用与标注',
     defaultSize: { w: 100, h: 80 },
     ports: [{id:'top',x:.5,y:0,dir:'up'},{id:'bottom',x:.5,y:1,dir:'down'},{id:'left',x:0,y:.5,dir:'left'},{id:'right',x:1,y:.5,dir:'right'}],
     render: (w,h,p)=>`<rect x="0" y="0" width="${w}" height="${h}" rx="4" class="equip-body" stroke="${p.color}"/>`

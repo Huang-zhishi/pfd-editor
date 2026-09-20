@@ -5,7 +5,7 @@
  * ============================================================ */
 
 TEMPLATES.hopper = {
-    name: '漏斗', category: '通用',
+    name: '漏斗', category: '储存与反应',
     defaultSize: { w: 90, h: 90 },
     ports: [{id:'top',x:.5,y:0,dir:'up'},{id:'bottom',x:.5,y:1,dir:'down'}],
     render: (w,h,p)=>`<polygon points="0,0 ${w},0 ${w*0.7},${h} ${w*0.3},${h}" class="equip-body" stroke="${p.color}"/>`

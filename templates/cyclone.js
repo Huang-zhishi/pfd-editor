@@ -14,7 +14,7 @@
  * ============================================================ */
 
 TEMPLATES.cyclone = {
-    name: '旋风除尘器', category: '设备',
+    name: '旋风除尘器', category: '除尘与分离',
     defaultSize: { w: 130, h: 190 },
     ports: [
       {id:'inlet',    x:0,   y:.20, dir:'left'},

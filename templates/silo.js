@@ -10,7 +10,7 @@
  * ============================================================ */
 
 TEMPLATES.silo = {
-    name: '料仓', category: '设备',
+    name: '料仓', category: '储存与反应',
     defaultSize: { w: 90, h: 150 },
     ports: [{id:'top',x:.5,y:0,dir:'up'},{id:'bottom',x:.5,y:1,dir:'down'},{id:'side',x:1,y:.4,dir:'right'}],
     render: (w,h,p)=>{

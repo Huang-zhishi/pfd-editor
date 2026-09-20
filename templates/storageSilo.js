@@ -9,7 +9,7 @@
  * ============================================================ */
 
 TEMPLATES.storageSilo = {
-    name: '储料仓', category: '设备',
+    name: '储料仓', category: '储存与反应',
     defaultSize: { w: 96, h: 190 },
     ports: [
       {id:'top',x:.5,y:0,dir:'up'},

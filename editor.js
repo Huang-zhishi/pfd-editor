@@ -988,6 +988,9 @@ function screenToSVG(clientX, clientY){
 /* ============================================================
  * 7. 组件库面板
  * ============================================================ */
+/* 已折叠的分类（会话内保留：搜索重建面板时不丢折叠状态；刷新页面即恢复全展开） */
+const collapsedCats = new Set();
+
 function buildPalette(filter=''){
   const list = $('paList'); list.innerHTML = '';
   const cats = {};
@@ -995,8 +998,21 @@ function buildPalette(filter=''){
     if(filter && !t.name.toLowerCase().includes(filter.toLowerCase()) && !key.includes(filter.toLowerCase())) return;
     (cats[t.category] = cats[t.category]||[]).push([key,t]);
   });
-  Object.entries(cats).forEach(([cat,items])=>{
-    const h = document.createElement('div'); h.className='pa-cat'; h.textContent=cat; list.appendChild(h);
+  // 分组顺序以 CATEGORY_ORDER 为准；未登记的兜底补在末尾（顺序规则见 templates.js 头部注释）
+  const order = CATEGORY_ORDER.filter(c=>cats[c]);
+  Object.keys(cats).forEach(c=>{ if(!order.includes(c)) order.push(c); });
+
+  order.forEach(cat=>{
+    const items = cats[cat];
+    const group = document.createElement('div'); group.className='pa-group';
+    // 搜索时一律展开：命中项若被折叠隐藏，搜索就白搜了
+    if(!filter && collapsedCats.has(cat)) group.classList.add('collapsed');
+
+    const h = document.createElement('div'); h.className='pa-cat'; h.textContent=cat;
+    h.addEventListener('click', ()=>{
+      if(group.classList.toggle('collapsed')) collapsedCats.add(cat); else collapsedCats.delete(cat);
+    });
+    const body = document.createElement('div'); body.className='pa-group-body';
     items.forEach(([key,t])=>{
       const el = document.createElement('div'); el.className='pa-item'; el.dataset.type=key;
       const ic = document.createElement('div'); ic.className='pa-icon';
@@ -1006,8 +1022,9 @@ function buildPalette(filter=''){
       nm.innerHTML = `<div class="pa-name">${t.name}</div>`;
       el.appendChild(ic); el.appendChild(nm);
       el.addEventListener('mousedown', e=>startPaletteDrag(e, key));
-      list.appendChild(el);
+      body.appendChild(el);
     });
+    group.appendChild(h); group.appendChild(body); list.appendChild(group);
   });
 }
 

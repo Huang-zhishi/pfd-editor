@@ -5,7 +5,7 @@
  * ============================================================ */
 
 TEMPLATES.instrument = {
-    name: '仪表', category: '仪表',
+    name: '仪表', category: '通用与标注',
     defaultSize: { w: 44, h: 44 },
     ports: [{id:'port',x:.5,y:1,dir:'down'}],
     render: (w,h,p)=>`

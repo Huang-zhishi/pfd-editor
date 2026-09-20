@@ -5,7 +5,7 @@
  * ============================================================ */
 
 TEMPLATES.circle = {
-    name: '通用圆罐', category: '通用',
+    name: '通用圆罐', category: '通用与标注',
     defaultSize: { w: 90, h: 90 },
     ports: [{id:'top',x:.5,y:0,dir:'up'},{id:'bottom',x:.5,y:1,dir:'down'},{id:'left',x:0,y:.5,dir:'left'},{id:'right',x:1,y:.5,dir:'right'}],
     render: (w,h,p)=>`<ellipse cx="${w/2}" cy="${h/2}" rx="${w/2}" ry="${h/2}" class="equip-body" stroke="${p.color}"/>`

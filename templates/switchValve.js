@@ -14,7 +14,7 @@
  * ============================================================ */
 
 TEMPLATES.switchValve = {
-    name: '固体三通阀', category: '阀门管件',
+    name: '固体三通阀', category: '风机泵阀',
     defaultSize: { w: 120, h: 150 },
     ports: [{id:'inlet',x:.5,y:0,dir:'up'},{id:'outletA',x:.3,y:1,dir:'down'},{id:'outletB',x:.7,y:1,dir:'down'}],
     render: (w,h,p)=>{

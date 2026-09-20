@@ -13,7 +13,7 @@
  * ============================================================ */
 
 TEMPLATES.blower = {
-    name: '离心风机/鼓风机', category: '设备',
+    name: '离心风机/鼓风机', category: '风机泵阀',
     defaultSize: { w: 90, h: 78 },
     ports: [{id:'in',x:0,y:.645,dir:'left'},{id:'out',x:1,y:.4738,dir:'right'}],
     render: (w,h,p)=>{

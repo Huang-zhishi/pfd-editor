@@ -5,7 +5,7 @@
  * ============================================================ */
 
 TEMPLATES.motor = {
-    name: '电机', category: '阀门管件',
+    name: '电机', category: '风机泵阀',
     defaultSize: { w: 50, h: 50 },
     ports: [{id:'out',x:1,y:.5,dir:'right'}],
     render: (w,h,p)=>`

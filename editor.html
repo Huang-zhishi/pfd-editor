@@ -46,7 +46,11 @@
   .pa-list{flex:1;overflow-y:auto;padding:6px}
   .pa-list::-webkit-scrollbar{width:6px}
   .pa-list::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
-  .pa-cat{font-size:10px;color:var(--text3);letter-spacing:2px;padding:8px 6px 4px;font-weight:600}
+  .pa-cat{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3);letter-spacing:2px;padding:8px 6px 4px;font-weight:600;cursor:pointer;user-select:none}
+  .pa-cat:hover{color:var(--text2)}
+  .pa-cat::before{content:'';flex-shrink:0;width:0;height:0;border-left:4px solid currentColor;border-top:3px solid transparent;border-bottom:3px solid transparent;transform:rotate(90deg);transition:transform .15s}
+  .pa-group.collapsed .pa-cat::before{transform:rotate(0)}
+  .pa-group.collapsed .pa-group-body{display:none}
   .pa-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:5px;cursor:grab;border:1px solid transparent;transition:.12s}
   .pa-item:hover{background:var(--panel2);border-color:var(--line2)}
   .pa-item:active{cursor:grabbing}

@@ -12,7 +12,7 @@
  * ============================================================ */
 
 TEMPLATES.reactor = {
-    name: '反应釜', category: '设备',
+    name: '反应釜', category: '储存与反应',
     defaultSize: { w: 96, h: 190 },
     ports: [
       {id:'top',x:.22,y:0,dir:'up'},

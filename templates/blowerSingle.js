@@ -10,7 +10,7 @@
  * ============================================================ */
 
 TEMPLATES.blowerSingle = {
-    name: '离心风机/鼓风机(单出口)', category: '设备',
+    name: '离心风机/鼓风机(单出口)', category: '风机泵阀',
     defaultSize: { w: 66, h: 78 },
     ports: [{id:'out',x:1,y:.4738,dir:'right'}],
     render: (w,h,p)=>{

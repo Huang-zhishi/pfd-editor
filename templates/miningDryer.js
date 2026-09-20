@@ -13,7 +13,7 @@
  * ============================================================ */
 
 TEMPLATES.miningDryer = {
-    name: '矿用烘干机', category: '设备',
+    name: '矿用烘干机', category: '干燥煅烧与冷却',
     defaultSize: { w: 340, h: 160 },
     ports: [
       {id:'feed',      x:0,    y:.50, dir:'left'},

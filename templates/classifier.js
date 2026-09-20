@@ -16,7 +16,7 @@
  * ============================================================ */
 
 TEMPLATES.classifier = {
-    name: '选粉机', category: '设备',
+    name: '选粉机', category: '粉磨与分级',
     defaultSize: { w: 160, h: 240 },
     ports: [
       {id:'inlet',   x:0, y:.68, dir:'left'},    // 含料气流入口（下部 · 切向进风）

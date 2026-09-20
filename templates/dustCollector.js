@@ -10,7 +10,7 @@
  * ============================================================ */
 
 TEMPLATES.dustCollector = {
-    name: '除尘布袋', category: '设备',
+    name: '除尘布袋', category: '除尘与分离',
     defaultSize: { w: 120, h: 180 },
     ports: [{id:'inlet',x:1,y:.4,dir:'right'},{id:'outlet',x:.5,y:1,dir:'down'},{id:'cleanGas',x:1,y:.2,dir:'right'}],
     render: (w,h,p)=>{

@@ -13,7 +13,7 @@
  * ============================================================ */
 
 TEMPLATES.pump = {
-    name: '工业抽水泵', category: '阀门管件',
+    name: '工业抽水泵', category: '风机泵阀',
     defaultSize: { w: 120, h: 90 },
     ports: [{id:'in',x:0,y:.5,dir:'left'},{id:'out',x:1,y:.5,dir:'right'}],
     render: (w,h,p)=>{

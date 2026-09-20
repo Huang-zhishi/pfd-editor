@@ -11,7 +11,7 @@
  * ============================================================ */
 
 TEMPLATES.desulfTower = {
-    name: '工业脱硫塔', category: '设备',
+    name: '工业脱硫塔', category: '除尘与分离',
     defaultSize: { w: 120, h: 280 },
     ports: [
       {id:'gasIn',x:.084,y:.74,dir:'left'},

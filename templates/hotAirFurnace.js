@@ -8,7 +8,7 @@
  * ============================================================ */
 
 TEMPLATES.hotAirFurnace = {
-    name: '热风机', category: '设备',
+    name: '热风机', category: '干燥煅烧与冷却',
     defaultSize: { w: 280, h: 140 },
     ports: [
       {id:'fuel',      x:0,   y:.56, dir:'left'},

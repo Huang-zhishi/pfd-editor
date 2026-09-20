@@ -5,7 +5,7 @@
  * ============================================================ */
 
 TEMPLATES.monitor = {
-    name: '监控器', category: '监控',
+    name: '监控器', category: '通用与标注',
     defaultSize: { w: 150, h: 21 },
     ports: [],
     render: (w,h,p)=>{

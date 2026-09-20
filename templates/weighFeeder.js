@@ -11,7 +11,7 @@
  * ============================================================ */
 
 TEMPLATES.weighFeeder = {
-    name: '配料秤/称重料斗', category: '设备',
+    name: '配料秤/称重料斗', category: '输送与给料',
     defaultSize: { w: 110, h: 160 },
     ports: [{id:'inlet',x:.5,y:0,dir:'up'},{id:'outlet',x:.5,y:1,dir:'down'}],
     render: (w,h,p)=>{
