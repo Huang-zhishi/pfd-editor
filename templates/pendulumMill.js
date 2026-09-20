@@ -226,7 +226,7 @@ TEMPLATES.pendulumMill = {
       const motX0   = Math.max(0.5, gearX - inBearW - cplW - motW0); // 电机左缘（窄画布截短防溢出）
       const motW    = Math.max(8, gearX - inBearW - cplW - motX0);   // 电机实际长
       const motCY   = inY;                                // 电机与输入轴同轴（中心线）
-      const motBaseH = clamp(h*0.018, 3, 7);              // 电机底座高
+      const motBaseH = Math.max(0, Math.min(clamp(h*0.018, 3, 7), h*0.94 - (motCY+motH/2))); // 电机底座高（矮画布封顶防溢出）
 
       /* ---- 电机壳体 + 散热筋 + 端盖 + M 铭牌 + 底座 ---- */
       const finN = Math.max(2, Math.min(5, Math.floor(motW/7)));
