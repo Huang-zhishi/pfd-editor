@@ -15,9 +15,11 @@
  *       #5b6280 → #d9dded → #9aa2bc（磨辊辊套横渐变）
  *       #12162b（深色内腔）  #6a7192（内腔描边）  #2a2f45 / #3f445c（法兰与联接件）
  *       #1a1f33 → #0d1020（机座 / 基础）
- *   磨辊公转 + 自转、联轴器刻线、落料 / 出料粒子用 SMIL 动画驱动，
+ *   联轴器刻线、落料 / 出料粒子用 SMIL 动画驱动，
  *   编辑态由 editor.js stripSMIL() 自动剥离；绑定 runTag 时由
  *   refreshPendulumMillRun() 注入 props._run 切换运行 / 停止。
+ *   注：磨辊「绕中心轴公转 / 自转」的旋转特效实现难度过高，已放弃；
+ *       磨辊与梅花架按静态绘制（保留斜摆姿态与辊面刻线纹理）。
  * ============================================================ */
 
 TEMPLATES.pendulumMill = {
@@ -155,14 +157,12 @@ TEMPLATES.pendulumMill = {
       };
       const scraper = scrub(-1)+scrub(1);
 
-      /* ---- 梅花架：中心毂（静态，示意中心轴座）+ 摆臂与吊点（随公转旋转）---- */
+      /* ---- 梅花架：中心毂（中心轴座）+ 左右摆臂与吊点（静态）---- */
       const spiderH = clamp(h*0.026, 5, 12);
       const armH    = clamp(h*0.018, 3, 9);
-      const ringCY  = (ringTopY + ringBotY)*0.5;          // 磨环圆心（中心轴与磨环的公共轴线，公转绕此轴）
-      const rollClipId = 'pm_rollclip_'+uid;              // 辊面刻线滚动裁剪窗（辊套矩形）
       const spiderHub = `
       <rect x="${F(cx-shaftHW*1.9)}" y="${F(spiderY-spiderH/2)}" width="${F(shaftHW*3.8)}" height="${F(spiderH)}" rx="${F(1.5*K)}" fill="url(#${metalId})" stroke="#5b6280" stroke-width="0.9"/>`;
-      /* 单侧摆臂 + 吊点（随对应磨辊公转） */
+      /* 单侧摆臂 + 吊点 */
       const arm = sgn=>{
         const x0 = cx + sgn*shaftHW*1.4, x1 = cx + sgn*(armX + rollHW*0.35);
         return `<rect x="${F(Math.min(x0,x1))}" y="${F(spiderY-armH/2)}" width="${F(Math.abs(x1-x0))}" height="${F(armH)}" rx="${F(armH*0.35)}" fill="#9aa2bc" stroke="#5b6280" stroke-width="0.8"/>
@@ -170,43 +170,28 @@ TEMPLATES.pendulumMill = {
       };
 
       /* ---- 斜摆磨辊（剖视可见左右各一，绕吊点向外下倾斜；辊套 + 磨辊轴 + 轴承座）
-             自转：磨辊绕自身纵轴滚动 —— 辊体保持姿态，辊面刻线沿辊轴方向滚动（2D 投影）---- */
+             静态绘制：辊面刻线仅作辊套纹理，不做滚动动画 ---- */
       const roller = sgn=>{
         const px = cx + sgn*armX, py = pivotY;
         const deg = -sgn*18;                            // 左辊 +18°（下端向左外摆），右辊 -18°
         const sleeveBot = rollGapTop + rollLen;
-        const rollGap = rollLen*0.44;                   // 刻线间距（平移量整除间距 → 无缝滚动）
         let rollLines = '';
-        for(let k=-1;k<=1;k++){
-          const ly = rollGapTop + rollLen*0.28 + k*rollGap;
+        for(let k=0;k<3;k++){
+          const ly = rollGapTop + rollLen*(0.26 + k*0.24);
           rollLines += `<line x1="${F(-rollHW)}" y1="${F(ly)}" x2="${F(rollHW)}" y2="${F(ly)}" stroke="#3a4060" stroke-width="0.7" opacity="0.8"/>`;
         }
         return `<g transform="translate(${F(px)},${F(py)}) rotate(${deg})">
           <rect x="${F(-rollHW*0.42)}" y="0" width="${F(rollHW*0.84)}" height="${F(sleeveBot+clamp(h*0.018,2,7))}" rx="${F(rollHW*0.3)}" fill="#9aa2bc" stroke="#5b6280" stroke-width="0.8"/>
           <rect x="${F(-rollHW)}" y="${F(rollGapTop)}" width="${F(rollHW*2)}" height="${F(rollLen)}" rx="${F(rollHW*0.45)}" fill="url(#${rollId})" stroke="#5b6280" stroke-width="1"/>
-          <g clip-path="url(#${rollClipId})"><g>
-            ${running?`<animateTransform attributeName="transform" type="translate" from="0 0" to="0 ${F(rollGap)}" dur="2.2s" repeatCount="indefinite"/>`:''}
-            ${rollLines}
-          </g></g>
+          ${rollLines}
           <rect x="${F(-rollHW*1.15)}" y="${F(rollGapTop+rollLen*0.06)}" width="${F(rollHW*2.3)}" height="${F(clamp(h*0.014,2,5))}" rx="${F(1.2*K)}" fill="#2a2f45" stroke="#5b6280" stroke-width="0.6"/>
           <rect x="${F(-rollHW*1.15)}" y="${F(rollGapTop+rollLen*0.86)}" width="${F(rollHW*2.3)}" height="${F(clamp(h*0.014,2,5))}" rx="${F(1.2*K)}" fill="#2a2f45" stroke="#5b6280" stroke-width="0.6"/>
           <line x1="${F(-rollHW*0.58)}" y1="${F(rollGapTop)}" x2="${F(-rollHW*0.58)}" y2="${F(sleeveBot)}" stroke="#e8edf8" stroke-width="0.9" opacity="0.5"/>
         </g>`;
       };
-
-      /* ---- 公转：摆臂 + 磨辊沿中心轴（磨环圆心）公转 —— 沿磨环内壁滚动，姿态保持。
-             用 animateMotion 沿磨环内圆路径平移（rotate=0 不旋转姿态），区别于「绕点平转」。---- */
-      const orbR = Math.sqrt(armX*armX + (pivotY-ringCY)*(pivotY-ringCY)); // 磨辊到磨环圆心距离（圆路径半径）
-      const orbit = sgn=>{
-        const sx = cx + sgn*armX, sy = pivotY;            // 圆路径起点 = 磨辊初始位置
-        const mx = cx - sgn*armX, my = 2*ringCY - pivotY; // 对径点
-        const path = `M ${F(sx)} ${F(sy)} a ${F(orbR)} ${F(orbR)} 0 0 1 ${F(mx-sx)} ${F(my-sy)} a ${F(orbR)} ${F(orbR)} 0 0 1 ${F(sx-mx)} ${F(sy-my)}`;
-        const body = arm(sgn)+roller(sgn);
-        return running
-          ? `<g><animateMotion dur="6s" repeatCount="indefinite" rotate="0" path="${path}"/>${body}</g>`
-          : `<g>${body}</g>`;
-      };
-      const orbits = orbit(-1)+orbit(1);
+      /* 摆臂 + 磨辊成组（静态，不做公转 / 自转） */
+      const rollerSet = sgn => arm(sgn)+roller(sgn);
+      const rollers = rollerSet(-1)+rollerSet(1);
 
       /* ---- 顶部加压弹簧（螺旋线）+ 压杆 ----
          注释：说明书「弹簧 1 经压力杆 2 压紧磨辊」，此处画左右两组。 */
@@ -345,7 +330,6 @@ TEMPLATES.pendulumMill = {
           <stop offset="0" stop-color="#1a1f33"/><stop offset="1" stop-color="#0d1020"/>
         </linearGradient>
         <clipPath id="${disClipId}"><polygon points="${F(disX0+disWall)},${F(disYTop0+disWall)} ${F(disX0+disWall)},${F(disYBot0-disWall)} ${F(w-disWall)},${F(disYBot1-disWall)} ${F(w-disWall)},${F(disYTop1+disWall)}"/></clipPath>
-        <clipPath id="${rollClipId}"><rect x="${F(-rollHW)}" y="${F(rollGapTop)}" width="${F(rollHW*2)}" height="${F(rollLen)}"/></clipPath>
       </defs>
       ${foundation}
       <!-- 机壳一体轮廓 + 深色内腔 -->
@@ -355,10 +339,10 @@ TEMPLATES.pendulumMill = {
       ${ring}
       ${disc}
       ${scraper}
-      <!-- 中心轴（2）+ 梅花架毂 + 摆臂/磨辊公转（绕中心轴沿磨环滚动，姿态保持）-->
+      <!-- 中心轴（2）+ 梅花架毂 + 摆臂/磨辊（静态，斜摆姿态）-->
       ${shaft}
       ${spiderHub}
-      ${orbits}
+      ${rollers}
       <!-- 进料落料粒子（步骤 4）：自顶部落向磨盘料床 -->
       ${feedDots}
       <!-- 顶部加压弹簧（1）+ 压杆 -->
