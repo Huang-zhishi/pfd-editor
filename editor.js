@@ -535,6 +535,12 @@ function normalizeMonitorProps(comp){
   if(p.monitorTag2!=null) delete p.monitorTag2;
   if(p.showLead===undefined) p.showLead = true;
 }
+// 双格成品储罐：补两格默认标注（默认值定义在 templates/productTankDual.js，模板与面板共用）
+function normalizeDualTankProps(comp){
+  const p = comp.props || (comp.props = {});
+  const d = productTankDualDefaults();
+  Object.keys(d).forEach(k=>{ if(p[k]===undefined) p[k] = d[k]; });
+}
 // 连接线起点：面板左/右边缘中点（按目标方向自动选边，避免线绕过面板）
 function monitorLeadAnchor(comp, target){
   const y = comp.y + comp.h/2;
@@ -1077,6 +1083,10 @@ function addComponent(type, x, y){
       { tag:'1#窑体温度TI_206F' }
     ];
   }
+  if(type==='productTankDual'){
+    // 双格成品储罐：写入两格默认标注（默认值定义在 templates/productTankDual.js，模板与面板共用）
+    Object.assign(props, productTankDualDefaults());
+  }
   if(type==='switchValve'){
     // 三通阀：支持手动（默认）与自动（绑定 A/B 开关量 sensor，互斥切换）
     props.switchValve = (props.switchValve===0 || props.switchValve===1) ? props.switchValve : 0;
@@ -1499,6 +1509,7 @@ function renderProps(){
   if(sel.kind==='component'){
     const comp = getComp(sel.id); if(!comp) return;
     const t = TEMPLATES[comp.type];
+    if(comp.type==='productTankDual') normalizeDualTankProps(comp);   // 补两格默认标注，面板与画布取值一致
     head_icon.textContent = t.name.slice(0,1); head_t.textContent = comp.props.name||t.name; head_s.textContent = `${t.name} · ${comp.id}`;
     const params = comp.props.params || [];
     body.innerHTML = `
@@ -1559,6 +1570,16 @@ function renderProps(){
         <div class="fg-row"><label>满量程</label><input type="number" id="rvLevelMax" value="${comp.props.levelMax||50}" min="1" step="1"></div>
         <div class="fg-row"><label>当前液位</label><input id="rvLevelNow" readonly value="—"></div>
         <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">绑定液位测点（填完整位号）后，罐内液面高度与读数带按实时值/满量程换算并同步更新；未绑定或无数据时按 60% 静态示意、读数显示 --。</div>
+      </div>
+      ` : ''}
+      ${comp.type==='productTankDual' ? `
+      <div class="fg">
+        <div class="fg-title">两格标注（画在罐内）</div>
+        <div class="fg-row"><label>左格名称</label><input id="dtNameA" value="${esc(comp.props.cellAName||'')}" placeholder="如 1#成品储罐"></div>
+        <div class="fg-row"><label>左格位号</label><input id="dtTagA" value="${esc(comp.props.cellATag||'')}" placeholder="如 V0301"></div>
+        <div class="fg-row"><label>右格名称</label><input id="dtNameB" value="${esc(comp.props.cellBName||'')}" placeholder="如 不合格品储罐"></div>
+        <div class="fg-row"><label>右格位号</label><input id="dtTagB" value="${esc(comp.props.cellBTag||'')}" placeholder="如 V0302"></div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">格名称过长会自动折两行居中；位号留空则不画。组件自身的「名称 / 位号」标签按上方「名称位置」显示在设备外，只想要格内标注时可把它们留空。</div>
       </div>
       ` : ''}
       ${comp.type==='screwConveyorLite' ? `
@@ -1697,6 +1718,15 @@ function renderProps(){
       if(lm){ lm.onchange = (e)=>{ const v=+e.target.value; comp.props.levelMax = (isFinite(v)&&v>0)?v:50; pushHistory(); renderAll(); setDirty(); refreshReactorLevel(sensorValueMap); }; }
       const ln = $('rvLevelNow');
       if(ln){ const lv = sensorValueMap[(comp.props.levelTag||'').trim()]; ln.value = lv ? (lv.value + (lv.unit||' m')) : '—'; }
+    }
+    // 双格成品储罐：两格格内标注（名称 / 位号），边输边更新画布
+    if(comp.type==='productTankDual'){
+      const bindCell = (inputId, key)=>{
+        const el = $(inputId); if(!el) return;
+        el.oninput = (e)=>{ comp.props[key] = e.target.value; setDirty(); renderAllDebounced(); };
+      };
+      bindCell('dtNameA','cellAName'); bindCell('dtTagA','cellATag');
+      bindCell('dtNameB','cellBName'); bindCell('dtTagB','cellBTag');
     }
     // 回转窑测温点配置
     if(comp.type==='rotaryKiln') renderKilnTempList(comp);

@@ -47,6 +47,7 @@ const TEMPLATE_FILES = [
   'silo',
   'storageSilo',
   'productTank',
+  'productTankDual',
   'hopper',
   'reactor',
   // 干燥煅烧与冷却
