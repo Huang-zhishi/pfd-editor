@@ -242,6 +242,7 @@
     this.liveMap = {};      // sensorTag -> {value,unit,reported_at}
     this.metaMap = {};      // sensorTag -> {type, unit, kiln_id}
     this.historyCache = {}; // sensorTag_timeRange -> {data, ts}
+    this.tagAlias = {};     // 归一化(trim)tag -> 后端原始 sensor_tag（可能带空格），history 精确查询用
     this.ready = false;
     this.error = null;      // 连接错误信息
   }
@@ -257,7 +258,10 @@
       }
       jl.data.forEach(d=>{
         if(d && d.sensor_tag){
-          this.metaMap[d.sensor_tag] = { type:d.type, unit:d.unit, kiln_id:d.kiln_id };
+          const t = d.sensor_tag.trim();
+          if(!t) return;
+          this.metaMap[t] = { type:d.type, unit:d.unit, kiln_id:d.kiln_id };
+          this.tagAlias[t] = d.sensor_tag;   // 保留后端原始名（可能带空格），供 history 精确查询
         }
       });
 
@@ -299,7 +303,7 @@
           list.push({
             cid:comp.id,
             key:tag,
-            label:p.k || tag,
+            label:tag,
             unit:unit,
             min:0,
             max:100,
@@ -339,8 +343,10 @@
         const m = {};
         j.data.forEach(d=>{
           if(d && d.sensor_tag){
-            const meta = this.metaMap[d.sensor_tag] || {};
-            m[d.sensor_tag] = {
+            const t = d.sensor_tag.trim();
+            if(!t) return;
+            const meta = this.metaMap[t] || {};
+            m[t] = {
               value:d.value,
               unit:d.unit || meta.unit || '',
               reported_at:d.reported_at,
@@ -468,7 +474,7 @@
       const g = findCompGroupDom(comp.id);
       if(!g) return;
       const gm = (comp.type === 'storageSilo') ? storageSiloGeom(comp.w, comp.h) : reactorGeom(comp.w, comp.h);
-      const live = (liveMap && comp.props.levelTag) ? liveMap[comp.props.levelTag] : null;
+      const live = (liveMap && comp.props.levelTag) ? liveMap[(comp.props.levelTag||'').trim()] : null;
       const frac = reactorLevelFrac(live ? live.value : NaN, comp.props.levelMax);
       const f = (frac==null) ? 0.6 : frac;
       const surfaceY = gm.bodyBot - (gm.bodyBot - gm.bodyTop) * f;
@@ -520,7 +526,8 @@
       return this.historyCache[cacheKey].data;
     }
     try{
-      const j = await SENSOR_API.history({ sensor_tag: s.sensorTag, time_range: tr });
+      const rawTag = (this.tagAlias && this.tagAlias[s.sensorTag]) || s.sensorTag;
+      const j = await SENSOR_API.history({ sensor_tag: rawTag, time_range: tr });
       if(j && Array.isArray(j.data) && j.data.length > 0){
         const arr = j.data.map(d=>({
           ts: d.reported_at ? new Date(d.reported_at).getTime() : now,
@@ -804,7 +811,7 @@
       if(!g) return;
       const tags = (comp.props && comp.props.monitorTags) || [];
       tags.forEach((t,i)=>{
-        const v = t.tag ? live[t.tag] : null;
+        const v = t.tag ? live[(t.tag||'').trim()] : null;
         const valEl = g.querySelector(`.mon-value[data-i="${i}"]`);
         const unitEl = g.querySelector(`.mon-unit[data-i="${i}"]`);
         if(valEl) valEl.textContent = (v && v.value!=null && v.value!=='') ? (typeof fmtMonValByType==='function' && v.type ? fmtMonValByType(v.value, v.type) : fmtMonVal(v.value)) : '--';
