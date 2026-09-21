@@ -288,14 +288,59 @@ function compRunState(comp, liveMap){
 function compStopped(comp){
   return hasAnimation(comp.type) && compRunState(comp).run === false;
 }
+/* ============================================================
+ * 运行开关对【连线】的影响：来源设备停止时，该条输出线的物料流动一并停止，
+ * 线色换成"停止色"（中性灰，与各介质本色明显区分），用来表示这条输出线已停。
+ *   · 判定口径 = 连线的 from 端（输出线）；管道若是自由折线（无 from）不受影响。
+ * ============================================================ */
+const PIPE_STOPPED_COLOR = '#6b7280';
+function pipeRunStopped(pipe){
+  if(!pipe || !pipe.from || !pipe.from.cid) return false;
+  const src = (typeof getComp==='function') ? getComp(pipe.from.cid) : null;
+  return !!(src && compStopped(src));
+}
+function pipeColorOf(pipe){
+  const pt = PIPE_TYPES[pipe.type] || PIPE_TYPES.solid;
+  return pipeRunStopped(pipe) ? PIPE_STOPPED_COLOR : pt.color;
+}
+/* 按运行态就地刷新单条连线的配色（不重建 DOM；光晕 / 主线 / 标签底 / 标签字） */
+function applyPipeColor(pipe){
+  if(!layerPipes) return;
+  const g = layerPipes.querySelector(`.pipe-group[data-id="${pipe.id}"]`);
+  if(!g) return;
+  const col = pipeColorOf(pipe);
+  const paths = g.querySelectorAll('path');
+  if(paths[0]) paths[0].setAttribute('stroke', col);
+  if(paths[1]){ paths[1].setAttribute('stroke', col); paths[1].style.color = col; }
+  const rects = g.querySelectorAll('rect');
+  const texts = g.querySelectorAll('text');
+  if(rects[0]) rects[0].setAttribute('stroke', col);
+  if(texts[0]) texts[0].setAttribute('fill', col);
+}
+/* 刷新以某组件为来源的所有输出线配色 */
+function applyPipesFrom(compId, docArg){
+  const d = docArg || (typeof doc!=='undefined' ? doc : null);
+  if(!d || !Array.isArray(d.pipes)) return;
+  d.pipes.forEach(p=>{ if(p.from && p.from.cid === compId) applyPipeColor(p); });
+}
+/* 属性面板「当前状态」胶囊：按运行态着色（运行=绿 / 停止=红 / 未绑定或无数据=灰） */
+function setRunStatePill(el, st){
+  if(!el) return;
+  const txt = el.querySelector('span:last-child');
+  if(txt) txt.textContent = runStateText(st);
+  const known = st.values.filter(x=>x.on != null);
+  const active = !!(st.bound && known.length);
+  el.classList.toggle('on', active && st.run);
+  el.classList.toggle('off', active && !st.run);
+  el.classList.toggle('idle', !active);
+}
 /* 运行状态文案（属性面板「当前状态」回显） */
 function runStateText(st){
-  if(!st.bound) return '运行中（未绑定，默认运行）';
+  if(!st.bound) return '运行中 · 未绑定';
   const known = st.values.filter(x=>x.on != null);
-  if(!known.length) return `运行中（绑定 ${st.values.length} 个位号，暂无数据）`;
+  if(!known.length) return `运行中 · ${st.values.length} 个位号暂无数据`;
   const on = known.filter(x=>x.on).length;
-  const lg = st.logic === 'or' ? '或' : '与';
-  return `${st.run ? '运行中' : '已停止'}（${lg}逻辑：${on}/${known.length} 为 1）`;
+  return `${st.run ? '运行中' : '已停止'} · ${st.logic === 'or' ? '或' : '与'} ${on}/${known.length}`;
 }
 /* 端口相对坐标（0~1）：模板里既可以写固定比例，也可以写 (w,h)=>比例 的函数。
    函数式端口用于"定尺部件位置不随机身加高而变"的组件（如斗式提升机的机头/出料溜槽），
@@ -465,12 +510,13 @@ function renderAll(){
     }
     if(!pts || pts.length<2) return;
     const pt = PIPE_TYPES[pipe.type] || PIPE_TYPES.solid;
+    const col = pipeColorOf(pipe);      // 来源设备停止 → 停止色（见「运行开关对连线的影响」）
     const d = ptsToPath(pts);
     const bw = pipe.width || 2.5;
     // 底层光晕：半透明宽描边，营造发光质感（大厂流程图常用双层描边）
     const glow = createSVG('path');
     glow.setAttribute('d', d);
-    glow.setAttribute('stroke', pt.color);
+    glow.setAttribute('stroke', col);
     glow.setAttribute('stroke-width', bw + 5);
     glow.setAttribute('stroke-linecap','round');
     glow.setAttribute('stroke-linejoin','round');
@@ -481,13 +527,13 @@ function renderAll(){
     const path = createSVG('path');
     path.setAttribute('d', d);
     path.setAttribute('class','pipe' + (selHas('pipe',pipe.id) ? ' pipe-sel':''));
-    path.setAttribute('stroke', pt.color);
+    path.setAttribute('stroke', col);
     path.setAttribute('stroke-width', bw);
     path.setAttribute('stroke-linecap','round');
     path.setAttribute('stroke-linejoin','round');
     path.setAttribute('stroke-dasharray', pt.dash==='none' ? '' : pt.dash);
     path.setAttribute('fill','none');
-    path.style.color = pt.color;
+    path.style.color = col;
     g.appendChild(path);
     // label（可沿线拖动，位置由 pipe.labelPos 0~1 决定）
     if(pipe.label){
@@ -496,11 +542,11 @@ function renderAll(){
       const bg = createSVG('rect');
       bg.setAttribute('x', mid.x-tw/2); bg.setAttribute('y', mid.y-9);
       bg.setAttribute('width', tw); bg.setAttribute('height', 16); bg.setAttribute('rx',3);
-      bg.setAttribute('fill','#12112Bee'); bg.setAttribute('stroke', pt.color); bg.setAttribute('stroke-width',0.8);
+      bg.setAttribute('fill','#12112Bee'); bg.setAttribute('stroke', col); bg.setAttribute('stroke-width',0.8);
       bg.setAttribute('opacity', 0.9);
       g.appendChild(bg);
       const tx = createSVG('text'); tx.setAttribute('x', mid.x); tx.setAttribute('y', mid.y+3);
-      tx.setAttribute('text-anchor','middle'); tx.setAttribute('font-size','10'); tx.setAttribute('fill', pt.color);
+      tx.setAttribute('text-anchor','middle'); tx.setAttribute('font-size','10'); tx.setAttribute('fill', col);
       tx.setAttribute('font-family','inherit'); tx.textContent = pipe.label;
       g.appendChild(tx);
       // 拖动把手：选中时可水平沿线拖动标签
@@ -1597,7 +1643,22 @@ function sameConnection(p, from, to){
 
 /* ============================================================
  * 11. 属性面板
+ *   布局：卡片式分组（标题可点折叠，折叠状态按标题记忆、切组件后保持）。
  * ============================================================ */
+const fgCollapsed = Object.create(null);   // { 分组标题: true } —— 会话内记住折叠状态
+function bindFgCollapse(scope){
+  if(!scope) return;
+  scope.querySelectorAll('.fg').forEach(fg=>{
+    const head = fg.querySelector('.fg-title');
+    if(!head) return;
+    const key = head.textContent.trim();
+    if(fgCollapsed[key]) fg.classList.add('collapsed');
+    head.onclick = ()=>{
+      fg.classList.toggle('collapsed');
+      fgCollapsed[key] = fg.classList.contains('collapsed');
+    };
+  });
+}
 // 输入防抖：连续输入时延迟执行，避免每次按键都触发整幅画布重渲染
 function debounce(fn, ms){
   let t;
@@ -1672,11 +1733,17 @@ function renderProps(){
       </div>
       <div class="fg">
         <div class="fg-title">几何</div>
-        <div class="fg-row"><label>X</label><input type="number" id="pX" value="${Math.round(comp.x)}"></div>
-        <div class="fg-row"><label>Y</label><input type="number" id="pY" value="${Math.round(comp.y)}"></div>
-        <div class="fg-row"><label>宽</label><input type="number" id="pW" value="${Math.round(comp.w)}"></div>
-        ${comp.type!=='monitor' ? `<div class="fg-row"><label>高</label><input type="number" id="pH" value="${Math.round(comp.h)}"></div>` : `<div class="fg-row"><label>高</label><input value="随监控项数量自动" readonly></div>`}
-        <div class="fg-row"><label>旋转°</label><div class="rot-row"><input type="number" id="pRot" value="${comp.rotation||0}"><button class="mini-btn" id="pRotL" title="左旋 90°">↺</button><button class="mini-btn" id="pRotR" title="右旋 90°">↻</button></div></div>
+        <div class="fg-row2">
+          <div class="fld"><label title="横坐标">X</label><input type="number" id="pX" value="${Math.round(comp.x)}"></div>
+          <div class="fld"><label title="纵坐标">Y</label><input type="number" id="pY" value="${Math.round(comp.y)}"></div>
+        </div>
+        <div class="fg-row2">
+          <div class="fld"><label title="宽度">宽</label><input type="number" id="pW" value="${Math.round(comp.w)}"></div>
+          ${comp.type!=='monitor'
+            ? `<div class="fld"><label title="高度">高</label><input type="number" id="pH" value="${Math.round(comp.h)}"></div>`
+            : `<div class="fld"><label title="高度">高</label><input value="随监控项自动" readonly></div>`}
+        </div>
+        <div class="fg-row"><label>旋转</label><div class="rot-row"><input type="number" id="pRot" value="${comp.rotation||0}" title="旋转角度（度）"><button class="mini-btn" id="pRotL" title="左旋 90°">↺</button><button class="mini-btn" id="pRotR" title="右旋 90°">↻</button></div></div>
         <div class="fg-row"><label>镜像</label><div class="btn-group" id="mirrorGroup"><button class="pr-btn s-btn ${!comp.props.mirrored?'active':''}" data-m="0">正常 →</button><button class="pr-btn s-btn ${comp.props.mirrored?'active':''}" data-m="1">镜像 ←</button></div></div>
       </div>
       ${comp.type==='switchValve' ? `
@@ -1702,7 +1769,7 @@ function renderProps(){
           <div class="fg-row"><label>A 路 sensor</label><input id="svSensorA" value="${esc(comp.props.sensorA||'')}" placeholder="如 1#锰粉仓进料机L0201A状态"></div>
           <div class="fg-row"><label>B 路 sensor</label><input id="svSensorB" value="${esc(comp.props.sensorB||'')}" placeholder="如 1#锰粉仓进料机L0201B状态"></div>
           <div class="fg-row"><label>当前自动激活</label><input id="svAutoActive" readonly value="—"></div>
-          <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">互斥规则：A、B 任一为 1 时对应出口激活；都 0 / 都 1 时保持手动值。下方显示 A/B 实时取值与当前激活路。</div>
+          <div class="fg-hint">互斥规则：A、B 任一为 1 时对应出口激活；都 0 / 都 1 时保持手动值。下方显示 A/B 实时取值与当前激活路。</div>
         </div>
       </div>
       ` : ''}
@@ -1710,7 +1777,7 @@ function renderProps(){
       <div class="fg">
         <div class="fg-title">窑体测温点（左→右颜色渐变）</div>
         <div class="kiln-temps" id="kilnTempList"></div>
-        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">4 个测温点对应窑体从左到右的颜色锚点，温度越高颜色越暖（暗红→橙→红→白热，全程无冷色）。填完整位号，如「1#窑体温度TI_206A」。</div>
+        <div class="fg-hint">4 个测温点对应窑体从左到右的颜色锚点，温度越高颜色越暖（暗红→橙→红→白热，全程无冷色）。填完整位号，如「1#窑体温度TI_206A」。</div>
       </div>
       ` : ''}
       ${(comp.type==='reactor'||comp.type==='storageSilo') ? `
@@ -1719,7 +1786,7 @@ function renderProps(){
         <div class="fg-row"><label>液位 Tag</label><input id="rvLevelTag" value="${esc(comp.props.levelTag||'')}" placeholder="如 1#粉煤灰仓料位"></div>
         <div class="fg-row"><label>满量程</label><input type="number" id="rvLevelMax" value="${comp.props.levelMax||50}" min="1" step="1"></div>
         <div class="fg-row"><label>当前液位</label><input id="rvLevelNow" readonly value="—"></div>
-        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">绑定液位测点（填完整位号）后，罐内液面高度与读数带按实时值/满量程换算并同步更新；未绑定或无数据时按 60% 静态示意、读数显示 --。</div>
+        <div class="fg-hint">绑定液位测点（填完整位号）后，罐内液面高度与读数带按实时值/满量程换算并同步更新；未绑定或无数据时按 60% 静态示意、读数显示 --。</div>
       </div>
       ` : ''}
       ${comp.type==='productTankDual' ? `
@@ -1729,7 +1796,7 @@ function renderProps(){
         <div class="fg-row"><label>左格位号</label><input id="dtTagA" value="${esc(comp.props.cellATag||'')}" placeholder="如 V0301"></div>
         <div class="fg-row"><label>右格名称</label><input id="dtNameB" value="${esc(comp.props.cellBName||'')}" placeholder="如 不合格品储罐"></div>
         <div class="fg-row"><label>右格位号</label><input id="dtTagB" value="${esc(comp.props.cellBTag||'')}" placeholder="如 V0302"></div>
-        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">格名称过长会自动折两行居中；位号留空则不画。组件自身的「名称 / 位号」标签按上方「名称位置」显示在设备外，只想要格内标注时可把它们留空。</div>
+        <div class="fg-hint">格名称过长会自动折两行居中；位号留空则不画。组件自身的「名称 / 位号」标签按上方「名称位置」显示在设备外，只想要格内标注时可把它们留空。</div>
       </div>
       ` : ''}
       ${hasAnimation(comp.type) ? `
@@ -1745,8 +1812,8 @@ function renderProps(){
           <div class="tag-suggest" id="runTagSuggest"></div>
         </div>
         <div class="params-list" id="runTagList"></div>
-        <div class="fg-row"><label>当前状态</label><input id="runState" readonly value="—"></div>
-        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">绑定设备开关量测点（值 1 = 运行 / 0 = 停止）后，本组件动画随之启停并定格。可绑多个位号，按上方逻辑判定：<b>与</b> = 已取到值的位号全部为 1 才运行，<b>或</b> = 任一为 1 即运行；未绑定或全部暂无数据时按「运行」处理。位号须填完整（含前缀），也可直接回车手工添加。</div>
+        <div class="fg-row"><label>当前状态</label><div class="pill idle" id="runState"><span class="pdot"></span><span>—</span></div></div>
+        <div class="fg-hint">绑定开关量测点（1 = 运行 / 0 = 停止）后，本组件动画随之启停并定格，其输出线同步停流变色。<b>与</b>：已取到值的位号全为 1 才运行；<b>或</b>：任一为 1 即运行。位号填完整（含前缀），可回车手工添加。</div>
       </div>
       ` : ''}
       ${comp.type==='monitor' ? `
@@ -1758,7 +1825,7 @@ function renderProps(){
           <div class="tag-suggest" id="monTagSuggest"></div>
         </div>
         <div class="params-list" id="monTagList"></div>
-        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">每个监控项在面板上占一行（标签 + 实时值 + 单位），底部显示数据更新时间；高度随监控项数量自动调整。</div>
+        <div class="fg-hint">每个监控项在面板上占一行（标签 + 实时值 + 单位），底部显示数据更新时间；高度随监控项数量自动调整。</div>
       </div>
       <div class="fg">
         <div class="fg-title">归属指向折线</div>
@@ -1767,7 +1834,7 @@ function renderProps(){
         <div class="fg-row"><label>中间折点</label><div class="btn-group"><button class="pr-btn" id="btnClearBend">清除折点</button></div></div>
         <div class="fg-row"><label>线宽</label><input type="number" id="monLeadWidth" value="${monitorLeadStyle().width}" min="0.5" max="6" step="0.1" title="全局：所有监控器折线"></div>
         <div class="fg-row"><label>透明度</label><input type="number" id="monLeadOpacity" value="${monitorLeadStyle().opacity}" min="0" max="1" step="0.05" title="全局：所有监控器折线"></div>
-        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">选中监控器后，拖动画布上的圆形把手改变指向目标；靠近设备 / 端口 / 管道时自动吸附。线宽 / 透明度对所有监控器全局生效。</div>
+        <div class="fg-hint">选中监控器后，拖动画布上的圆形把手改变指向目标；靠近设备 / 端口 / 管道时自动吸附。线宽 / 透明度对所有监控器全局生效。</div>
       </div>
       ` : `
       <div class="fg">
@@ -1830,8 +1897,7 @@ function renderProps(){
       renderRunTagList(comp);
       const lg = $('runLogicGroup');
       if(lg){ lg.querySelectorAll('.s-btn').forEach(b=>{ b.onclick=()=>{ comp.props.runLogic = b.dataset.lg; pushHistory(); renderAll(); renderProps(); setDirty(); refreshRunState(sensorValueMap); }; }); }
-      const rs = $('runState');
-      if(rs) rs.value = runStateText(compRunState(comp));
+      setRunStatePill($('runState'), compRunState(comp));
     }
     // 反应釜 / 储料仓：液位动态绑定 tag + 满量程
     if(comp.type==='reactor' || comp.type==='storageSilo'){
@@ -1932,6 +1998,7 @@ function renderProps(){
     $('btnRev').onclick = ()=>{ const t=pipe.from; pipe.from=pipe.to; pipe.to=t; pushHistory(); renderAll(); renderProps(); setDirty(); };
     $('btnDelPipe').onclick = deleteSelected;
   }
+  bindFgCollapse(body);   // 分组卡片折叠（标题可点，状态按标题记忆）
 }
 /* ============================================================
  * 12. 属性面板：运行参数（Tag）管理模式
@@ -2418,12 +2485,9 @@ function refreshRunState(liveMap, docArg){
     if(_bodyEl && String(_bodyEl.tagName).toLowerCase()==='g'){ _bodyEl.innerHTML = outInner; }
     else { g.innerHTML = outInner; }
     g.dataset.run = run ? '1' : '0';
+    applyPipesFrom(comp.id, d);   // 该组件的输出线配色随之刷新（停止 → 停止色）
     // 属性面板「当前状态」readout（仅当面板已渲染）
-    const rs = (typeof $==='function') ? $('runState') : null;
-    if(rs){
-      if(st.value==null) rs.value = '运行中（绑定但暂无数据）';
-      else rs.value = run ? `运行中（值=${st.value}）` : `已停止（值=${st.value}）`;
-    }
+    if(typeof setRunStatePill==='function') setRunStatePill((typeof $==='function') ? $('runState') : null, st);
   });
 }
 /* 兼容旧名：预览页 / 早先导出的单文件 HTML 仍可能按名调用 */
@@ -3035,12 +3099,13 @@ function startFlow(){
     // 计算当前需要的粒子总数（含拖尾）
     const n = FLOW_TRAIL + 1;
     let need = 0;
-    doc.pipes.forEach(pipe=>{ if(pipe._pts && pipe._pts.length>=2) need += 3*n; });
+    doc.pipes.forEach(pipe=>{ if(pipe._pts && pipe._pts.length>=2 && !pipeRunStopped(pipe)) need += 3*n; });
     ensureNodes(need);
     let idx = 0;
     // 管道粒子（含拖尾：沿路径滞后、渐隐渐小）
     doc.pipes.forEach(pipe=>{
       if(!pipe._pts || pipe._pts.length<2) return;
+      if(pipeRunStopped(pipe)) return;     // 来源设备停止 → 该输出线不再走料
       const pt = PIPE_TYPES[pipe.type] || PIPE_TYPES.solid;
       const t = (performance.now()/1000 * pt.speed) % 1;
       for(let k=0;k<3;k++){

@@ -79,35 +79,37 @@
   .hover-panel .hp-time{font-size:9px;color:var(--text4,var(--text3));margin-top:5px;padding-top:5px;border-top:1px dashed var(--line)}
 
   /* Detail panel */
-  .detail-panel{position:absolute;top:0;right:0;bottom:0;width:350px;z-index:25;background:var(--panel);border-left:1px solid var(--line2);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .2s}
+  .detail-panel{position:absolute;top:0;right:0;bottom:0;width:360px;z-index:25;background:var(--panel);border-left:1px solid var(--line2);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);box-shadow:-12px 0 32px #00000055}
   .detail-panel.open{transform:translateX(0)}
-  .dp-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line2)}
-  .dp-head .dp-name{font-size:14px;font-weight:600}
-  .dp-head .dp-tag{font-size:10px;color:var(--cyan);padding:1px 6px;background:#00E5FF1a;border-radius:4px}
-  .dp-head .dp-close{margin-left:auto;cursor:pointer;color:var(--text3);font-size:18px;line-height:1;padding:2px 6px;border-radius:4px}
+  .dp-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line2);background:linear-gradient(180deg,#141330,#0f0e22)}
+  .dp-head .dp-name{font-size:13.5px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dp-head .dp-tag{font-size:10px;color:var(--cyan);padding:2px 8px;background:#00E5FF1a;border:1px solid #00E5FF33;border-radius:10px;flex-shrink:0;font-variant-numeric:tabular-nums}
+  .dp-head .dp-close{margin-left:auto;cursor:pointer;color:var(--text3);font-size:16px;line-height:1;padding:4px 8px;border-radius:6px;transition:.15s;flex-shrink:0}
   .dp-head .dp-close:hover{color:var(--red);background:#ef44441a}
-  .dp-body{flex:1;overflow-y:auto;padding:12px 14px}
-  .dp-body::-webkit-scrollbar{width:6px}
-  .dp-body::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
-  .dp-sec{font-size:10px;color:var(--text3);letter-spacing:2px;margin:10px 0 6px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .dp-body{flex:1;overflow-y:auto;padding:14px;overscroll-behavior:contain}
+  .dp-body::-webkit-scrollbar{width:8px}
+  .dp-body::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px;border:2px solid transparent;background-clip:padding-box}
+  .dp-body::-webkit-scrollbar-thumb:hover{background:var(--line3);background-clip:padding-box}
+  .dp-sec{font-size:11px;color:var(--text2);letter-spacing:.5px;margin:14px 0 8px;font-weight:600;display:flex;align-items:center;gap:6px}
   .dp-sec::before{content:"";width:2px;height:11px;background:var(--purple);border-radius:1px}
   .dp-sec:first-child{margin-top:0}
-  .dp-sensors{display:flex;flex-direction:column;gap:5px}
-  .dp-sensor{display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--bg);border:1px solid var(--line);border-radius:6px;cursor:pointer;transition:.12s}
-  .dp-sensor:hover{border-color:var(--line2)}
-  .dp-sensor.active{border-color:var(--cyan);background:#00E5FF0d}
-  .dp-sensor .sdot{width:8px;height:8px;border-radius:50%;background:var(--cyan);flex-shrink:0}
+  .dp-sensors{display:flex;flex-direction:column;gap:6px}
+  .dp-sensor{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#ffffff06;border:1px solid var(--line);border-radius:8px;cursor:pointer;transition:.15s}
+  .dp-sensor:hover{border-color:var(--line3);background:#ffffff0a}
+  .dp-sensor.active{border-color:var(--cyan);background:#00E5FF0f;box-shadow:0 0 0 3px #00E5FF14}
+  .dp-sensor .sdot{width:7px;height:7px;border-radius:50%;background:var(--cyan);flex-shrink:0;box-shadow:0 0 7px #00E5FF99}
   .dp-sensor .sname{font-size:12px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .dp-sensor .sval{font-size:13px;font-weight:600;color:var(--cyan);font-variant-numeric:tabular-nums}
   .dp-sensor .sun{font-size:9px;color:var(--text3);margin-left:2px}
-  .dp-empty{font-size:11px;color:var(--text4,var(--text3));text-align:center;padding:20px 0;line-height:1.8}
-  .range-bar{display:flex;gap:4px;margin-bottom:8px}
-  .range-bar button{flex:1;height:24px;font-size:10px;border:1px solid var(--line2);background:var(--panel2);color:var(--text3);border-radius:4px;cursor:pointer;transition:.12s}
+  .dp-empty{font-size:11px;color:var(--text4,var(--text3));text-align:center;padding:24px 12px;line-height:1.8;border:1px dashed var(--line2);border-radius:8px;background:#ffffff05}
+  .range-bar{display:flex;gap:6px;margin-bottom:10px}
+  .range-bar button{flex:1;min-width:0;height:26px;font-size:10px;border:1px solid var(--line2);background:var(--panel2);color:var(--text3);border-radius:6px;cursor:pointer;transition:.15s;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .range-bar button:hover{color:var(--text);border-color:var(--line3)}
   .range-bar button.active{background:var(--purple);color:#0a0a1a;border-color:var(--purple);font-weight:600}
   .chart-title{font-size:11px;color:var(--text2);margin-bottom:6px;display:flex;justify-content:space-between;align-items:baseline}
   .chart-title .ct-cur{color:var(--cyan);font-weight:600;font-variant-numeric:tabular-nums}
   #chart{cursor:crosshair}
-  .dp-note{font-size:10px;color:var(--text4,var(--text3));margin-top:8px;line-height:1.6}
+  .dp-note{font-size:10px;color:var(--text4,var(--text3));margin-top:10px;line-height:1.65;background:#ffffff06;border-left:2px solid var(--line3);border-radius:0 6px 6px 0;padding:7px 9px}
 
   /* Status bar */
   .status{height:26px;display:flex;align-items:center;padding:0 14px;gap:18px;background:var(--panel);border-top:1px solid var(--line2);font-size:11px;color:var(--text3);flex-shrink:0}
@@ -457,6 +459,30 @@
   function compStopped(comp){
     return hasAnimation(comp.type) && compRunState(comp).run === false;
   }
+  /* 运行开关对【连线】的影响：来源设备停止 → 该输出线的物料流动停止、线色换成"停止色" */
+  const PIPE_STOPPED_COLOR = '#6b7280';
+  function pipeRunStopped(pipe){
+    if(!pipe || !pipe.from || !pipe.from.cid) return false;
+    const src = (doc && Array.isArray(doc.components)) ? doc.components.find(c=>c.id===pipe.from.cid) : null;
+    return !!(src && compStopped(src));
+  }
+  function pipeColorOf(pipe){
+    const pt = PIPE_TYPES[pipe.type] || PIPE_TYPES.solid;
+    return pipeRunStopped(pipe) ? PIPE_STOPPED_COLOR : pt.color;
+  }
+  function applyPipeColor(pipe){
+    const g = layerPipes.querySelector('.pipe-group[data-id="'+pipe.id+'"]');
+    if(!g) return;
+    const col = pipeColorOf(pipe);
+    const rects = g.querySelectorAll('rect'), texts = g.querySelectorAll('text'), paths = g.querySelectorAll('path');
+    if(paths[0]) paths[0].setAttribute('stroke', col);
+    if(rects[0]) rects[0].setAttribute('stroke', col);
+    if(texts[0]) texts[0].setAttribute('fill', col);
+  }
+  function applyPipesFrom(compId){
+    if(!doc || !Array.isArray(doc.pipes)) return;
+    doc.pipes.forEach(p=>{ if(p.from && p.from.cid === compId) applyPipeColor(p); });
+  }
   function refreshRunState(liveMap, docArg){
     const d = docArg || (typeof doc!=='undefined' ? doc : null);
     if(!liveMap || !d || !Array.isArray(d.components)) return;
@@ -478,6 +504,7 @@
         : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
       g.innerHTML = outInner;
       g.dataset.run = run ? '1' : '0';
+      applyPipesFrom(comp.id);   // 该组件的输出线配色随之刷新（停止 → 停止色）
     });
   }
   // 兼容旧名：早先导出的单文件 HTML 仍可能按名调用
@@ -856,6 +883,7 @@
     // Pipes
     doc.pipes.forEach(pipe=>{
       const g = mk('g');
+      g.setAttribute('class','pipe-group'); g.dataset.id = pipe.id;   // 与编辑器一致：便于按 id 就地刷新配色
       let pts;
       if(pipe.from && pipe.to){
         const c1 = getComp(pipe.from.cid);
@@ -872,10 +900,11 @@
       }
       if(!pts || pts.length<2) return;
       const pt = PIPE_TYPES[pipe.type] || PIPE_TYPES.solid;
+      const col = pipeColorOf(pipe);   // 来源设备停止 → 停止色
       const path = mk('path');
       path.setAttribute('d', ptsToD(pts));
       path.setAttribute('class','pipe');
-      path.setAttribute('stroke', pt.color);
+      path.setAttribute('stroke', col);
       path.setAttribute('stroke-width', pipe.width || 2.5);
       path.setAttribute('stroke-dasharray', pt.dash==='none' ? '' : pt.dash);
       g.appendChild(path);
@@ -885,11 +914,11 @@
         const bg = mk('rect');
         bg.setAttribute('x', mid.x-tw/2); bg.setAttribute('y', mid.y-9);
         bg.setAttribute('width', tw); bg.setAttribute('height', 16); bg.setAttribute('rx',3);
-        bg.setAttribute('fill','#12112Bee'); bg.setAttribute('stroke', pt.color); bg.setAttribute('stroke-width',0.8);
+        bg.setAttribute('fill','#12112Bee'); bg.setAttribute('stroke', col); bg.setAttribute('stroke-width',0.8);
         g.appendChild(bg);
         const tx = mk('text');
         tx.setAttribute('x', mid.x); tx.setAttribute('y', mid.y+3);
-        tx.setAttribute('text-anchor','middle'); tx.setAttribute('font-size','10'); tx.setAttribute('fill', pt.color);
+        tx.setAttribute('text-anchor','middle'); tx.setAttribute('font-size','10'); tx.setAttribute('fill', col);
         tx.setAttribute('font-family','inherit'); tx.textContent = pipe.label;
         g.appendChild(tx);
       }
@@ -1369,12 +1398,13 @@
       // 计算当前需要的粒子总数（含拖尾）
       const n = FLOW_TRAIL + 1;
       let need = 0;
-      doc.pipes.forEach(pipe=>{ if(pipe._pts && pipe._pts.length>=2) need += 3*n; });
+      doc.pipes.forEach(pipe=>{ if(pipe._pts && pipe._pts.length>=2 && !pipeRunStopped(pipe)) need += 3*n; });
       ensureNodes(need);
       let idx = 0;
       // 管道粒子（含拖尾：沿路径滞后、渐隐渐小）
       doc.pipes.forEach(pipe=>{
         if(!pipe._pts || pipe._pts.length<2) return;
+        if(pipeRunStopped(pipe)) return;   // 来源设备停止 → 该输出线不再走料
         const pt = PIPE_TYPES[pipe.type] || PIPE_TYPES.solid;
         const t = (performance.now()/1000 * (pt.speed||0.3)) % 1;
         for(let k=0;k<3;k++){
