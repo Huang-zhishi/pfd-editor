@@ -218,15 +218,22 @@ function stripSMIL(markup){
     .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g,'')
     .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g,'');
 }
+/* 端口相对坐标（0~1）：模板里既可以写固定比例，也可以写 (w,h)=>比例 的函数。
+   函数式端口用于"定尺部件位置不随机身加高而变"的组件（如斗式提升机的机头/出料溜槽），
+   按实际尺寸实算才能让连线锚点始终落在画面上真正的槽口/管口上。*/
+function portRatioX(pt, w, h){ return (typeof pt.x === 'function') ? pt.x(w, h) : pt.x; }
+function portRatioY(pt, w, h){ return (typeof pt.y === 'function') ? pt.y(w, h) : pt.y; }
 function portPos(comp, portId){
   const t = TEMPLATES[comp.type];
   if(!t) return null;
   const port = t.ports.find(p=>p.id===portId);
   if(!port) return null;
   const mirrored = comp.props && comp.props.mirrored;
+  const px = portRatioX(port, comp.w, comp.h);
+  const py = portRatioY(port, comp.w, comp.h);
   // 镜像翻转: x坐标取反, 方向 left/right 互换
-  const mx = mirrored ? (1 - port.x) : port.x;
-  const my = port.y;
+  const mx = mirrored ? (1 - px) : px;
+  const my = py;
   const dirMap = {up:'up', down:'down', left:'right', right:'left'};
   const mdir = mirrored ? (dirMap[port.dir] || port.dir) : port.dir;
   const r = (comp.rotation||0) * Math.PI / 180;
@@ -491,7 +498,8 @@ function renderAll(){
     }
     // ports（monitor 无交互端口）
     if(!isMonitor) t.ports.forEach(pt=>{
-      const px = (mirrored ? (1 - pt.x) : pt.x) * comp.w, py = pt.y*comp.h;
+      const rX = portRatioX(pt, comp.w, comp.h), rY = portRatioY(pt, comp.w, comp.h);
+      const px = (mirrored ? (1 - rX) : rX) * comp.w, py = rY*comp.h;
       const c = createSVG('circle');
       c.setAttribute('cx',px); c.setAttribute('cy',py); c.setAttribute('r',4);
       c.setAttribute('class','port' + (connectState && connectState.from && connectState.from.cid===comp.id && connectState.from.port===pt.id ? ' active':''));

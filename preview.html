@@ -689,8 +689,11 @@
     const pt = t.ports.find(p=>p.id===portId); if(!pt) return null;
     const rot = (comp.rotation||0) * Math.PI/180;
     const mirrored = comp.props && comp.props.mirrored;
-    const px = (mirrored ? (1-pt.x) : pt.x) * comp.w;
-    const py = pt.y * comp.h;
+    // 端口坐标可为 0~1 比例，也可为 (w,h)=>比例 的函数（定尺部件位置不随机身加高而变时用）
+    const ptX = (typeof pt.x === 'function') ? pt.x(comp.w, comp.h) : pt.x;
+    const ptY = (typeof pt.y === 'function') ? pt.y(comp.w, comp.h) : pt.y;
+    const px = (mirrored ? (1-ptX) : ptX) * comp.w;
+    const py = ptY * comp.h;
     const cx = comp.w/2, cy = comp.h/2;
     const cos = Math.cos(rot), sin = Math.sin(rot);
     const rx = cx + (px-cx)*cos - (py-cy)*sin;
