@@ -352,9 +352,7 @@
         if(typeof refreshKilnTemp==='function') refreshKilnTemp(this.liveMap, this.doc);
         if(typeof refreshReactorLevel==='function') refreshReactorLevel(this.liveMap, this.doc);
         if(typeof refreshSwitchValveAuto==='function') refreshSwitchValveAuto(this.liveMap, this.doc);
-        if(typeof refreshScrewConveyorRun==='function') refreshScrewConveyorRun(this.liveMap, this.doc);
-        if(typeof refreshFilterPressRun==='function') refreshFilterPressRun(this.liveMap, this.doc);
-        if(typeof refreshPendulumMillRun==='function') refreshPendulumMillRun(this.liveMap, this.doc);
+        if(typeof refreshRunState==='function') refreshRunState(this.liveMap, this.doc);   // 运行开关（开关 Tag）
       }
     }catch(e){
       console.warn('实时数据刷新失败:', e);
@@ -405,81 +403,59 @@
     });
   }
 
-  // 螺旋输送机(简化) 数据驱动动画：绑定开关 tag（runTag）时，值>=0.5 → 运行，否则停止；未绑定/无数据 → 默认运行。
-  function refreshScrewConveyorRun(liveMap, docArg){
+  /* 运行开关（开关 Tag）· 数据驱动动画（通用，与 editor.js 的 RUN_TAG_TYPES 保持一致）：
+     绑定开关 tag（runTag）时，值 >= 0.5 → 运行（生成动画），< 0.5 → 停止（剥掉 SMIL、画面定格）；
+     未绑定 / 绑定但暂无数据 → 默认运行。仅在运行态真变化时重生成该组件 innerHTML，避免 SMIL 重置。 */
+  const RUN_TAG_TYPES = new Set([
+    'screwConveyorLite',   // 螺旋输送机(简化)
+    'screwConveyor',       // 螺旋输送机
+    'bucketElevator',      // 斗式提升机
+    'classifier',          // 选粉机
+    'miningDryer',         // 烘干机
+    'blower',              // 离心风机/鼓风机
+    'blowerSingle',        // 离心风机(单进风)
+    'filterPress',         // 压滤机
+    'pendulumMill'         // 斜摆瀑料磨粉机
+  ]);
+  let liveMapCache = {};    // 最近一次实时数据（渲染时判断运行态用）
+  function compRunState(comp, liveMap){
+    const tag = ((comp && comp.props && comp.props.runTag) || '').trim();
+    if(!tag) return { bound:false, run:true, value:null };
+    const map = liveMap || liveMapCache || {};
+    const live = map[tag];
+    const v = live && isFinite(+live.value) ? +live.value : null;
+    return { bound:true, run: v==null ? true : v>=0.5, value:v };
+  }
+  function compStopped(comp){
+    return RUN_TAG_TYPES.has(comp.type) && compRunState(comp).run === false;
+  }
+  function refreshRunState(liveMap, docArg){
     const d = docArg || (typeof doc!=='undefined' ? doc : null);
     if(!liveMap || !d || !Array.isArray(d.components)) return;
+    liveMapCache = liveMap;
     d.components.forEach(comp=>{
-      if(comp.type !== 'screwConveyorLite') return;
-      const tag = (comp.props.runTag || '').trim();
-      if(!tag) return; // 未绑定：渲染时已按默认运行
-      const live = liveMap[tag];
-      const v = live && isFinite(+live.value) ? +live.value : null;
-      const run = v==null ? true : v>=0.5;
+      if(!RUN_TAG_TYPES.has(comp.type)) return;
+      const st = compRunState(comp, liveMap);
+      if(!st.bound) return;               // 未绑定：渲染时已按默认运行
+      const run = st.run;
       const g = findCompGroupDom(comp.id);
       if(!g) return;
       const cur = g.dataset.run;
       if(cur!==undefined && cur!=='' && cur!==null && cur===(run?'1':'0')) return;
-      const t = TEMPLATES['screwConveyorLite'];
+      const t = TEMPLATES[comp.type];
       if(!t) return;
-      const tmpProps = Object.assign({}, comp.props, { _run: run });
-      const inner = t.render(comp.w, comp.h, tmpProps);
-      const outInner = (typeof running!=='undefined' && running) ? inner : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
+      const inner = t.render(comp.w, comp.h, Object.assign({}, comp.props, { _run: run }));
+      const outInner = (run && (typeof running==='undefined' || running))
+        ? inner
+        : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
       g.innerHTML = outInner;
       g.dataset.run = run ? '1' : '0';
     });
   }
-
-  // 压滤机 数据驱动动画：绑定开关 tag（runTag）时，值>=0.5 → 进料/滤液流动动画运行，否则停止；未绑定/无数据 → 默认运行。
-  function refreshFilterPressRun(liveMap, docArg){
-    const d = docArg || (typeof doc!=='undefined' ? doc : null);
-    if(!liveMap || !d || !Array.isArray(d.components)) return;
-    d.components.forEach(comp=>{
-      if(comp.type !== 'filterPress') return;
-      const tag = (comp.props.runTag || '').trim();
-      if(!tag) return; // 未绑定：渲染时已按默认运行
-      const live = liveMap[tag];
-      const v = live && isFinite(+live.value) ? +live.value : null;
-      const run = v==null ? true : v>=0.5;
-      const g = findCompGroupDom(comp.id);
-      if(!g) return;
-      const cur = g.dataset.run;
-      if(cur!==undefined && cur!=='' && cur!==null && cur===(run?'1':'0')) return;
-      const t = TEMPLATES['filterPress'];
-      if(!t) return;
-      const tmpProps = Object.assign({}, comp.props, { _run: run });
-      const inner = t.render(comp.w, comp.h, tmpProps);
-      const outInner = (typeof running!=='undefined' && running) ? inner : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
-      g.innerHTML = outInner;
-      g.dataset.run = run ? '1' : '0';
-    });
-  }
-
-  // 斜摆瀑料磨粉机 数据驱动动画：绑定开关 tag（runTag）时，值>=0.5 → 磨辊公转/自转 +
-  // 联轴器刻线 + 落料/出料动画运行，否则停止；未绑定/无数据 → 默认运行。
-  function refreshPendulumMillRun(liveMap, docArg){
-    const d = docArg || (typeof doc!=='undefined' ? doc : null);
-    if(!liveMap || !d || !Array.isArray(d.components)) return;
-    d.components.forEach(comp=>{
-      if(comp.type !== 'pendulumMill') return;
-      const tag = (comp.props.runTag || '').trim();
-      if(!tag) return; // 未绑定：渲染时已按默认运行
-      const live = liveMap[tag];
-      const v = live && isFinite(+live.value) ? +live.value : null;
-      const run = v==null ? true : v>=0.5;
-      const g = findCompGroupDom(comp.id);
-      if(!g) return;
-      const cur = g.dataset.run;
-      if(cur!==undefined && cur!=='' && cur!==null && cur===(run?'1':'0')) return;
-      const t = TEMPLATES['pendulumMill'];
-      if(!t) return;
-      const tmpProps = Object.assign({}, comp.props, { _run: run });
-      const inner = t.render(comp.w, comp.h, tmpProps);
-      const outInner = (typeof running!=='undefined' && running) ? inner : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
-      g.innerHTML = outInner;
-      g.dataset.run = run ? '1' : '0';
-    });
-  }
+  // 兼容旧名：早先导出的单文件 HTML 仍可能按名调用
+  function refreshScrewConveyorRun(m, d){ return refreshRunState(m, d); }
+  function refreshFilterPressRun(m, d){ return refreshRunState(m, d); }
+  function refreshPendulumMillRun(m, d){ return refreshRunState(m, d); }
 
   // 反应釜：绑定液位 tag（levelTag）时按实时值/满量程换算液面高度并同步读数；
   // 未绑定 / 无数据 → 保持 60% 静态示意、读数显示 --（渲染时已如此）
@@ -905,8 +881,11 @@
       g.setAttribute('transform', `translate(${comp.x},${comp.y}) rotate(${comp.rotation||0} ${comp.w/2} ${comp.h/2})`);
       // 注：原 clip-path 为死代码（子节点被移出 bodyWrap），已移除
       const mirrored = comp.props && comp.props.mirrored;
-      const markup = running ? t.render(comp.w, comp.h, comp.props)
-                             : (typeof stripSMIL==='function' ? stripSMIL(t.render(comp.w, comp.h, comp.props)) : t.render(comp.w, comp.h, comp.props));
+      /* 运行开关：绑定开关 Tag 且值为 0 的组件不生成动画节点（画面定格）；未绑定/无数据按全局 running */
+      const stopped = (typeof compStopped==='function') && compStopped(comp);
+      const markup = (running && !stopped)
+        ? t.render(comp.w, comp.h, comp.props)
+        : (typeof stripSMIL==='function' ? stripSMIL(t.render(comp.w, comp.h, comp.props)) : t.render(comp.w, comp.h, comp.props));
       if(mirrored){
         const mirrorG = mk('g');
         mirrorG.setAttribute('transform', `translate(${comp.w},0) scale(-1,1)`);

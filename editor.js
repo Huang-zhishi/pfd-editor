@@ -218,6 +218,38 @@ function stripSMIL(markup){
     .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g,'')
     .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g,'');
 }
+/* ============================================================
+ * 运行开关（开关 Tag）：绑定位号后按实时值驱动设备动画开 / 停
+ *   · 值 >= 0.5 → 运行；< 0.5 → 停止（剥掉 SMIL，画面定格在停转瞬间）
+ *   · 未绑定 / 绑定但暂无数据 → 默认运行（不干预）
+ *   支持范围见 RUN_TAG_TYPES：属性面板为其渲染「运行控制」分组，
+ *   渲染时按运行态决定是否生成动画节点（停止 = 不生成，避免无谓的 SMIL 重置）。
+ * ============================================================ */
+const RUN_TAG_TYPES = new Set([
+  'screwConveyorLite',   // 螺旋输送机(简化)
+  'screwConveyor',       // 螺旋输送机
+  'bucketElevator',      // 斗式提升机
+  'classifier',          // 选粉机
+  'miningDryer',         // 烘干机
+  'blower',              // 离心风机/鼓风机
+  'blowerSingle',        // 离心风机(单进风)
+  'filterPress',         // 压滤机
+  'pendulumMill'         // 斜摆瀑料磨粉机
+]);
+/* 组件运行状态：{ bound:是否绑定开关 Tag, run:是否运行, value:实时值 }
+   liveMap 缺省取全局 sensorValueMap（预览页走局部 doc 时显式传入） */
+function compRunState(comp, liveMap){
+  const tag = ((comp && comp.props && comp.props.runTag) || '').trim();
+  if(!tag) return { bound:false, run:true, value:null };
+  const map = liveMap || ((typeof sensorValueMap!=='undefined') ? sensorValueMap : null);
+  const live = map ? map[tag] : null;
+  const v = live && isFinite(+live.value) ? +live.value : null;
+  return { bound:true, run: v==null ? true : v>=0.5, value:v };
+}
+/* 该组件当前是否需要"定格"（绑定开关 Tag 且值为 0） */
+function compStopped(comp){
+  return RUN_TAG_TYPES.has(comp.type) && compRunState(comp).run === false;
+}
 /* 端口相对坐标（0~1）：模板里既可以写固定比例，也可以写 (w,h)=>比例 的函数。
    函数式端口用于"定尺部件位置不随机身加高而变"的组件（如斗式提升机的机头/出料溜槽），
    按实际尺寸实算才能让连线锚点始终落在画面上真正的槽口/管口上。*/
@@ -454,7 +486,11 @@ function renderAll(){
     // 全局水平镜像：对所有组件统一处理
     // 注：原 bodyWrap 的 clip-path 为死代码（子节点随后被移出 bodyWrap），已移除以省去每台设备的 defs/clipPath 开销
     const mirrored = comp.props && comp.props.mirrored;
-    const markup = running ? t.render(comp.w, comp.h, comp.props) : stripSMIL(t.render(comp.w, comp.h, comp.props));
+    /* 运行开关：绑定开关 Tag 且值为 0 的组件直接不生成动画节点（画面定格）；
+       未绑定 / 暂无数据仍按全局 running 走。 */
+    const markup = (running && !compStopped(comp))
+      ? t.render(comp.w, comp.h, comp.props)
+      : stripSMIL(t.render(comp.w, comp.h, comp.props));
     if(mirrored){
       const mirrorG = createSVG('g');
       mirrorG.setAttribute('transform', `translate(${comp.w},0) scale(-1,1)`);
@@ -1590,28 +1626,12 @@ function renderProps(){
         <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">格名称过长会自动折两行居中；位号留空则不画。组件自身的「名称 / 位号」标签按上方「名称位置」显示在设备外，只想要格内标注时可把它们留空。</div>
       </div>
       ` : ''}
-      ${comp.type==='screwConveyorLite' ? `
+      ${RUN_TAG_TYPES.has(comp.type) ? `
       <div class="fg">
-        <div class="fg-title">输送机运行控制</div>
-        <div class="fg-row"><label>开关 Tag</label><input id="scRunTag" value="${esc(comp.props.runTag||'')}" placeholder="如 1#锰粉仓输送机运行状态"></div>
-        <div class="fg-row"><label>当前状态</label><input id="scRunState" readonly value="—"></div>
-        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">绑定输送机开关量测点后：值为 1 时螺旋输送动画运行、为 0 时停止；留空则始终运行。填完整位号（含前缀）。</div>
-      </div>
-      ` : ''}
-      ${comp.type==='filterPress' ? `
-      <div class="fg">
-        <div class="fg-title">压滤机运行控制</div>
-        <div class="fg-row"><label>开关 Tag</label><input id="fpRunTag" value="${esc(comp.props.runTag||'')}" placeholder="如 1#压滤机运行状态"></div>
-        <div class="fg-row"><label>当前状态</label><input id="fpRunState" readonly value="—"></div>
-        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">绑定压滤机开关量测点后：值为 1 时进料 / 滤液流动动画运行、为 0 时停止；留空则始终运行。填完整位号（含前缀）。</div>
-      </div>
-      ` : ''}
-      ${comp.type==='pendulumMill' ? `
-      <div class="fg">
-        <div class="fg-title">磨粉机运行控制</div>
-        <div class="fg-row"><label>开关 Tag</label><input id="pmRunTag" value="${esc(comp.props.runTag||'')}" placeholder="如 1#磨粉机主机运行状态"></div>
-        <div class="fg-row"><label>当前状态</label><input id="pmRunState" readonly value="—"></div>
-        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">绑定主机开关量测点后：值为 1 时磨辊公转 / 自转、联轴器刻线、落料与出料动画运行，为 0 时停止；留空则始终运行。填完整位号（含前缀）。</div>
+        <div class="fg-title">运行控制（开关 Tag）</div>
+        <div class="fg-row"><label>开关 Tag</label><input id="runTag" value="${esc(comp.props.runTag||'')}" placeholder="如 1#锰粉仓输送机运行状态"></div>
+        <div class="fg-row"><label>当前状态</label><input id="runState" readonly value="—"></div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">绑定该设备开关量测点（值 1 = 运行 / 0 = 停止）后，本组件动画随之启停并定格；留空或暂无数据则始终运行。填完整位号（含前缀）。</div>
       </div>
       ` : ''}
       ${comp.type==='monitor' ? `
@@ -1688,34 +1708,16 @@ function renderProps(){
       const aa = $('svAutoActive');
       if(aa){ aa.value = '—'; }
     }
-    // 螺旋输送机(简化)：绑定开关 tag，数据驱动动画开/停
-    if(comp.type==='screwConveyorLite'){
-      const rt = $('scRunTag');
-      if(rt){ rt.onchange = (e)=>{ comp.props.runTag = (e.target.value||'').trim(); pushHistory(); renderAll(); setDirty(); refreshScrewConveyorRun(sensorValueMap); }; }
-      const rs = $('scRunState');
+    // 运行开关（开关 Tag）：绑定位号后按实时值驱动动画开/停（支持范围见 RUN_TAG_TYPES）
+    if(RUN_TAG_TYPES.has(comp.type)){
+      const rt = $('runTag');
+      if(rt){ rt.onchange = (e)=>{ comp.props.runTag = (e.target.value||'').trim(); pushHistory(); renderAll(); setDirty(); refreshRunState(sensorValueMap); }; }
+      const rs = $('runState');
       if(rs){
-        const tag = (comp.props.runTag||'').trim();
-        rs.value = tag ? '运行中（绑定但暂无数据）' : '运行中（未绑定，默认运行）';
-      }
-    }
-    // 压滤机：绑定开关 tag，数据驱动进料/滤液流动动画开/停
-    if(comp.type==='filterPress'){
-      const rt = $('fpRunTag');
-      if(rt){ rt.onchange = (e)=>{ comp.props.runTag = (e.target.value||'').trim(); pushHistory(); renderAll(); setDirty(); refreshFilterPressRun(sensorValueMap); }; }
-      const rs = $('fpRunState');
-      if(rs){
-        const tag = (comp.props.runTag||'').trim();
-        rs.value = tag ? '运行中（绑定但暂无数据）' : '运行中（未绑定，默认运行）';
-      }
-    }
-    // 斜摆瀑料磨粉机：绑定开关 tag，数据驱动公转/自转 + 落料/出料动画开/停
-    if(comp.type==='pendulumMill'){
-      const rt = $('pmRunTag');
-      if(rt){ rt.onchange = (e)=>{ comp.props.runTag = (e.target.value||'').trim(); pushHistory(); renderAll(); setDirty(); refreshPendulumMillRun(sensorValueMap); }; }
-      const rs = $('pmRunState');
-      if(rs){
-        const tag = (comp.props.runTag||'').trim();
-        rs.value = tag ? '运行中（绑定但暂无数据）' : '运行中（未绑定，默认运行）';
+        const st = compRunState(comp);
+        if(!st.bound) rs.value = '运行中（未绑定，默认运行）';
+        else if(st.value==null) rs.value = '运行中（绑定但暂无数据）';
+        else rs.value = st.run ? `运行中（值=${st.value}）` : `已停止（值=${st.value}）`;
       }
     }
     // 反应釜 / 储料仓：液位动态绑定 tag + 满量程
@@ -1875,9 +1877,7 @@ async function refreshSensorValues(){
       refreshKilnTemp(sensorValueMap);
       refreshReactorLevel(sensorValueMap);   // 反应釜：绑定液位 tag 时按实时值更新液面与读数
       refreshSwitchValveAuto(sensorValueMap); // 三通阀自动模式：根据 A/B 开关量互斥切换
-      refreshScrewConveyorRun(sensorValueMap); // 螺旋输送机(简化)：按开关 tag 驱动动画开/停
-      refreshFilterPressRun(sensorValueMap); // 压滤机：按开关 tag 驱动进料/滤液流动动画开/停
-      refreshPendulumMillRun(sensorValueMap); // 斜摆瀑料磨粉机：按开关 tag 驱动公转/自转+落料/出料动画开/停
+      refreshRunState(sensorValueMap);       // 运行开关：按开关 tag 驱动各设备动画开/停（支持范围见 RUN_TAG_TYPES）
     }
   }catch(e){ /* 静默 */ }
 }
@@ -2278,111 +2278,45 @@ function refreshSwitchValveAuto(liveMap, docArg){
   });
 }
 
-// 螺旋输送机(简化) 数据驱动动画：绑定开关 tag（runTag）时，值>=0.5 → 运行（动画开），否则停止；未绑定/无数据 → 默认运行。
-// 仅在运行态真变化时重生成组件 innerHTML，避免无谓的 SMIL 重置。
-// docArg：预览页局部 doc 时需显式传入
-function refreshScrewConveyorRun(liveMap, docArg){
+/* 运行开关（开关 Tag）· 数据驱动动画（通用，支持范围见 RUN_TAG_TYPES）：
+   绑定开关 tag（runTag）时，值 >= 0.5 → 运行（生成动画），< 0.5 → 停止（剥掉 SMIL、画面定格）；
+   未绑定 / 绑定但暂无数据 → 默认运行。
+   仅在运行态真变化时重生成该组件 innerHTML，避免无谓的 SMIL 重置。
+   docArg：预览页局部 doc 时需显式传入 */
+function refreshRunState(liveMap, docArg){
   const d = docArg || doc;
   if(!liveMap || !d || !Array.isArray(d.components)) return;
   d.components.forEach(comp=>{
-    if(comp.type !== 'screwConveyorLite') return;
-    const tag = (comp.props.runTag || '').trim();
-    if(!tag) return; // 未绑定：renderAll 已按默认运行渲染，无需数据驱动
-    const live = liveMap[tag];
-    const v = live && isFinite(+live.value) ? +live.value : null;
-    const run = v==null ? true : v>=0.5;
+    if(!RUN_TAG_TYPES.has(comp.type)) return;
+    const st = compRunState(comp, liveMap);
+    if(!st.bound) return;                 // 未绑定：renderAll 已按默认运行渲染，无需数据驱动
+    const run = st.run;
     const g = findCompGroupDom(comp.id);
     if(!g) return;
     const cur = g.dataset.run;
     if(cur!==undefined && cur!=='' && cur!==null && cur===(run?'1':'0')) return;
-    const t = TEMPLATES['screwConveyorLite'];
+    const t = TEMPLATES[comp.type];
     if(!t) return;
-    const tmpProps = Object.assign({}, comp.props, { _run: run });
-    const inner = t.render(comp.w, comp.h, tmpProps);
-    const outInner = (typeof running!=='undefined' && running) ? inner : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
+    const inner = t.render(comp.w, comp.h, Object.assign({}, comp.props, { _run: run }));
+    const outInner = (run && (typeof running==='undefined' || running))
+      ? inner
+      : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
     const _bodyEl = g.children && g.children[0];
     if(_bodyEl && String(_bodyEl.tagName).toLowerCase()==='g'){ _bodyEl.innerHTML = outInner; }
     else { g.innerHTML = outInner; }
     g.dataset.run = run ? '1' : '0';
     // 属性面板「当前状态」readout（仅当面板已渲染）
-    const rs = (typeof $==='function') ? $('scRunState') : null;
+    const rs = (typeof $==='function') ? $('runState') : null;
     if(rs){
-      if(v==null) rs.value = '运行中（绑定但暂无数据）';
-      else rs.value = run ? `运行中（值=${v}）` : `已停止（值=${v}）`;
+      if(st.value==null) rs.value = '运行中（绑定但暂无数据）';
+      else rs.value = run ? `运行中（值=${st.value}）` : `已停止（值=${st.value}）`;
     }
   });
 }
-
-// 压滤机 数据驱动动画：绑定开关 tag（runTag）时，值>=0.5 → 进料/滤液流动动画运行，否则停止；未绑定/无数据 → 默认运行。
-// 仅在运行态真变化时重生成组件 innerHTML，避免无谓的 SMIL 重置。
-// docArg：预览页局部 doc 时需显式传入
-function refreshFilterPressRun(liveMap, docArg){
-  const d = docArg || doc;
-  if(!liveMap || !d || !Array.isArray(d.components)) return;
-  d.components.forEach(comp=>{
-    if(comp.type !== 'filterPress') return;
-    const tag = (comp.props.runTag || '').trim();
-    if(!tag) return; // 未绑定：renderAll 已按默认运行渲染，无需数据驱动
-    const live = liveMap[tag];
-    const v = live && isFinite(+live.value) ? +live.value : null;
-    const run = v==null ? true : v>=0.5;
-    const g = findCompGroupDom(comp.id);
-    if(!g) return;
-    const cur = g.dataset.run;
-    if(cur!==undefined && cur!=='' && cur!==null && cur===(run?'1':'0')) return;
-    const t = TEMPLATES['filterPress'];
-    if(!t) return;
-    const tmpProps = Object.assign({}, comp.props, { _run: run });
-    const inner = t.render(comp.w, comp.h, tmpProps);
-    const outInner = (typeof running!=='undefined' && running) ? inner : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
-    const _bodyEl = g.children && g.children[0];
-    if(_bodyEl && String(_bodyEl.tagName).toLowerCase()==='g'){ _bodyEl.innerHTML = outInner; }
-    else { g.innerHTML = outInner; }
-    g.dataset.run = run ? '1' : '0';
-    // 属性面板「当前状态」readout（仅当面板已渲染）
-    const rs = (typeof $==='function') ? $('fpRunState') : null;
-    if(rs){
-      if(v==null) rs.value = '运行中（绑定但暂无数据）';
-      else rs.value = run ? `运行中（值=${v}）` : `已停止（值=${v}）`;
-    }
-  });
-}
-
-// 斜摆瀑料磨粉机 数据驱动动画：绑定开关 tag（runTag）时，值>=0.5 → 磨辊公转/自转 +
-// 联轴器刻线 + 落料/出料动画运行，否则停止；未绑定/无数据 → 默认运行。
-// 仅在运行态真变化时重生成组件 innerHTML，避免无谓的 SMIL 重置。
-// docArg：预览页局部 doc 时需显式传入
-function refreshPendulumMillRun(liveMap, docArg){
-  const d = docArg || doc;
-  if(!liveMap || !d || !Array.isArray(d.components)) return;
-  d.components.forEach(comp=>{
-    if(comp.type !== 'pendulumMill') return;
-    const tag = (comp.props.runTag || '').trim();
-    if(!tag) return; // 未绑定：renderAll 已按默认运行渲染，无需数据驱动
-    const live = liveMap[tag];
-    const v = live && isFinite(+live.value) ? +live.value : null;
-    const run = v==null ? true : v>=0.5;
-    const g = findCompGroupDom(comp.id);
-    if(!g) return;
-    const cur = g.dataset.run;
-    if(cur!==undefined && cur!=='' && cur!==null && cur===(run?'1':'0')) return;
-    const t = TEMPLATES['pendulumMill'];
-    if(!t) return;
-    const tmpProps = Object.assign({}, comp.props, { _run: run });
-    const inner = t.render(comp.w, comp.h, tmpProps);
-    const outInner = (typeof running!=='undefined' && running) ? inner : (typeof stripSMIL==='function' ? stripSMIL(inner) : inner);
-    const _bodyEl = g.children && g.children[0];
-    if(_bodyEl && String(_bodyEl.tagName).toLowerCase()==='g'){ _bodyEl.innerHTML = outInner; }
-    else { g.innerHTML = outInner; }
-    g.dataset.run = run ? '1' : '0';
-    // 属性面板「当前状态」readout（仅当面板已渲染）
-    const rs = (typeof $==='function') ? $('pmRunState') : null;
-    if(rs){
-      if(v==null) rs.value = '运行中（绑定但暂无数据）';
-      else rs.value = run ? `运行中（值=${v}）` : `已停止（值=${v}）`;
-    }
-  });
-}
+/* 兼容旧名：预览页 / 早先导出的单文件 HTML 仍可能按名调用 */
+function refreshScrewConveyorRun(m, d){ return refreshRunState(m, d); }
+function refreshFilterPressRun(m, d){ return refreshRunState(m, d); }
+function refreshPendulumMillRun(m, d){ return refreshRunState(m, d); }
 
 /* ============================================================
  * 16. 操作：删除/复制/对齐/历史
