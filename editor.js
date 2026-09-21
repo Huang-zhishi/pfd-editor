@@ -3407,3 +3407,53 @@ loadSensorCatalog();
 setInterval(refreshSensorValues, 5000);
 startTagLiveUpdate();
 }
+
+/* ============================================================
+ * 29. 右下角实时帧率（编辑页与预览页共用，预览页嵌入模式下由 CSS 隐藏）
+ *   · rAF 采样帧间隔，指数滑动平均（EMA），忽略切后台/长任务造成的异常间隔
+ *   · 每 250ms 才写一次 DOM —— 每帧写 DOM 会让"测量工具"本身变成性能问题
+ *   · 分级配色：≥50 绿 / 30~50 黄 / <30 红
+ *   · 点击展开细节（帧时间 / 最差帧 / 画布节点数），双击重置峰值
+ * ============================================================ */
+function initFpsMeter(){
+  if(!document.body || document.getElementById('fpsBadge')) return;
+  const el = document.createElement('div');
+  el.id = 'fpsBadge'; el.className = 'fps-badge';
+  el.title = '实时帧率（点击展开细节，双击重置峰值）';
+  el.innerHTML = '<span class="fps-dot"></span><span class="fps-val">--</span><span class="fps-unit">FPS</span><span class="fps-detail"></span>';
+  document.body.appendChild(el);
+  const val = el.querySelector('.fps-val');
+  const detail = el.querySelector('.fps-detail');
+  let raf = null, last = 0, ema = 0, worst = 0, paintAt = 0;
+  el.onclick = ()=>{ el.classList.toggle('expanded'); };
+  el.ondblclick = ()=>{ ema = 0; worst = 0; };
+  const tick = (ts)=>{
+    raf = requestAnimationFrame(tick);
+    if(last){
+      const dt = ts - last;
+      if(dt > 0 && dt < 500){                       // 忽略异常间隔（切后台、长任务）
+        ema = ema ? ema*0.9 + dt*0.1 : dt;
+        if(dt > worst) worst = dt;
+      }
+    }
+    last = ts;
+    if(ts - paintAt < 250) return;                  // 250ms 才写一次 DOM
+    paintAt = ts;
+    const fps = ema > 0 ? 1000/ema : 0;
+    val.textContent = fps >= 10 ? fps.toFixed(0) : fps.toFixed(1);
+    el.classList.toggle('warn', fps > 0 && fps < 50 && fps >= 30);
+    el.classList.toggle('bad', fps > 0 && fps < 30);
+    if(el.classList.contains('expanded')){
+      const canvas = document.getElementById('canvas');
+      detail.textContent = `· ${ema.toFixed(1)}ms/帧 · 最差 ${worst.toFixed(0)}ms · 画布节点 ${canvas ? canvas.querySelectorAll('*').length : '-'}`;
+    } else if(detail.textContent){
+      detail.textContent = '';
+    }
+  };
+  raf = requestAnimationFrame(tick);
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden){ if(raf){ cancelAnimationFrame(raf); raf = null; } }
+    else if(!raf){ last = 0; ema = 0; raf = requestAnimationFrame(tick); }
+  });
+}
+initFpsMeter();

@@ -111,6 +111,20 @@
   #chart{cursor:crosshair}
   .dp-note{font-size:10px;color:var(--text4,var(--text3));margin-top:10px;line-height:1.65;background:#ffffff06;border-left:2px solid var(--line3);border-radius:0 6px 6px 0;padding:7px 9px}
 
+  /* ===== 右下角实时帧率 ===== */
+  .fps-badge{position:fixed;right:12px;bottom:34px;z-index:80;display:flex;align-items:center;gap:6px;
+    height:26px;padding:0 10px;border-radius:13px;background:#12112bee;border:1px solid var(--line2);
+    font-size:11px;color:var(--text2);cursor:pointer;user-select:none;font-variant-numeric:tabular-nums;
+    transition:border-color .15s,color .15s;white-space:nowrap}
+  .fps-badge:hover{border-color:var(--line3);color:var(--text)}
+  .fps-badge .fps-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);flex-shrink:0}
+  .fps-badge.warn .fps-dot{background:#F5A623;box-shadow:0 0 6px #F5A623}
+  .fps-badge.bad .fps-dot{background:var(--red);box-shadow:0 0 6px var(--red)}
+  .fps-badge .fps-val{font-weight:600;min-width:20px;text-align:right}
+  .fps-badge .fps-unit{font-size:9px;color:var(--text3)}
+  .fps-badge .fps-detail{display:none;font-size:10px;color:var(--text3)}
+  .fps-badge.expanded .fps-detail{display:inline}
+
   /* Status bar */
   .status{height:26px;display:flex;align-items:center;padding:0 14px;gap:18px;background:var(--panel);border-top:1px solid var(--line2);font-size:11px;color:var(--text3);flex-shrink:0}
   .status .s-item{display:flex;align-items:center;gap:5px}
@@ -122,6 +136,7 @@
   body.embed{background:transparent}
   body.embed #app{background:transparent}
   body.embed .toolbar, body.embed .status{display:none}
+  body.embed .fps-badge{display:none}
   body.embed .canvas-wrap{background:transparent}
 </style>
 </head>
