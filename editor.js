@@ -749,7 +749,7 @@ function refreshMonitorValues(){
     if(!g) return;
     const tags = (comp.props && comp.props.monitorTags) || [];
     tags.forEach((t,i)=>{
-      const live = t.tag ? sensorValueMap[t.tag] : null;
+      const live = t.tag ? sensorValueMap[(t.tag||'').trim()] : null;
       const valEl = g.querySelector(`.mon-value[data-i="${i}"]`);
       const unitEl = g.querySelector(`.mon-unit[data-i="${i}"]`);
       if(valEl) valEl.textContent = (live && live.value!=null && live.value!=='') ? fmtMonValByType(live.value, live.type) : '--';
@@ -1852,8 +1852,8 @@ async function loadSensorCatalog(){
     const j = await SENSOR_API.list();
     if(j && Array.isArray(j.data)){
       sensorCatalog = j.data
-        .filter(d=>d && d.sensor_tag)
-        .map(d=>({ tag:d.sensor_tag, type:d.type||'', kiln_id:d.kiln_id||'' }));
+        .filter(d=>d && d.sensor_tag && d.sensor_tag.trim())
+        .map(d=>({ tag:d.sensor_tag.trim(), type:d.type||'', kiln_id:d.kiln_id||'' }));
       // 若当前已选中组件且搜索框存在，刷新候选下拉
       const sc = selSingle();
       if(sc && sc.kind==='component'){
@@ -1871,7 +1871,7 @@ async function refreshSensorValues(){
     const j = await SENSOR_API.values({ limit: 500 });
     if(j && Array.isArray(j.data)){
       const m = {};
-      j.data.forEach(d=>{ if(d && d.sensor_tag) m[d.sensor_tag] = { value:d.value, unit:d.unit, reported_at:d.reported_at, type:d.type }; });
+      j.data.forEach(d=>{ if(d && d.sensor_tag){ const t=(d.sensor_tag||'').trim(); if(t) m[t] = { value:d.value, unit:d.unit, reported_at:d.reported_at, type:d.type }; } });
       sensorValueMap = m;
       refreshMonitorValues();
       refreshKilnTemp(sensorValueMap);
@@ -1897,7 +1897,7 @@ function updateTagLiveValues(comp){
   const params = comp.props.params || [];
   rows.forEach((row,i)=>{
     if(!params[i]) return;
-    const live = sensorValueMap[params[i].k];
+    const live = sensorValueMap[(params[i].k||'').trim()];
     if(!live) return;
     const pv = row.querySelector('.pv');
     if(pv && document.activeElement!==pv) pv.value = (live.value!=null ? live.value : pv.value);
@@ -2028,8 +2028,8 @@ async function refreshSensorPanel(){
 function docTags(){
   const s = new Set();
   doc.components.forEach(c=>{
-    if(c.props && c.props.tag) s.add(c.props.tag);
-    if(c.props && Array.isArray(c.props.params)) c.props.params.forEach(p=>{ if(p.k) s.add(p.k); });
+    if(c.props && c.props.tag) s.add((c.props.tag||'').trim());
+    if(c.props && Array.isArray(c.props.params)) c.props.params.forEach(p=>{ if(p.k) s.add((p.k||'').trim()); });
   });
   return s;
 }
@@ -2182,7 +2182,7 @@ function refreshKilnTemp(liveMap, docArg){
     pts.forEach((pt, i)=>{
       const stop = stops[i];
       if(!stop) return;
-      const live = liveMap[pt.tag];
+      const live = liveMap[(pt.tag||'').trim()];
       const v = live ? Number(live.value) : NaN;
       const color = kilnTempColor(v);
       if(color) stop.setAttribute('stop-color', color);
@@ -2201,7 +2201,7 @@ function refreshReactorLevel(liveMap, docArg){
     const g = findCompGroupDom(comp.id);
     if(!g) return;
     const gm = (comp.type === 'storageSilo') ? storageSiloGeom(comp.w, comp.h) : reactorGeom(comp.w, comp.h);
-    const live = (liveMap && comp.props.levelTag) ? liveMap[comp.props.levelTag] : null;
+    const live = (liveMap && comp.props.levelTag) ? liveMap[(comp.props.levelTag||'').trim()] : null;
     const frac = reactorLevelFrac(live ? live.value : NaN, comp.props.levelMax);
     const f = (frac==null) ? 0.6 : frac;
     const surfaceY = gm.bodyBot - (gm.bodyBot - gm.bodyTop) * f;
