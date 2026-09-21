@@ -1037,6 +1037,29 @@ function incrementalMove(comps){
   affectedPipes.forEach(p=>updatePipeGeometry(p));
   refreshMonitorLeads();
 }
+/* 拖拽改尺寸的增量刷新：拖拽过程中只更新 transform（外框 + 内容等比缩放预览）、标签、
+   相连管道与选中框；松手时 mouseup 里本来就会 renderAll() 一次，内容按新尺寸重画。
+   原来这里每帧直接 renderAll() —— 12 个组件就要 22.5ms/帧（约 3 帧预算），改尺寸必然卡。
+   内容预览用 scale：把按【旧尺寸】渲染的内容缩放到新尺寸，中心对齐，旋转与镜像一并处理。 */
+function incrementalResize(comp, ow, oh){
+  if(!comp) return;
+  updateCompTransform(comp);
+  updateCompLabels(comp);
+  const layer = comp.type==='monitor' ? layerTop : layerEquip;
+  const g = layer.querySelector(`.equip-group[data-id="${comp.id}"]`);
+  const inner = g && g.children && g.children[0];
+  if(inner && ow>0 && oh>0 && comp.w>0 && comp.h>0){
+    const sx = comp.w/ow, sy = comp.h/oh;
+    const mirrored = !!(comp.props && comp.props.mirrored);
+    const cx0 = ow/2, cy0 = oh/2, cx1 = comp.w/2, cy1 = comp.h/2;
+    const tx = mirrored ? cx1 + cx0*sx : cx1 - cx0*sx;
+    const ty = cy1 - cy0*sy;
+    inner.setAttribute('transform',
+      `translate(${tx.toFixed(2)},${ty.toFixed(2)}) scale(${(mirrored?-sx:sx).toFixed(4)},${sy.toFixed(4)})`);
+  }
+  collectAffectedPipes([comp.id]).forEach(p=>updatePipeGeometry(p));
+  renderOverlay();
+}
 // 增量调整管道折点
 function incrementalBend(pipe){
   updatePipeGeometry(pipe);
@@ -1193,6 +1216,21 @@ function screenToSVG(clientX, clientY){
 /* 已折叠的分类（会话内保留：搜索重建面板时不丢折叠状态；刷新页面即恢复全展开） */
 const collapsedCats = new Set();
 
+/* 组件库缩略图：剥掉 SMIL + 按类型缓存。
+   原来图标是"完整模板渲染"，34 个图标一共 5561 个 DOM 节点、2109 个 SMIL 动画节点，
+   而且组件库不在 #canvas 内、不受编辑态 pauseAnimations() 管控 —— 打开编辑器什么都不做，
+   这 2109 个动画也一直在后台跑。缩略图是静态的，一律 stripSMIL。
+   缓存还顺带解决了"组件库搜索框每敲一个字就重建 34 个模板（实测 65.6ms）"的问题。 */
+const _palThumbCache = new Map();
+function paletteThumb(type, t){
+  if(_palThumbCache.has(type)) return _palThumbCache.get(type);
+  const sz = (t && t.defaultSize) || { w: 100, h: 100 };
+  let inner = '';
+  try{ inner = (t && typeof t.render === 'function') ? (t.render(sz.w, sz.h, { color:'#9C99FF', tag:'?' }) || '') : ''; }catch(e){ inner = ''; }
+  const sv = `<svg viewBox="0 0 ${sz.w} ${sz.h}" preserveAspectRatio="xMidYMid meet">${stripSMIL(inner)}</svg>`;
+  _palThumbCache.set(type, sv);
+  return sv;
+}
 function buildPalette(filter=''){
   const list = $('paList'); list.innerHTML = '';
   const cats = {};
@@ -1218,8 +1256,7 @@ function buildPalette(filter=''){
     items.forEach(([key,t])=>{
       const el = document.createElement('div'); el.className='pa-item'; el.dataset.type=key;
       const ic = document.createElement('div'); ic.className='pa-icon';
-      const sv = `<svg viewBox="0 0 ${t.defaultSize.w} ${t.defaultSize.h}" preserveAspectRatio="xMidYMid meet">${t.render(t.defaultSize.w,t.defaultSize.h,{color:'#9C99FF',tag:'?'})}</svg>`;
-      ic.innerHTML = sv;
+      ic.innerHTML = paletteThumb(key, t);
       const nm = document.createElement('div');
       nm.innerHTML = `<div class="pa-name">${t.name}</div>`;
       el.appendChild(ic); el.appendChild(nm);
@@ -1239,7 +1276,7 @@ function startPaletteDrag(e, type){
   dragType = type;
   const t = TEMPLATES[type];
   dragGhost = document.createElement('div'); dragGhost.className='drag-ghost';
-  dragGhost.innerHTML = `<svg width="60" height="60" viewBox="0 0 ${t.defaultSize.w} ${t.defaultSize.h}" preserveAspectRatio="xMidYMid meet">${t.render(t.defaultSize.w,t.defaultSize.h,{color:'#9C99FF',tag:'?'})}</svg>`;
+  dragGhost.innerHTML = paletteThumb(type, t);   // 复用剥掉 SMIL 的缓存缩略图
   document.body.appendChild(dragGhost);
   moveGhost(e);
   document.addEventListener('mousemove', onPaletteDragMove);
@@ -1451,7 +1488,9 @@ function processMouseMove(e){
       if(handle.indexOf('w')>=0){ nw=Math.max(MIN, ow-dx); nx=ox+(ow-nw); }
       if(handle.indexOf('n')>=0){ nh=Math.max(MIN, oh-dy); ny=oy+(oh-nh); }
       comp.x=snapV(nx); comp.y=snapV(ny); comp.w=nw; comp.h=nh;
-      renderAll(); renderPropsLive(); setDirty();
+      // 拖拽过程中走增量刷新（外框 + 内容缩放预览 + 相连管道），松手时 mouseup 再全量重建一次
+      incrementalResize(comp, resizeState.ow, resizeState.oh);
+      renderPropsLive(); setDirty();
     }
     return;
   }
@@ -2261,6 +2300,17 @@ function renderTagSuggest(comp, q){
     };
   });
 }
+/* 位号 textarea 行数：按字符宽度预估行数（不读 scrollHeight，避免每次渲染触发布局测量）。
+   面板里位号行可用宽约 160px、字号 11px：中文约 14 字/行，ASCII 约 26 字/行。
+   用 textarea 而非 input 是因为 input 不能换行，长位号只能显示一半。 */
+function autosizeTextarea(el){
+  if(!el) return;
+  const s = el.value || '';
+  let w = 0;
+  for(const ch of s) w += /[\u3000-\u303f\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/.test(ch) ? 1 : 0.55;
+  const rows = Math.max(1, Math.ceil(w / 14));
+  if(el.rows !== rows) el.rows = rows;
+}
 function renderParamsList(comp){
   const el = $('paramsList'); if(!el) return;
   el.innerHTML='';
@@ -2272,8 +2322,16 @@ function renderParamsList(comp){
     if(qq && !k.includes(qq)) return;   // 搜索筛选
     shown++;
     const row = document.createElement('div'); row.className='param-row';
-    row.innerHTML = `<button class="pmove up" title="上移">▲</button><button class="pmove down" title="下移">▼</button><input class="pk" value="${esc(p.k)}" placeholder="Tag 名"><input class="pv" value="${esc(p.v)}" placeholder="值"><input class="pu" value="${esc(p.u)}" placeholder="单位"><button class="pdel" title="删除">×</button>`;
-    row.querySelector('.pk').oninput = e=>{ p.k=e.target.value; setDirty(); renderAllDebounced(); };
+    /* 两行结构：位号独占整行宽度，值 / 单位与排序按钮放第二行。
+       位号用【自动高度的 textarea】而不是 input —— input 不能换行，
+       长位号（如"1#还原系统斗式提升机电机电流A相"）在 160px 宽里只能显示一半。 */
+    row.innerHTML =
+      `<div class="pr-top"><textarea class="pk" rows="1" placeholder="Tag 名（完整位号）" title="${esc(p.k)}">${esc(p.k)}</textarea><button class="pdel" title="删除">×</button></div>` +
+      `<div class="pr-bot"><button class="pmove up" title="上移">▲</button><button class="pmove down" title="下移">▼</button><input class="pv" value="${esc(p.v)}" placeholder="值"><input class="pu" value="${esc(p.u)}" placeholder="单位"></div>`;
+    const pkEl = row.querySelector('.pk');
+    autosizeTextarea(pkEl);
+    pkEl.oninput = e=>{ p.k=e.target.value.trim().replace(/\s+/g,''); autosizeTextarea(pkEl); setDirty(); renderAllDebounced(); };
+    pkEl.onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); } };   // 位号不接收换行
     row.querySelector('.pv').oninput = e=>{ p.v=e.target.value; setDirty(); renderAllDebounced(); };
     row.querySelector('.pu').oninput = e=>{ p.u=e.target.value; setDirty(); renderAllDebounced(); };
     row.querySelector('.pdel').onclick = ()=>{ comp.props.params.splice(i,1); pushHistory(); renderParamsList(comp); renderAll(); setDirty(); };
