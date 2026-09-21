@@ -220,35 +220,82 @@ function stripSMIL(markup){
 }
 /* ============================================================
  * 运行开关（开关 Tag）：绑定位号后按实时值驱动设备动画开 / 停
- *   · 值 >= 0.5 → 运行；< 0.5 → 停止（剥掉 SMIL，画面定格在停转瞬间）
- *   · 未绑定 / 绑定但暂无数据 → 默认运行（不干预）
- *   支持范围见 RUN_TAG_TYPES：属性面板为其渲染「运行控制」分组，
- *   渲染时按运行态决定是否生成动画节点（停止 = 不生成，避免无谓的 SMIL 重置）。
+ *   · 单个开关量：值 >= 0.5 → 运行；< 0.5 → 停止（剥掉 SMIL，画面定格在停转瞬间）
+ *   · 可绑【多个】开关量，判定逻辑可选：
+ *       与（and，默认）：已取到值的位号全部为 1 才运行
+ *       或（or）        ：已取到值的位号任一为 1 即运行
+ *   · 未绑定 / 绑定的位号全部暂无数据 → 默认运行（不干预）
+ *   · 支持范围 = 【所有含动画的组件】，由 hasAnimation() 按模板渲染结果自动判定，
+ *     属性面板为其渲染「运行控制」分组；渲染时按运行态决定是否生成动画节点。
+ *   数据字段：props.runTags = [{tag}]（旧版单个 props.runTag 字符串自动迁移）
+ *            props.runLogic = 'and' | 'or'
  * ============================================================ */
-const RUN_TAG_TYPES = new Set([
-  'screwConveyorLite',   // 螺旋输送机(简化)
-  'screwConveyor',       // 螺旋输送机
-  'bucketElevator',      // 斗式提升机
-  'classifier',          // 选粉机
-  'miningDryer',         // 烘干机
-  'blower',              // 离心风机/鼓风机
-  'blowerSingle',        // 离心风机(单进风)
-  'filterPress',         // 压滤机
-  'pendulumMill'         // 斜摆瀑料磨粉机
-]);
-/* 组件运行状态：{ bound:是否绑定开关 Tag, run:是否运行, value:实时值 }
+/* 组件是否有动画：渲染一次默认尺寸、看结果里有没有 <animate（按类型缓存） */
+const _animTypeCache = new Map();
+function hasAnimation(type){
+  if(_animTypeCache.has(type)) return _animTypeCache.get(type);
+  let r = false;
+  try{
+    const t = TEMPLATES[type];
+    if(t && typeof t.render==='function'){
+      const sz = t.defaultSize || { w: 100, h: 100 };
+      r = /<animate/.test(String(t.render(sz.w, sz.h, { color:'#9C99FF' }) || ''));
+    }
+  }catch(e){ r = false; }
+  _animTypeCache.set(type, r);
+  return r;
+}
+/* 旧数据迁移：props.runTag（单个字符串）→ props.runTags（列表）；runLogic 默认 and */
+function normalizeRunTags(comp){
+  const p = comp.props || (comp.props = {});
+  if(!Array.isArray(p.runTags)){
+    const old = String(p.runTag || '').trim();
+    p.runTags = old ? [{ tag: old }] : [];
+  }
+  if(p.runLogic !== 'or') p.runLogic = 'and';
+  if(p.runTag != null) delete p.runTag;
+  return p.runTags;
+}
+/* 取该组件的开关位号列表（兼容未迁移的旧数据，不写回） */
+function runTagList(comp){
+  const p = (comp && comp.props) || {};
+  if(Array.isArray(p.runTags)) return p.runTags;
+  const old = String(p.runTag || '').trim();
+  return old ? [{ tag: old }] : [];
+}
+/* 组件运行状态：{ bound, run, logic, values:[{tag,value,on}] }
    liveMap 缺省取全局 sensorValueMap（预览页走局部 doc 时显式传入） */
 function compRunState(comp, liveMap){
-  const tag = ((comp && comp.props && comp.props.runTag) || '').trim();
-  if(!tag) return { bound:false, run:true, value:null };
+  const p = (comp && comp.props) || {};
   const map = liveMap || ((typeof sensorValueMap!=='undefined') ? sensorValueMap : null);
-  const live = map ? map[tag] : null;
-  const v = live && isFinite(+live.value) ? +live.value : null;
-  return { bound:true, run: v==null ? true : v>=0.5, value:v };
+  const logic = p.runLogic === 'or' ? 'or' : 'and';
+  const values = [];
+  runTagList(comp).forEach(it=>{
+    const tag = String((it && it.tag) || '').trim();
+    if(!tag) return;
+    const live = map ? map[tag] : null;
+    const v = live && isFinite(+live.value) ? +live.value : null;
+    values.push({ tag, value:v, on: v==null ? null : v>=0.5 });
+  });
+  if(!values.length) return { bound:false, run:true, logic, values };
+  const known = values.filter(x=>x.on != null);
+  const run = !known.length ? true
+            : logic === 'or' ? known.some(x=>x.on)
+            : known.every(x=>x.on);
+  return { bound:true, run, logic, values };
 }
-/* 该组件当前是否需要"定格"（绑定开关 Tag 且值为 0） */
+/* 该组件当前是否需要"定格"（有动画 + 绑定开关 Tag 且判定为停止） */
 function compStopped(comp){
-  return RUN_TAG_TYPES.has(comp.type) && compRunState(comp).run === false;
+  return hasAnimation(comp.type) && compRunState(comp).run === false;
+}
+/* 运行状态文案（属性面板「当前状态」回显） */
+function runStateText(st){
+  if(!st.bound) return '运行中（未绑定，默认运行）';
+  const known = st.values.filter(x=>x.on != null);
+  if(!known.length) return `运行中（绑定 ${st.values.length} 个位号，暂无数据）`;
+  const on = known.filter(x=>x.on).length;
+  const lg = st.logic === 'or' ? '或' : '与';
+  return `${st.run ? '运行中' : '已停止'}（${lg}逻辑：${on}/${known.length} 为 1）`;
 }
 /* 端口相对坐标（0~1）：模板里既可以写固定比例，也可以写 (w,h)=>比例 的函数。
    函数式端口用于"定尺部件位置不随机身加高而变"的组件（如斗式提升机的机头/出料溜槽），
@@ -804,6 +851,65 @@ function bindMonitorTagSearch(comp){
   };
   tq.oninput = ()=>renderSuggest(tq.value);
   tq.onblur = ()=>{ setTimeout(()=>{ if(suggest) suggest.innerHTML=''; },150); };
+}
+/* 属性面板：运行开关位号列表（每行 位号 + 实时值 + 删除） */
+function renderRunTagList(comp){
+  const el = $('runTagList'); if(!el) return;
+  const tags = normalizeRunTags(comp);
+  const st = compRunState(comp);
+  el.innerHTML = '';
+  if(!tags.length){
+    el.innerHTML = '<div class="pr-empty" style="padding:10px;font-size:11px;color:var(--text3)">未绑定 · 搜索或回车添加开关 Tag（不绑定则始终运行）</div>';
+    return;
+  }
+  tags.forEach((t,i)=>{
+    const info = st.values.find(v=>v.tag === String(t.tag||'').trim()) || {};
+    const shown = info.value == null ? '--' : (info.on ? '1' : '0');
+    const color = info.value == null ? 'var(--text3)' : (info.on ? 'var(--green)' : 'var(--red)');
+    const row = document.createElement('div'); row.className='param-row';
+    row.innerHTML = `<span class="mon-tag-k" title="${esc(t.tag)}">${esc(t.tag)}</span>` +
+      `<span class="pv" style="flex:0 0 34px;text-align:right;color:${color};font-variant-numeric:tabular-nums" title="实时值">${shown}</span>` +
+      `<button class="pdel" title="删除">×</button>`;
+    row.querySelector('.pdel').onclick = ()=>{ tags.splice(i,1); pushHistory(); renderRunTagList(comp); renderAll(); setDirty(); };
+    el.appendChild(row);
+  });
+}
+/* 属性面板：运行开关位号搜索添加框（可从后端目录选，也可直接回车手工添加） */
+function bindRunTagSearch(comp){
+  const tq = $('runTagSearch'); if(!tq) return;
+  const suggest = $('runTagSuggest');
+  const addTag = (tag)=>{
+    const v = String(tag||'').trim(); if(!v) return false;
+    const tags = normalizeRunTags(comp);
+    if(tags.some(x=>String(x.tag||'').trim()===v)) return false;
+    tags.push({ tag: v });
+    return true;
+  };
+  const renderSuggest = (q)=>{
+    if(!suggest) return;
+    const cand = new Map();
+    sensorCatalog.forEach(x=>cand.set(x.tag, x));
+    if(!sensorCatalog.length) KNOWN_TAGS.forEach(t=>cand.set(t, {}));
+    docTags().forEach(t=>{ if(!cand.has(t)) cand.set(t, {}); });
+    const qq=(q||'').trim().toUpperCase();
+    const list = Array.from(cand.entries()).filter(([t])=> !qq || t.toUpperCase().includes(qq)).slice(0,10);
+    if(!list.length){ suggest.innerHTML=''; return; }
+    suggest.innerHTML = list.map(([t,meta])=>`<div class="ts-item" data-t="${esc(t)}">${esc(t)}${(meta.type||'')?`<span class="ts-type">${esc(meta.type)}</span>`:''}</div>`).join('');
+    suggest.querySelectorAll('.ts-item').forEach(it=>{
+      it.onclick = ()=>{
+        if(addTag(it.dataset.t)){ pushHistory(); renderRunTagList(comp); renderAll(); setDirty(); }
+        tq.value=''; suggest.innerHTML='';
+      };
+    });
+  };
+  tq.oninput = ()=>renderSuggest(tq.value);
+  tq.onfocus = ()=>renderSuggest(tq.value);
+  tq.onblur = ()=>{ setTimeout(()=>{ if(suggest) suggest.innerHTML=''; },150); };
+  tq.onkeydown = (e)=>{
+    if(e.key !== 'Enter') return;
+    if(addTag(tq.value)){ pushHistory(); renderRunTagList(comp); renderAll(); setDirty(); }
+    tq.value=''; if(suggest) suggest.innerHTML='';
+  };
 }
 
 /* ============================================================
@@ -1626,12 +1732,21 @@ function renderProps(){
         <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">格名称过长会自动折两行居中；位号留空则不画。组件自身的「名称 / 位号」标签按上方「名称位置」显示在设备外，只想要格内标注时可把它们留空。</div>
       </div>
       ` : ''}
-      ${RUN_TAG_TYPES.has(comp.type) ? `
+      ${hasAnimation(comp.type) ? `
       <div class="fg">
         <div class="fg-title">运行控制（开关 Tag）</div>
-        <div class="fg-row"><label>开关 Tag</label><input id="runTag" value="${esc(comp.props.runTag||'')}" placeholder="如 1#锰粉仓输送机运行状态"></div>
+        <div class="fg-row"><label>判定逻辑</label><div class="btn-group" id="runLogicGroup">
+          <button class="pr-btn s-btn ${(comp.props.runLogic||'and')!=='or'?'active':''}" data-lg="and" title="绑定的位号全部为 1 才运行">与 · 全为 1</button>
+          <button class="pr-btn s-btn ${comp.props.runLogic==='or'?'active':''}" data-lg="or" title="绑定的位号任一为 1 即运行">或 · 任一为 1</button>
+        </div></div>
+        <div class="tag-search">
+          <span class="ts-icon">⌕</span>
+          <input id="runTagSearch" placeholder="搜索 / 添加开关 Tag…">
+          <div class="tag-suggest" id="runTagSuggest"></div>
+        </div>
+        <div class="params-list" id="runTagList"></div>
         <div class="fg-row"><label>当前状态</label><input id="runState" readonly value="—"></div>
-        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">绑定该设备开关量测点（值 1 = 运行 / 0 = 停止）后，本组件动画随之启停并定格；留空或暂无数据则始终运行。填完整位号（含前缀）。</div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:4px">绑定设备开关量测点（值 1 = 运行 / 0 = 停止）后，本组件动画随之启停并定格。可绑多个位号，按上方逻辑判定：<b>与</b> = 已取到值的位号全部为 1 才运行，<b>或</b> = 任一为 1 即运行；未绑定或全部暂无数据时按「运行」处理。位号须填完整（含前缀），也可直接回车手工添加。</div>
       </div>
       ` : ''}
       ${comp.type==='monitor' ? `
@@ -1708,17 +1823,15 @@ function renderProps(){
       const aa = $('svAutoActive');
       if(aa){ aa.value = '—'; }
     }
-    // 运行开关（开关 Tag）：绑定位号后按实时值驱动动画开/停（支持范围见 RUN_TAG_TYPES）
-    if(RUN_TAG_TYPES.has(comp.type)){
-      const rt = $('runTag');
-      if(rt){ rt.onchange = (e)=>{ comp.props.runTag = (e.target.value||'').trim(); pushHistory(); renderAll(); setDirty(); refreshRunState(sensorValueMap); }; }
+    // 运行开关（开关 Tag）：可绑多个位号，按「与 / 或」逻辑驱动动画开/停（支持所有含动画的组件）
+    if(hasAnimation(comp.type)){
+      normalizeRunTags(comp);
+      bindRunTagSearch(comp);
+      renderRunTagList(comp);
+      const lg = $('runLogicGroup');
+      if(lg){ lg.querySelectorAll('.s-btn').forEach(b=>{ b.onclick=()=>{ comp.props.runLogic = b.dataset.lg; pushHistory(); renderAll(); renderProps(); setDirty(); refreshRunState(sensorValueMap); }; }); }
       const rs = $('runState');
-      if(rs){
-        const st = compRunState(comp);
-        if(!st.bound) rs.value = '运行中（未绑定，默认运行）';
-        else if(st.value==null) rs.value = '运行中（绑定但暂无数据）';
-        else rs.value = st.run ? `运行中（值=${st.value}）` : `已停止（值=${st.value}）`;
-      }
+      if(rs) rs.value = runStateText(compRunState(comp));
     }
     // 反应釜 / 储料仓：液位动态绑定 tag + 满量程
     if(comp.type==='reactor' || comp.type==='storageSilo'){
@@ -1877,7 +1990,7 @@ async function refreshSensorValues(){
       refreshKilnTemp(sensorValueMap);
       refreshReactorLevel(sensorValueMap);   // 反应釜：绑定液位 tag 时按实时值更新液面与读数
       refreshSwitchValveAuto(sensorValueMap); // 三通阀自动模式：根据 A/B 开关量互斥切换
-      refreshRunState(sensorValueMap);       // 运行开关：按开关 tag 驱动各设备动画开/停（支持范围见 RUN_TAG_TYPES）
+      refreshRunState(sensorValueMap);       // 运行开关：按开关 tag（可多个 + 与/或逻辑）驱动各设备动画开/停
     }
   }catch(e){ /* 静默 */ }
 }
@@ -2278,16 +2391,16 @@ function refreshSwitchValveAuto(liveMap, docArg){
   });
 }
 
-/* 运行开关（开关 Tag）· 数据驱动动画（通用，支持范围见 RUN_TAG_TYPES）：
-   绑定开关 tag（runTag）时，值 >= 0.5 → 运行（生成动画），< 0.5 → 停止（剥掉 SMIL、画面定格）；
-   未绑定 / 绑定但暂无数据 → 默认运行。
+/* 运行开关（开关 Tag）· 数据驱动动画（通用，支持所有含动画的组件）：
+   按 compRunState 判定运行态（多个位号 + 与/或逻辑）：运行 → 生成动画，停止 → 剥掉 SMIL、画面定格；
+   未绑定 / 全部无数据 → 默认运行。
    仅在运行态真变化时重生成该组件 innerHTML，避免无谓的 SMIL 重置。
    docArg：预览页局部 doc 时需显式传入 */
 function refreshRunState(liveMap, docArg){
   const d = docArg || doc;
   if(!liveMap || !d || !Array.isArray(d.components)) return;
   d.components.forEach(comp=>{
-    if(!RUN_TAG_TYPES.has(comp.type)) return;
+    if(!hasAnimation(comp.type)) return;
     const st = compRunState(comp, liveMap);
     if(!st.bound) return;                 // 未绑定：renderAll 已按默认运行渲染，无需数据驱动
     const run = st.run;

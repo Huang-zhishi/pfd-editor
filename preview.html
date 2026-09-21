@@ -409,38 +409,60 @@
     });
   }
 
-  /* 运行开关（开关 Tag）· 数据驱动动画（通用，与 editor.js 的 RUN_TAG_TYPES 保持一致）：
-     绑定开关 tag（runTag）时，值 >= 0.5 → 运行（生成动画），< 0.5 → 停止（剥掉 SMIL、画面定格）；
-     未绑定 / 绑定但暂无数据 → 默认运行。仅在运行态真变化时重生成该组件 innerHTML，避免 SMIL 重置。 */
-  const RUN_TAG_TYPES = new Set([
-    'screwConveyorLite',   // 螺旋输送机(简化)
-    'screwConveyor',       // 螺旋输送机
-    'bucketElevator',      // 斗式提升机
-    'classifier',          // 选粉机
-    'miningDryer',         // 烘干机
-    'blower',              // 离心风机/鼓风机
-    'blowerSingle',        // 离心风机(单进风)
-    'filterPress',         // 压滤机
-    'pendulumMill'         // 斜摆瀑料磨粉机
-  ]);
+  /* 运行开关（开关 Tag）· 数据驱动动画（通用，与 editor.js 的实现保持一致）：
+     可绑【多个】开关量，逻辑可选「与（默认，全为 1 才运行）/ 或（任一为 1 即运行）」；
+     运行 → 生成动画，停止 → 剥掉 SMIL、画面定格；未绑定 / 全部暂无数据 → 默认运行。
+     支持范围 = 所有含动画的组件（hasAnimation 按模板渲染结果自动判定）。
+     仅在运行态真变化时重生成该组件 innerHTML，避免 SMIL 重置。 */
+  const _animTypeCache = new Map();
+  function hasAnimation(type){
+    if(_animTypeCache.has(type)) return _animTypeCache.get(type);
+    let r = false;
+    try{
+      const t = TEMPLATES[type];
+      if(t && typeof t.render==='function'){
+        const sz = t.defaultSize || { w:100, h:100 };
+        r = /<animate/.test(String(t.render(sz.w, sz.h, { color:'#9C99FF' }) || ''));
+      }
+    }catch(e){ r = false; }
+    _animTypeCache.set(type, r);
+    return r;
+  }
   let liveMapCache = {};    // 最近一次实时数据（渲染时判断运行态用）
+  function runTagList(comp){
+    const p = (comp && comp.props) || {};
+    if(Array.isArray(p.runTags)) return p.runTags;
+    const old = String(p.runTag || '').trim();
+    return old ? [{ tag: old }] : [];
+  }
   function compRunState(comp, liveMap){
-    const tag = ((comp && comp.props && comp.props.runTag) || '').trim();
-    if(!tag) return { bound:false, run:true, value:null };
+    const p = (comp && comp.props) || {};
     const map = liveMap || liveMapCache || {};
-    const live = map[tag];
-    const v = live && isFinite(+live.value) ? +live.value : null;
-    return { bound:true, run: v==null ? true : v>=0.5, value:v };
+    const logic = p.runLogic === 'or' ? 'or' : 'and';
+    const values = [];
+    runTagList(comp).forEach(it=>{
+      const tag = String((it && it.tag) || '').trim();
+      if(!tag) return;
+      const live = map[tag];
+      const v = live && isFinite(+live.value) ? +live.value : null;
+      values.push({ tag, value:v, on: v==null ? null : v>=0.5 });
+    });
+    if(!values.length) return { bound:false, run:true, logic, values };
+    const known = values.filter(x=>x.on != null);
+    const run = !known.length ? true
+              : logic === 'or' ? known.some(x=>x.on)
+              : known.every(x=>x.on);
+    return { bound:true, run, logic, values };
   }
   function compStopped(comp){
-    return RUN_TAG_TYPES.has(comp.type) && compRunState(comp).run === false;
+    return hasAnimation(comp.type) && compRunState(comp).run === false;
   }
   function refreshRunState(liveMap, docArg){
     const d = docArg || (typeof doc!=='undefined' ? doc : null);
     if(!liveMap || !d || !Array.isArray(d.components)) return;
     liveMapCache = liveMap;
     d.components.forEach(comp=>{
-      if(!RUN_TAG_TYPES.has(comp.type)) return;
+      if(!hasAnimation(comp.type)) return;
       const st = compRunState(comp, liveMap);
       if(!st.bound) return;               // 未绑定：渲染时已按默认运行
       const run = st.run;
