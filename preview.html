@@ -666,15 +666,29 @@
   }
   function getComp(id){ return compMap.get(id); }
   function getPipe(id){ return pipeMap.get(id); }
+  /* 文档结构最小校验（审计 5.5）：?doc= / localStorage 都是外部可控输入，
+     原实现直接 JSON.parse 后赋给 doc 就渲染，脏数据会在深层以难定位的报错爆开。
+     这里只做"能否安全渲染"的必要检查，不合法则忽略该来源。 */
+  function isUsableDoc(o){
+    return !!o && typeof o === 'object' && !Array.isArray(o)
+      && Array.isArray(o.components) && Array.isArray(o.pipes);
+  }
   try{
     const qp = new URLSearchParams(location.search).get('doc');
     if(qp){                       // 优先使用 ?doc= 传入的项目（URI 编码 JSON）
       // URLSearchParams.get() 已完成一次解码，此处直接解析
       // （再解一次会在文档含字面量 '%' 时抛出 URI malformed，如阀位单位 '%'）
-      doc = JSON.parse(qp);
-    } else {
+      const parsed = JSON.parse(qp);
+      if(isUsableDoc(parsed)) doc = parsed;
+      else console.warn('[LOAD] ?doc= 结构不合法（需含 components / pipes 数组），已忽略');
+    }
+    if(!isUsableDoc(doc)){        // 未从 ?doc= 取到则回退 localStorage
       const s = localStorage.getItem('pfd_doc');
-      if(s) doc = JSON.parse(s);
+      if(s){
+        const parsed = JSON.parse(s);
+        if(isUsableDoc(parsed)) doc = parsed;
+        else console.warn('[LOAD] localStorage 中的 pfd_doc 结构不合法，已忽略');
+      }
     }
   }catch(e){ console.error('Failed to load doc:', e); }
 
@@ -1562,8 +1576,23 @@
   // 嵌入模式：对外 API + 与宿主页面通讯
   // ============================================================
   if(EMBED){
+    /* 宿主来源白名单（由 server.js 注入；未配置时仅接受同源）—— 审计 5.3/5.4 */
+    const EMBED_ORIGINS = (Array.isArray(window.__PFD_EMBED_ORIGINS)) ? window.__PFD_EMBED_ORIGINS : [];
+    let hostOrigin = null;   // 已确认的可信宿主来源，用于回发
+    function originAllowed(origin){
+      if(!origin) return false;
+      if(origin === location.origin) return true;                        // 同源
+      if(EMBED_ORIGINS.indexOf(origin) >= 0) return true;                // 显式白名单
+      if(location.protocol === 'file:' && origin === 'null') return true; // 本地 file:// 打开时的嵌入
+      return false;
+    }
     const notify = (type, extra={}) => {
-      if(window.parent && window.parent!==window) window.parent.postMessage({source:'pfd-embed', type, ...extra}, '*');
+      if(!(window.parent && window.parent !== window)) return;
+      /* 回发目标（审计 5.4）：优先已确认的宿主来源，其次白名单首个；
+         两者都没有时才退化为 '*' —— 仅用于宿主尚未发过消息的初始握手，
+         且握手载荷只含 ready/选中设备名，不含任何凭据。 */
+      const target = hostOrigin || (EMBED_ORIGINS.length ? EMBED_ORIGINS[0] : '*');
+      window.parent.postMessage({source:'pfd-embed', type, ...extra}, target);
     };
     // 宿主可在 iframe onload 后调用 window.PFDEmbed
     window.PFDEmbed = {
@@ -1589,9 +1618,16 @@
       _sel(comp);
       notify('select', { id: comp.id, name: (comp.props&&comp.props.name)||'' });
     };
-    // 接收宿主指令
+    /* 接收宿主指令 —— 必须校验来源（审计 5.3）：
+       原实现只判断 e.data.source==='pfd-host'，而该字符串是公开常量，不构成任何防护；
+       任何页面只要 iframe 嵌入本预览页，就能 post 一条 load 指令注入任意文档并触发渲染。 */
     window.addEventListener('message', e=>{
+      if(!originAllowed(e.origin)){
+        console.warn('[EMBED] 已拒绝来源不明的消息：' + e.origin);
+        return;
+      }
       const m = e.data; if(!m || m.source!=='pfd-host') return;
+      hostOrigin = e.origin;
       if(m.type==='load') window.PFDEmbed.load(m.doc);
       else if(m.type==='fit') window.PFDEmbed.fit();
       else if(m.type==='run') window.PFDEmbed.setRunning(!!m.value);

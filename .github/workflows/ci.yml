@@ -115,6 +115,19 @@ jobs:
           [ -z "$acao" ] || { echo "FAIL: 默认不应回 CORS 头，实际：$acao"; exit 1; }
           echo "no ACAO by default OK"
 
+          # ---- 前端安全守卫（对应安全审计 §5.3/§5.5/§5.6）----
+          # 这几处是前端行为，curl 覆盖不到，用静态守卫防止被误删/回退
+          echo "== frontend security guards =="
+          grep -q 'originAllowed(e.origin)' preview.html \
+            || { echo "FAIL: postMessage 缺少来源校验（审计 5.3）"; exit 1; }
+          grep -q 'isUsableDoc' preview.html \
+            || { echo "FAIL: ?doc= 缺少结构校验（审计 5.5）"; exit 1; }
+          grep -q '__PFD_API_ALLOW' editor.js \
+            || { echo "FAIL: ?api= 缺少跨源白名单校验（审计 5.6）"; exit 1; }
+          grep -q "__PFD_EMBED_ORIGINS" server.js \
+            || { echo "FAIL: 服务端未注入嵌入来源白名单"; exit 1; }
+          echo "frontend guards OK"
+
       - name: Server log on failure
         if: failure()
         run: cat /tmp/pfd-server.log

@@ -50,6 +50,11 @@ const CORS_ORIGINS = (process.env.PFD_CORS_ORIGINS || '').split(',').map(s => s.
    需要跨域嵌入时显式配置，例如 PFD_EMBED_ORIGINS=https://host.example。 */
 const EMBED_ORIGINS = (process.env.PFD_EMBED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
 
+/* 允许通过 ?api= 覆盖后端地址的来源白名单（审计 5.6，逗号分隔）。
+   默认为空 = 只允许同源（同源覆盖等于不覆盖，无实际意义），跨源必须显式登记。
+   用途：本地开发时把编辑器指向另一套后端。 */
+const API_ALLOW = (process.env.PFD_API_ALLOW || '').split(',').map(s => s.trim()).filter(Boolean);
+
 /* 转发给后端的请求头白名单（审计 4.3）。
    原来 {...req.headers} 把客户端全部头透传过去，包括 cookie / authorization
    （把调用方凭据转发给后端）与可伪造的 x-forwarded-*（污染后端审计）。 */
@@ -241,13 +246,21 @@ function sendFile(res, filePath) {
       return;
     }
     let body = data;
-    /* 令牌注入（审计 3.1 配套）：启用鉴权时把令牌注入到 HTML 页面，
-       前端据此自动带上 X-PFD-Token，无需人工配置；对页面以外的资源不注入。 */
-    if (API_TOKEN && (ext === '.html' || ext === '.htm')) {
-      const inject = '<script>window.__PFD_TOKEN=' + JSON.stringify(API_TOKEN) + ';<\/script>';
-      const txt = data.toString('utf8');
-      const at = txt.lastIndexOf('</body>');
-      body = Buffer.from(at >= 0 ? txt.slice(0, at) + inject + txt.slice(at) : txt + inject, 'utf8');
+    /* HTML 注入（审计 3.1 / 5.3 配套）：把服务端配置传给页面，避免前端各自硬编码。
+       · __PFD_TOKEN：启用鉴权时的项目库令牌，前端自动携带，无需人工配置
+       · __PFD_EMBED_ORIGINS：允许 iframe 嵌入的宿主来源白名单，
+         预览页据此校验 postMessage 来源（未配置时仅接受同源） */
+    if (ext === '.html' || ext === '.htm') {
+      const parts = [];
+      if (API_TOKEN) parts.push('window.__PFD_TOKEN=' + JSON.stringify(API_TOKEN) + ';');
+      if (EMBED_ORIGINS.length) parts.push('window.__PFD_EMBED_ORIGINS=' + JSON.stringify(EMBED_ORIGINS) + ';');
+      if (API_ALLOW.length) parts.push('window.__PFD_API_ALLOW=' + JSON.stringify(API_ALLOW) + ';');
+      if (parts.length) {
+        const inject = '<script>' + parts.join('') + '<\/script>';
+        const txt = data.toString('utf8');
+        const at = txt.lastIndexOf('</body>');
+        body = Buffer.from(at >= 0 ? txt.slice(0, at) + inject + txt.slice(at) : txt + inject, 'utf8');
+      }
     }
     res.writeHead(200, Object.assign({ 'Content-Type': MIME[ext] || 'application/octet-stream' }, securityHeaders()));
     res.end(body);

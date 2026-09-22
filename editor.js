@@ -66,8 +66,35 @@ function logSensorFailure(where, e){
  *    - file:// 协议下直连远端地址（需后端支持CORS，否则会失败）；
  *    - 可通过 URL 参数 ?api= 覆盖（如 editor.html?api=https://xx.xx），便于切换环境。
  * ============================================================ */
-const _apiParam = new URLSearchParams(location.search).get('api');
+/* URL 参数 ?api= 可覆盖后端地址（便于切换环境）。
+   审计 5.6：必须校验 —— 原实现把参数直接拼进 fetch 的基地址，
+   非 http(s) 协议（javascript:/data: 等）或指向第三方主机都会静默生效。 */
+const _apiParamRaw = new URLSearchParams(location.search).get('api');
 const _isFileProtocol = location.protocol === 'file:';
+const _apiParam = (function(){
+  if(!_apiParamRaw) return '';
+  try{
+    const u = new URL(_apiParamRaw, location.href);
+    if(u.protocol !== 'http:' && u.protocol !== 'https:'){
+      console.warn('[API] ?api= 协议不被允许（仅支持 http/https），已忽略：' + _apiParamRaw);
+      return '';
+    }
+    if(u.origin === location.origin) return '';   // 同源等同于不覆盖
+    // 跨源覆盖必须显式登记在 PFD_API_ALLOW（由 server.js 注入）中，
+    // 否则一个构造链接就能把传感器请求导向任意主机（数据源伪造）。
+    const allow = (Array.isArray(window.__PFD_API_ALLOW)) ? window.__PFD_API_ALLOW : [];
+    if(allow.indexOf(u.origin) < 0){
+      console.warn('[API] ?api= 指向未登记的跨源地址，已忽略：' + u.origin
+        + '（如需允许，请在服务端设置 PFD_API_ALLOW）');
+      return '';
+    }
+    console.warn('[API] 后端地址被 URL 参数覆盖为：' + u.origin + '（已在 PFD_API_ALLOW 白名单内）');
+    return u.origin;
+  }catch(e){
+    console.warn('[API] ?api= 不是合法 URL，已忽略：' + _apiParamRaw);
+    return '';
+  }
+})();
 const SENSOR_API_BASE = _apiParam || (_isFileProtocol ? 'http://192.168.1.78' : '');
 const SENSOR_API = {
   async _get(path){
