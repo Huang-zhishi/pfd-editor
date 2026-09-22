@@ -190,6 +190,31 @@ function readBody(req) {
   });
 }
 
+/* 项目 payload 入口校验（审计 10.7）：原来只校验"合法 JSON"即落盘，损坏或恶意结构
+   （数组/标量/缺字段的半成品）会直接进入项目库，下次打开时在前端深层报错。
+   这里做与前端 projectDataProblems 口径一致的最小必要校验（服务端没有组件模板
+   注册表，type 语义校验仍由前端负责），返回 null = 通过，否则返回问题描述。 */
+function validateProjectPayload(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return '根节点必须是 JSON 对象';
+  if (!Array.isArray(o.components)) return '缺少 components 数组';
+  if (!Array.isArray(o.pipes)) return '缺少 pipes 数组';
+  if (o.version !== undefined && (typeof o.version !== 'number' || !isFinite(o.version))) return 'version 必须是数字';
+  for (let i = 0; i < o.components.length; i++) {
+    const c = o.components[i];
+    if (!c || typeof c !== 'object' || Array.isArray(c)) return 'components[' + i + '] 不是对象';
+    if (!c.id) return 'components[' + i + '] 缺少 id';
+    if (!c.type) return 'components[' + i + '] 缺少 type';
+  }
+  for (let i = 0; i < o.pipes.length; i++) {
+    const p = o.pipes[i];
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return 'pipes[' + i + '] 不是对象';
+    if (!p.id) return 'pipes[' + i + '] 缺少 id';
+    if (!p.from || !p.from.cid) return 'pipes[' + i + '] 缺少 from.cid';
+    if (!p.to || !p.to.cid) return 'pipes[' + i + '] 缺少 to.cid';
+  }
+  return null;
+}
+
 async function handleProjectsApi(req, res, urlPath) {
   const rest = urlPath.slice(PROJECT_API.length);
   // 鉴权（审计 3.1）：原来列目录/读/写/删全部零鉴权，局域网内任何人都能读写删除全部项目。
@@ -238,20 +263,54 @@ async function handleProjectsApi(req, res, urlPath) {
 
     if (req.method === 'POST') {
       const body = await readBody(req);
-      JSON.parse(body);   // 先校验为合法 JSON，避免把损坏内容写进项目库
+      /* 入口校验 + 版本登记（审计 10.7）：原来只校验"合法 JSON"即落盘，
+         损坏或恶意结构（缺字段的半成品）会直接进入项目库。现在按项目 schema
+         校验，并把数据版本登记进审计日志（version 字段缺失按 v1 登记）。 */
+      let parsed;
+      try {
+        parsed = JSON.parse(body);
+      } catch (e) {
+        sendJSON(res, 400, { success: false, error: '请求体不是合法 JSON：' + e.message });
+        return;
+      }
+      const schemaErr = validateProjectPayload(parsed);
+      if (schemaErr) {
+        logLine('warn', 'save-rejected', { name, reason: schemaErr });
+        sendJSON(res, 400, { success: false, error: '项目数据校验未通过：' + schemaErr });
+        return;
+      }
+      const dataVersion = (typeof parsed.version === 'number') ? parsed.version : 1;
 
       /* 并发写保护（审计 3.3）：原来后写无条件覆盖先写，多客户端同时保存会静默丢一方修改。
          客户端可带上 X-PFD-Base-Mtime（= 载入时服务端返回的 mtime）；与当前文件 mtime
          不一致说明期间已被他人改动 → 返回 409 由客户端提示，而不是静默覆盖。
          不带该头则保持原有行为（向后兼容）。 */
       const baseMtime = req.headers['x-pfd-base-mtime'];
-      const doWrite = () => fs.writeFile(full, body, 'utf8', (err) => {
-        if (err) { sendJSON(res, 500, { success: false, error: '写入失败：' + err.message }); return; }
-        auditLog(req, 'save', name, { bytes: Buffer.byteLength(body, 'utf8') });
-        fs.stat(full, (e2, st) => {
-          sendJSON(res, 200, { success: true, name, mtime: e2 ? Date.now() : st.mtimeMs });
+      /* 原子写（审计 10.7）：原来 fs.writeFile 直写目标文件，写一半（断电/磁盘满/进程被杀）
+         会把项目损坏成半截 JSON。改为先写临时文件再 rename 覆盖 —— 同目录 rename 是原子操作，
+         任一步失败都清理临时文件，目标文件始终保持完整旧版本或完整新版本。
+         临时文件不以 .json 结尾，不会出现在列表接口中。 */
+      const doWrite = () => {
+        const tmp = full + '.tmp-' + process.pid + '-' + Date.now();
+        fs.writeFile(tmp, body, 'utf8', (err) => {
+          if (err) {
+            fs.unlink(tmp, () => {});
+            sendJSON(res, 500, { success: false, error: '写入失败：' + err.message });
+            return;
+          }
+          fs.rename(tmp, full, (err2) => {
+            if (err2) {
+              fs.unlink(tmp, () => {});
+              sendJSON(res, 500, { success: false, error: '写入失败：' + err2.message });
+              return;
+            }
+            auditLog(req, 'save', name, { bytes: Buffer.byteLength(body, 'utf8'), version: dataVersion });
+            fs.stat(full, (e2, st) => {
+              sendJSON(res, 200, { success: true, name, version: dataVersion, mtime: e2 ? Date.now() : st.mtimeMs });
+            });
+          });
         });
-      });
+      };
 
       if (baseMtime === undefined) { doWrite(); return; }
       // 注意回调签名是 (err, stats)：第一个参数是错误，不能当 stats 用。

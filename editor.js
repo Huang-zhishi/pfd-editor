@@ -3125,6 +3125,50 @@ function projFileName(raw){
   return /\.json$/i.test(base) ? base : base + '.json';
 }
 
+/*统一 API 客户端（审计 5.9）：项目库 4 个 fetch 原来各自 `r.json().catch(...)` +
+   `if(!j || !j.success) throw`，网络错误 / HTTP 错误 / 业务错误混作一团，失败提示粒度粗。
+   统一为一个入口，按状态码分支并抛出规范化错误对象：
+   · kind='network'  fetch 本身失败（服务未启动 / 断网）
+   · kind='conflict' HTTP 409 并发写冲突（e.mtime = 服务端当前 mtime）
+   · kind='http'     响应不是约定的 JSON 结构（e.status 可用）
+   · kind='client'   4xx 请求被拒（e.status / e.message 可用）
+   · kind='server'   5xx 服务端故障 */
+function projApiError(msg, props){
+  const e = new Error(msg);
+  Object.assign(e, props || {});
+  return e;
+}
+async function projApi(path, opts){
+  let r;
+  try{
+    r = await projFetch(path, opts);
+  }catch(e){
+    throw projApiError('网络错误或服务未启动：' + ((e && e.message) || e), { kind:'network' });
+  }
+  const j = await r.json().catch(()=>null);
+  if(r.status === 409){
+    throw projApiError((j && j.error) || '该项目已被其他会话修改', {
+      kind: 'conflict', status: 409,
+      mtime: (j && typeof j.mtime === 'number') ? Math.round(j.mtime) : null
+    });
+  }
+  if(!j || typeof j !== 'object' || Array.isArray(j)){
+    throw projApiError('服务端响应异常（HTTP ' + r.status + '）', { kind:'http', status:r.status });
+  }
+  if(!j.success){
+    throw projApiError(j.error || ('操作失败（HTTP ' + r.status + '）'), {
+      kind: (r.status >= 500) ? 'server' : 'client', status: r.status
+    });
+  }
+  return j;
+}
+/* 失败提示按错误类别分流（审计 5.9：原来一律笼统报错，用户无法区分断网/被拒/服务端故障） */
+function projErrText(e, action){
+  if(!e) return action + '：未知错误';
+  if(e.kind === 'network') return action + '：无法连接项目库（请确认通过 node server.js 启动，而非直接打开 HTML 文件）';
+  return action + '：' + e.message;
+}
+
 function openProjectPanel(){
   const m = $('projModal'); if(!m) return;
   const nameInput = $('projName');
@@ -3152,15 +3196,15 @@ async function refreshProjectList(){
   const list = $('projList'); if(!list) return;
   list.innerHTML = '<div class="sm-empty">读取中…</div>';
   try{
-    const r = await projFetch(PROJ_API);
-    const j = await r.json();
-    if(!j || !j.success) throw new Error((j && j.error) || '接口返回异常');
+    const j = await projApi(PROJ_API);
     const dirEl = $('projDir');
-    if(dirEl){ dirEl.textContent = '目录：' + j.dir; dirEl.title = j.dir; }
-    const hint = $('projHint'); if(hint) hint.textContent = `共 ${j.files.length} 个项目`;
-    renderProjectRows(j.files);
+    // 安全批次（7.3）后服务端不再回显绝对路径，降级为固定文案
+    if(dirEl){ dirEl.textContent = j.dir ? ('目录：' + j.dir) : '目录：项目库（服务端默认目录）'; dirEl.title = j.dir || ''; }
+    const hint = $('projHint'); if(hint) hint.textContent = `共 ${(j.files || []).length} 个项目`;
+    renderProjectRows(j.files || []);
   }catch(e){
-    list.innerHTML = '<div class="sm-empty">无法读取项目库<br>请确认通过 node server.js 启动（而非直接打开 HTML 文件）</div>';
+    console.warn('[PROJECT] 列表读取失败', e.kind, e.message);
+    list.innerHTML = '<div class="sm-empty">' + esc(projErrText(e, '无法读取项目库')).replace(/\n/g, '<br>') + '</div>';
     const hint = $('projHint'); if(hint) hint.textContent = '';
   }
 }
@@ -3194,53 +3238,43 @@ async function saveToLibrary(name){
   const target = projFileName(name);
   const data = buildProjectData();
   const json = JSON.stringify(data, null, 2);
-  try{
-    /* 并发写保护（审计 3.3）：带上载入时的 mtime 作为基线，
-       服务端发现文件已被他人改动会返回 409，这里提示用户而不是静默覆盖。 */
+  /* 并发写保护（审计 3.3）：带上载入时的 mtime 作为基线，
+     服务端发现文件已被他人改动会返回 409，这里提示用户而不是静默覆盖。 */
+  const doSave = withBase => {
     const headers = { 'Content-Type':'application/json' };
-    if(_projectBaseMtime !== null) headers['X-PFD-Base-Mtime'] = String(_projectBaseMtime);
-    const r = await projFetch(PROJ_API + '/' + encodeURIComponent(target), {
-      method:'POST', headers, body: json
-    });
-    const j = await r.json().catch(()=>null);
-    if(r.status === 409){
+    if(withBase && _projectBaseMtime !== null) headers['X-PFD-Base-Mtime'] = String(_projectBaseMtime);
+    return projApi(PROJ_API + '/' + encodeURIComponent(target), { method:'POST', headers, body: json });
+  };
+  try{
+    let j, overwritten = false;
+    try{
+      j = await doSave(true);
+    }catch(e){
+      if(e.kind !== 'conflict') throw e;
       const ok = confirm('该项目在项目库中已被其他会话修改。\n\n确定 = 用当前画布内容覆盖\n取消 = 放弃本次保存');
       if(!ok){ flash('已取消保存（项目库版本较新）'); return; }
       // 用户确认覆盖：清掉基线重发一次
       _projectBaseMtime = null;
-      const r2 = await projFetch(PROJ_API + '/' + encodeURIComponent(target), {
-        method:'POST', headers:{ 'Content-Type':'application/json' }, body: json
-      });
-      const j2 = await r2.json().catch(()=>null);
-      if(!j2 || !j2.success) throw new Error((j2 && j2.error) || '保存失败');
-      _projectBaseMtime = (typeof j2.mtime === 'number') ? Math.round(j2.mtime) : null;
-      _currentProjectFile = target;
-      setDirty(false);
-      updateFileInfo(target, Date.now());
-      flash('已覆盖保存到项目库：' + target);
-      refreshProjectList();
-      return;
+      j = await doSave(false);
+      overwritten = true;
     }
-    if(!j || !j.success) throw new Error((j && j.error) || '保存失败');
     _projectBaseMtime = (typeof j.mtime === 'number') ? Math.round(j.mtime) : null;
     _currentProjectFile = target;
     setDirty(false);
     updateFileInfo(target, Date.now());
-    flash('已保存到项目库：' + target);
+    flash((overwritten ? '已覆盖保存到项目库：' : '已保存到项目库：') + target);
     const nameInput = $('projName'); if(nameInput) nameInput.value = target;
     refreshProjectList();
   }catch(e){
     console.error('保存失败', e);
-    alert('保存到项目库失败：' + (e && e.message ? e.message : '未知错误'));
+    alert(projErrText(e, '保存到项目库失败'));
   }
 }
 
 // 从项目库读取并应用
 async function loadFromLibrary(name){
   try{
-    const r = await projFetch(PROJ_API + '/' + encodeURIComponent(name));
-    const j = await r.json();
-    if(!j || !j.success) throw new Error((j && j.error) || '读取失败');
+    const j = await projApi(PROJ_API + '/' + encodeURIComponent(name));
     if(restoreFromText(j.content, name)){
       _currentProjectFile = name;
       _projectBaseMtime = (typeof j.mtime === 'number') ? Math.round(j.mtime) : null;   // 并发基线
@@ -3249,21 +3283,19 @@ async function loadFromLibrary(name){
     }
   }catch(e){
     console.error('加载失败', e);
-    alert('加载失败：' + (e && e.message ? e.message : '未知错误'));
+    alert(projErrText(e, '加载失败'));
   }
 }
 
 async function deleteFromLibrary(name){
   try{
-    const r = await projFetch(PROJ_API + '/' + encodeURIComponent(name), { method:'DELETE' });
-    const j = await r.json();
-    if(!j || !j.success) throw new Error((j && j.error) || '删除失败');
+    await projApi(PROJ_API + '/' + encodeURIComponent(name), { method:'DELETE' });
     if(_currentProjectFile === name){ _currentProjectFile = null; _projectBaseMtime = null; }
     flash('已从项目库删除：' + name);
     refreshProjectList();
   }catch(e){
     console.error('删除失败', e);
-    alert('删除失败：' + (e && e.message ? e.message : '未知错误'));
+    alert(projErrText(e, '删除失败'));
   }
 }
 
@@ -3591,6 +3623,14 @@ async function loadTemplate(){
   }
 }
 
+/* 存储契约（审计 6.7）：编辑器 → 预览页的 localStorage 通道，key + 数据格式的契约。
+   原来 'pfd_doc' 裸字符串散落在 editor.js / preview.html / embed-demo.html 三处，
+   任何一处改 key 都会静默丢数据。现在统一为命名常量 + 版本化 key：
+   数据格式变更时递增 key 版本（pfd_doc:v2 → pfd_doc:v3），读取方保留旧 key 迁移。
+   ⚠️ 三文件（editor.js / preview.html / embed-demo.html）的常量定义必须同步修改。 */
+const PFD_STORE_KEY = 'pfd_doc:v2';
+const PFD_STORE_KEY_LEGACY = 'pfd_doc';
+
 /* 把当前文档写入 localStorage 供预览页读取。
    localStorage 可能写失败：配额超限（QuotaExceededError）或隐私/无痕模式禁用（SecurityError）。
    原来直接 setItem 不捕获 —— 失败时预览页读到的是上一次的旧文档，用户以为已同步（审计 §5.1）。
@@ -3604,12 +3644,14 @@ function writePreviewDoc(){
     return false;
   }
   try{
-    localStorage.setItem('pfd_doc', txt);
-    if(localStorage.getItem('pfd_doc') !== txt) throw new Error('写入后校验不一致');
+    localStorage.setItem(PFD_STORE_KEY, txt);
+    if(localStorage.getItem(PFD_STORE_KEY) !== txt) throw new Error('写入后校验不一致');
+    // 新 key 写入成功后清掉旧 key，避免读取方下次又拿到旧格式数据（审计 6.7）
+    localStorage.removeItem(PFD_STORE_KEY_LEGACY);
     return true;
   }catch(e){
     const quota = e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
-    console.error('[STORAGE] 写入 pfd_doc 失败：', e && e.name, e && e.message);
+    console.error('[STORAGE] 写入 ' + PFD_STORE_KEY + ' 失败：', e && e.name, e && e.message);
     alert(quota
       ? '浏览器本地存储空间不足，无法把当前流程同步给预览页。\n建议：清理浏览器站点数据，或改用「项目库保存」后再从项目库打开预览。'
       : '写入本地存储失败（隐私/无痕模式可能禁用了 localStorage）：\n' + (e && e.message));

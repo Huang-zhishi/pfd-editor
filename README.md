@@ -251,4 +251,4 @@ window.addEventListener('message', e => {
 
 - 实时数据位号须与后端完全一致（含中文前缀），简写（如 `TI_206A`）无法匹配 `1#窑体温度TI_206A`。
 - `file://` 协议直连后端时依赖后端 CORS 配置，建议始终通过 `server.js` 访问。
-- 项目数据与浏览器 localStorage 绑定（key：`pfd_doc`），跨浏览器迁移请使用磁盘保存/加载。
+- 项目数据与浏览器 localStorage 绑定（key：`pfd_doc:v2`，旧 key `pfd_doc` 读取时自动迁移），跨浏览器迁移请使用磁盘保存/加载。

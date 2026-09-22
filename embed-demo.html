@@ -75,9 +75,23 @@
   };
 
   // 从同源 localStorage 读取编辑器保存的流程（若存在）
+  /* 存储契约（审计 6.7）：与 editor.js / preview.html 共用同一份 key 定义，
+     版本化 key + 旧 key 迁移读取，避免改 key 静默丢数据。
+     ⚠️ 三文件（editor.js / preview.html / embed-demo.html）的常量定义必须同步修改。 */
+  const PFD_STORE_KEY = 'pfd_doc:v2';
+  const PFD_STORE_KEY_LEGACY = 'pfd_doc';
   function loadDoc(){
     try{
-      const s = localStorage.getItem('pfd_doc');
+      let s = localStorage.getItem(PFD_STORE_KEY);
+      if(s === null){
+        s = localStorage.getItem(PFD_STORE_KEY_LEGACY);
+        if(s !== null){
+          try{
+            localStorage.setItem(PFD_STORE_KEY, s);   // 旧 key 数据迁移到版本化 key
+            localStorage.removeItem(PFD_STORE_KEY_LEGACY);
+          }catch(e2){ /* 迁移失败仍返回旧值供本次使用 */ }
+        }
+      }
       return s ? JSON.parse(s) : null;
     }catch(e){ return null; }
   }

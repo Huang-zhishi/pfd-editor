@@ -673,24 +673,80 @@
     return !!o && typeof o === 'object' && !Array.isArray(o)
       && Array.isArray(o.components) && Array.isArray(o.pipes);
   }
-  try{
-    const qp = new URLSearchParams(location.search).get('doc');
-    if(qp){                       // 优先使用 ?doc= 传入的项目（URI 编码 JSON）
-      // URLSearchParams.get() 已完成一次解码，此处直接解析
-      // （再解一次会在文档含字面量 '%' 时抛出 URI malformed，如阀位单位 '%'）
-      const parsed = JSON.parse(qp);
-      if(isUsableDoc(parsed)) doc = parsed;
-      else console.warn('[LOAD] ?doc= 结构不合法（需含 components / pipes 数组），已忽略');
+
+  /* 存储契约（审计 6.7）：与 editor.js / embed-demo.html 共用同一份 key 定义，
+     版本化 key + 旧 key 迁移读取，避免改 key 静默丢数据。
+     ⚠️ 三文件（editor.js / preview.html / embed-demo.html）的常量定义必须同步修改。 */
+  const PFD_STORE_KEY = 'pfd_doc:v2';
+  const PFD_STORE_KEY_LEGACY = 'pfd_doc';
+  function readStoredDocText(){
+    const s = localStorage.getItem(PFD_STORE_KEY);
+    if(s !== null) return s;
+    const old = localStorage.getItem(PFD_STORE_KEY_LEGACY);
+    if(old === null) return null;
+    try{
+      localStorage.setItem(PFD_STORE_KEY, old);   // 旧 key 数据迁移到版本化 key
+      localStorage.removeItem(PFD_STORE_KEY_LEGACY);
+    }catch(e){ /* 迁移失败（配额/禁用）仍返回旧值供本次使用 */ }
+    return old;
+  }
+
+  /* 统一 loader 管道（审计 10.6）：?doc= / localStorage / embed postMessage 三路数据
+     原来各写各的解析（embed 注入甚至直接 JSON.parse 赋值，无任何校验），兼容策略不一致。
+     现在所有来源都走同一条链：parse → validate → migrate → normalize。 */
+  function parseDocInput(input){
+    if(input == null) return null;
+    if(typeof input === 'string'){
+      try{ return JSON.parse(input); }
+      catch(e){ console.warn('[LOAD] JSON 解析失败：' + e.message); return null; }
     }
-    if(!isUsableDoc(doc)){        // 未从 ?doc= 取到则回退 localStorage
-      const s = localStorage.getItem('pfd_doc');
-      if(s){
-        const parsed = JSON.parse(s);
-        if(isUsableDoc(parsed)) doc = parsed;
-        else console.warn('[LOAD] localStorage 中的 pfd_doc 结构不合法，已忽略');
+    if(typeof input === 'object'){
+      try{ return JSON.parse(JSON.stringify(input)); }   // 深拷贝，隔离宿主后续修改（与原 embed 行为一致）
+      catch(e){ console.warn('[LOAD] 文档对象无法序列化：' + e.message); return null; }
+    }
+    return null;
+  }
+  function migrateDocShape(o){
+    // 旧版字段迁移：meta / version 可缺失（裸 ?doc=、embed 注入），渲染层直接读 doc.meta.* 会抛错
+    if(!o.meta || typeof o.meta !== 'object' || Array.isArray(o.meta)) o.meta = {};
+    if(typeof o.version !== 'number') o.version = 1;
+    return o;
+  }
+  function normalizeDocData(o){
+    for(let i=0;i<o.components.length;i++){
+      const c = o.components[i];
+      if(c && typeof c === 'object' && typeof normalizeMonitorPropsPreview === 'function'){
+        normalizeMonitorPropsPreview(c);   // 旧版双 tag 字段迁移 + showLead 默认值（渲染期兜底之外提前归一）
       }
     }
-  }catch(e){ console.error('Failed to load doc:', e); }
+    return o;
+  }
+  function loadDoc(input, sourceTag){
+    const parsed = parseDocInput(input);
+    if(!parsed){ if(input != null) console.warn('[LOAD] ' + sourceTag + ' 解析失败，已忽略'); return null; }
+    if(!isUsableDoc(parsed)){
+      console.warn('[LOAD] ' + sourceTag + ' 结构不合法（需含 components / pipes 数组），已忽略');
+      return null;
+    }
+    return normalizeDocData(migrateDocShape(parsed));
+  }
+
+  (function initDocLoad(){
+    let loaded = false;
+    try{
+      const qp = new URLSearchParams(location.search).get('doc');
+      if(qp){                   // 优先使用 ?doc= 传入的项目（URI 编码 JSON）
+        // URLSearchParams.get() 已完成一次解码，此处直接解析
+        // （再解一次会在文档含字面量 '%' 时抛出 URI malformed，如阀位单位 '%'）
+        const d = loadDoc(qp, '?doc=');
+        if(d){ doc = d; loaded = true; }
+      }
+      if(!loaded){              // 未从 ?doc= 取到则回退 localStorage
+        const d = loadDoc(readStoredDocText(), 'localStorage');
+        if(d){ doc = d; loaded = true; }
+      }
+    }catch(e){ console.error('Failed to load doc:', e); }
+  })();
 
   // 嵌入模式：隐藏界面 chrome，画布自适应容器
   if(EMBED){
@@ -1597,7 +1653,11 @@
     // 宿主可在 iframe onload 后调用 window.PFDEmbed
     window.PFDEmbed = {
       load(d){ try{
-        doc = JSON.parse(typeof d==='string' ? d : JSON.stringify(d));
+        /* 统一 loader 管道（审计 10.6）：embed 注入与 ?doc= / localStorage 走同一条
+           parse → validate → migrate → normalize 链，原来这里直接 JSON.parse 赋值无任何校验 */
+        const parsed = loadDoc(d, 'EMBED.load');
+        if(!parsed) return;      // 解析/校验失败已在 loadDoc 内告警，不覆盖当前画面
+        doc = parsed;
         zoom = 1.05; panX = 0; panY = 0;
         render(); applyView();
         // 关键：用新 doc 重建数据适配器，否则传感器目录为空导致悬浮面板无数据
