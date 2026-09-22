@@ -187,10 +187,15 @@ TEMPLATES.tubeCooler = {
           yVals.push((cy + R*Math.sin(ang) - sw/2).toFixed(1));
           opVals.push(front > 0.1 ? (opFront*front + 0.1).toFixed(2) : '0');
         }
-        return `<rect x="${F(drumL+stripMargin)}" y="${yVals[0]}" width="${F(drumW-2*stripMargin)}" height="${F(sw)}" rx="${F(sw/2)}" fill="${color}" clip-path="url(#${clipId})">
-          <animate attributeName="y" values="${yVals.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
+        /* 性能：位置动画由几何属性 y 改为 transform: translate ——
+           几何属性每帧都要重算并重绘图元，transform 更便宜且后续可被合成器接管。
+           注意 clip-path 必须留在外层 <g>（它按父级用户空间裁剪），否则会跟着一起平移。 */
+        const _y0 = parseFloat(yVals[0]);
+        const _tv = yVals.map(v => '0 ' + (parseFloat(v) - _y0).toFixed(1)).join(';');
+        return `<g clip-path="url(#${clipId})"><rect x="${F(drumL+stripMargin)}" y="${yVals[0]}" width="${F(drumW-2*stripMargin)}" height="${F(sw)}" rx="${F(sw/2)}" fill="${color}">
+          <animateTransform attributeName="transform" type="translate" values="${_tv}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="opacity" values="${opVals.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
-        </rect>`;
+        </rect></g>`;
       };
       rotMarks += makeStrip(0, stripMain, '#d9dded', 0.9);    // 高光粗主带（更宽更亮）
       rotMarks += makeStrip(0.25, stripThin, '#d9dded', 0.3);   // 高光副带
@@ -201,8 +206,8 @@ TEMPLATES.tubeCooler = {
       let ringBolts = '';
       for(let ri=1; ri<=7; ri++){
         const wx = drumL + (drumW * ri / 8);
-        for(let i=0; i<4; i++){
-          const phase = i/4;
+        for(let i=0; i<3; i++){
+          const phase = i/3;   // 性能：每环螺栓 4→3
           const delay = -(phase*rotDur).toFixed(2);
           let cyv=[], opv=[];
           for(let k=0; k<=16; k++){
@@ -211,10 +216,13 @@ TEMPLATES.tubeCooler = {
             cyv.push((cy + (R-ringInset)*Math.sin(ang)).toFixed(1));
             opv.push(front > 0 ? (0.3 + 0.5*front).toFixed(2) : '0');
           }
-          ringBolts += `<circle cx="${wx.toFixed(1)}" cy="${cyv[0]}" r="${F(partR*0.7)}" fill="${c}" clip-path="url(#${clipId})" opacity="${opv[0]}">
-            <animate attributeName="cy" values="${cyv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
+          // 性能：cy → transform: translate（同上）
+          const _cy0 = parseFloat(cyv[0]);
+          const _btv = cyv.map(v => '0 ' + (parseFloat(v) - _cy0).toFixed(1)).join(';');
+          ringBolts += `<g clip-path="url(#${clipId})"><circle cx="${wx.toFixed(1)}" cy="${cyv[0]}" r="${F(partR*0.7)}" fill="${c}" opacity="${opv[0]}">
+            <animateTransform attributeName="transform" type="translate" values="${_btv}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
             <animate attributeName="opacity" values="${opv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
-          </circle>`;
+          </circle></g>`;
         }
       }
 
@@ -248,9 +256,9 @@ TEMPLATES.tubeCooler = {
       // 扬料板在筒壁上的固定点（小方点，铆接感）
       let flightPivots = '';
       for(let fi=0; fi<flightCount; fi++){
-        for(let ri=1; ri<=3; ri++){
-          const wx = drumL + drumW*0.25 + drumW*0.5*(ri-1)/2;
-          const phase = fi/flightCount + (ri*0.05);
+        for(let ri=1; ri<=2; ri++){   // 性能：每块扬料板铆点 3→2
+          const wx = drumL + drumW*0.25 + drumW*0.5*(ri-1)/1;
+          const phase = fi/flightCount + (ri*0.06);
           const delay = -(phase*rotDur).toFixed(2);
           let py=[], pOp=[];
           for(let k=0; k<=24; k++){
@@ -258,16 +266,19 @@ TEMPLATES.tubeCooler = {
             py.push((cy + (R-flightInset)*Math.sin(ang)).toFixed(1));
             pOp.push(Math.cos(ang) > 0 ? '0.5' : '0.08');
           }
-          flightPivots += `<rect x="${(wx-pivotSize/2).toFixed(1)}" y="${(py[0]-pivotSize/2).toFixed(1)}" width="${F(pivotSize)}" height="${F(pivotSize)}" fill="${c}" clip-path="url(#${clipId})" opacity="${pOp[0]}">
-            <animate attributeName="y" values="${py.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
+          // 性能：y → transform: translate（同上）
+          const _py0 = parseFloat(py[0]);
+          const _ptv = py.map(v => '0 ' + (parseFloat(v) - _py0).toFixed(1)).join(';');
+          flightPivots += `<g clip-path="url(#${clipId})"><rect x="${(wx-pivotSize/2).toFixed(1)}" y="${(py[0]-pivotSize/2).toFixed(1)}" width="${F(pivotSize)}" height="${F(pivotSize)}" fill="${c}" opacity="${pOp[0]}">
+            <animateTransform attributeName="transform" type="translate" values="${_ptv}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
             <animate attributeName="opacity" values="${pOp.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
-          </rect>`;
+          </rect></g>`;
         }
       }
 
       // 7. 滚带（大齿圈样式：带齿动画）
       const drawTire = (tx)=>{
-        const tTeethCount = 36;
+        const tTeethCount = 24;   // 性能：36→24（滚带齿仅装饰，无啮合约束）
         const tGearR = R + tireW/2;
         const tToothH = toothH;
         const tOuterRx = tireW/2;
@@ -303,7 +314,7 @@ TEMPLATES.tubeCooler = {
       const gearHalfW = clamp(tireW*0.42, 4, 9);
       const gearInnerHalfW = Math.max(1.5, gearHalfW - rimT);
       const gearOuterR = R + clamp(R*0.36, 5, 12);
-      const gTeethCount = 36;
+      const gTeethCount = 24;     // 性能：36→24；小齿轮齿数同比调整以保持啮合比
       const gTw = clamp(K*0.9, 0.6, 1.4);
       const gearBody = `<ellipse cx="${F(gearX)}" cy="${F(cy)}" rx="${F(gearHalfW)}" ry="${F(gearOuterR)}" fill="url(#${metalId})" stroke="#3f445c" stroke-width="1.5"/>
         <ellipse cx="${F(gearX)}" cy="${F(cy)}" rx="${F(gearInnerHalfW)}" ry="${F(gearOuterR-rimT*1.5)}" fill="#12162b" stroke="#6a7192" stroke-width="0.8" opacity="0.6"/>`;
@@ -328,7 +339,7 @@ TEMPLATES.tubeCooler = {
 
       // 9. 小齿轮+减速机+电机（精细完整）
       const pinionR = clamp(R*0.18, 4, 11);
-      const pTeethCount = 14;
+      const pTeethCount = 10;     // 性能：14→10
       const pinionX = gearX + clamp(K*3, 2, 8);
       const pinionY = cy + gearOuterR*0.7;
       const pinionToothIn = clamp(K, 0.6, 1.6), pinionToothOut = clamp(K*3, 1.5, 4.5);
@@ -396,7 +407,7 @@ TEMPLATES.tubeCooler = {
 
       let particles = '';
       // 11a. 物料粒子：被扬料板带起→顶点→抛落（雨幕效果）
-      const matParticleCount = 28;
+      const matParticleCount = 18;   // 性能：28→18
       const matSpray = partR*1.8;
       for(let i=0; i<matParticleCount; i++){
         const phase = i/matParticleCount;
@@ -439,16 +450,19 @@ TEMPLATES.tubeCooler = {
           opv.push(op.toFixed(2));
           rv.push(r.toFixed(1));
         }
-        particles += `<circle cx="${cxv[0]}" cy="${cyv[0]}" r="${rv[0]}" fill="${c}" clip-path="url(#${clipIdInner})" opacity="${opv[0]}">
-          <animate attributeName="cx" values="${cxv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
-          <animate attributeName="cy" values="${cyv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
+        /* 性能：cx/cy 两个几何属性动画合并成一个 transform: translate ——
+           动画数不减，但每帧不再重算并重绘图元；r / opacity 保留（后续换 CSS 引擎时可走合成层）。 */
+        const _mx0 = parseFloat(cxv[0]), _my0 = parseFloat(cyv[0]);
+        const _mtv = cxv.map((v, k) => (parseFloat(v) - _mx0).toFixed(1) + ' ' + (parseFloat(cyv[k]) - _my0).toFixed(1)).join(';');
+        particles += `<g clip-path="url(#${clipIdInner})"><circle cx="${cxv[0]}" cy="${cyv[0]}" r="${rv[0]}" fill="${c}" opacity="${opv[0]}">
+          <animateTransform attributeName="transform" type="translate" values="${_mtv}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="r" values="${rv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="opacity" values="${opv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
-        </circle>`;
+        </circle></g>`;
       }
 
       // 11b. 冷却空气粒子：小而亮，逆向流动（从airIn到airOut方向，即从右到左+向上飘）
-      const airParticleCount = 16;
+      const airParticleCount = 10;   // 性能：16→10
       for(let i=0; i<airParticleCount; i++){
         const phase = i/airParticleCount;
         const delay = -(phase*rotDur*1.5).toFixed(2);
@@ -467,17 +481,19 @@ TEMPLATES.tubeCooler = {
           ayv.push(y.toFixed(1));
           aop.push(op.toFixed(2));
         }
-        particles += `<circle cx="${axv[0]}" cy="${ayv[0]}" r="${F(partR*0.65)}" fill="${c}" clip-path="url(#${clipIdInner})" opacity="${aop[0]}">
-          <animate attributeName="cx" values="${axv.join(';')}" dur="${rotDur*1.5}s" begin="${delay}s" repeatCount="indefinite"/>
-          <animate attributeName="cy" values="${ayv.join(';')}" dur="${rotDur*1.5}s" begin="${delay}s" repeatCount="indefinite"/>
+        // 性能：cx/cy → transform: translate（同上）
+        const _ax0 = parseFloat(axv[0]), _ay0 = parseFloat(ayv[0]);
+        const _atv = axv.map((v, k) => (parseFloat(v) - _ax0).toFixed(1) + ' ' + (parseFloat(ayv[k]) - _ay0).toFixed(1)).join(';');
+        particles += `<g clip-path="url(#${clipIdInner})"><circle cx="${axv[0]}" cy="${ayv[0]}" r="${F(partR*0.65)}" fill="${c}" opacity="${aop[0]}">
+          <animateTransform attributeName="transform" type="translate" values="${_atv}" dur="${rotDur*1.5}s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="opacity" values="${aop.join(';')}" dur="${rotDur*1.5}s" begin="${delay}s" repeatCount="indefinite"/>
-        </circle>`;
+        </circle></g>`;
         // 冷空气尾迹小点
-        particles += `<circle cx="${(parseFloat(axv[0])-partR).toFixed(1)}" cy="${(parseFloat(ayv[0])+partR*0.5).toFixed(1)}" r="${F(partR*0.35)}" fill="${c}" clip-path="url(#${clipIdInner})" opacity="${(parseFloat(aop[0])*0.35).toFixed(2)}">
-          <animate attributeName="cx" values="${axv.map(v=>(parseFloat(v)-partR).toFixed(1)).join(';')}" dur="${rotDur*1.5}s" begin="${delay}s" repeatCount="indefinite"/>
-          <animate attributeName="cy" values="${ayv.map(v=>(parseFloat(v)+partR*0.5).toFixed(1)).join(';')}" dur="${rotDur*1.5}s" begin="${delay}s" repeatCount="indefinite"/>
+        // 尾迹小点与主粒子只差一个固定偏移，复用同一组 translate（少算一组值）
+        particles += `<g clip-path="url(#${clipIdInner})"><circle cx="${(parseFloat(axv[0])-partR).toFixed(1)}" cy="${(parseFloat(ayv[0])+partR*0.5).toFixed(1)}" r="${F(partR*0.35)}" fill="${c}" opacity="${(parseFloat(aop[0])*0.35).toFixed(2)}">
+          <animateTransform attributeName="transform" type="translate" values="${_atv}" dur="${rotDur*1.5}s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="opacity" values="${aop.map(v=>(parseFloat(v)*0.4).toFixed(2)).join(';')}" dur="${rotDur*1.5}s" begin="${delay}s" repeatCount="indefinite"/>
-        </circle>`;
+        </circle></g>`;
       }
 
       // 12. 风管统一画法：金属管壁 + 深色管腔 + 变径短节 + 端面把合法兰 + 2 颗螺栓
@@ -502,7 +518,7 @@ TEMPLATES.tubeCooler = {
 
       // 12b. 散热热气：从筒体顶部上升（热空气从被冷却物料表面向上散发）
       let heatWaves = '';
-      const hwCount = 12;
+      const hwCount = 8;          // 性能：12→8
       for(let i=0; i<hwCount; i++){
         const phase = i/hwCount;
         const hwDur = 4 + (i%4)*0.8;
@@ -521,9 +537,11 @@ TEMPLATES.tubeCooler = {
           hr.push(r.toFixed(1));
           ho.push(op.toFixed(2));
         }
+        // 性能：cx/cy → transform: translate（同上），r / opacity 保留
+        const _hx0 = parseFloat(hx[0]), _hy0 = parseFloat(hy[0]);
+        const _htv = hx.map((v, k) => (parseFloat(v) - _hx0).toFixed(1) + ' ' + (parseFloat(hy[k]) - _hy0).toFixed(1)).join(';');
         heatWaves += `<circle cx="${hx[0]}" cy="${hy[0]}" r="${hr[0]}" fill="${c}" opacity="${ho[0]}">
-          <animate attributeName="cx" values="${hx.join(';')}" dur="${hwDur}s" begin="${delay}s" repeatCount="indefinite"/>
-          <animate attributeName="cy" values="${hy.join(';')}" dur="${hwDur}s" begin="${delay}s" repeatCount="indefinite"/>
+          <animateTransform attributeName="transform" type="translate" values="${_htv}" dur="${hwDur}s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="r" values="${hr.join(';')}" dur="${hwDur}s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="opacity" values="${ho.join(';')}" dur="${hwDur}s" begin="${delay}s" repeatCount="indefinite"/>
         </circle>`;
