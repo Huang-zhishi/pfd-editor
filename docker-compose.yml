@@ -27,6 +27,16 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
+    # 审计 3.6：资源上限 —— 防止单个容器耗尽宿主机资源（原配置无任何限制）
+    #   本项目是单进程 Node 服务，0.5 CPU / 256M 已足够；按实际负载调整。
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          cpus: "0.10"
+          memory: 64M
     # 审计 8.4：容器加固 —— 去掉全部 capability、根文件系统只读（projects 卷可写）
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]

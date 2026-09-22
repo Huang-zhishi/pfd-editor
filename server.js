@@ -528,7 +528,9 @@ const server = http.createServer((req, res) => {
    记录后优雅退出，交由容器 restart: unless-stopped / systemd Restart=on-failure 拉起。 */
 process.on('uncaughtException', (e) => {
   console.error('[FATAL] 未捕获异常：', (e && e.stack) || e);
-  try { server.close(() => process.exit(1)); } catch (err) {}
+  try { server.close(() => process.exit(1)); } catch (err) {
+    console.error('[FATAL] 关闭监听失败：', (err && err.message) || err);
+  }
   setTimeout(() => process.exit(1), 3000).unref();
 });
 process.on('unhandledRejection', (e) => {

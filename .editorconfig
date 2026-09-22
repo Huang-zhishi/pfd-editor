@@ -1,0 +1,21 @@
+# EditorConfig —— 跨编辑器统一基础格式（工程化审计 §2.2 的轻量补充）
+# 说明：本项目不强制 Prettier 全量重排（遗留代码全量重排会产生数千行无意义 diff，
+#       且掩盖真实改动），改用 .editorconfig + ESLint 覆盖真正有价值的格式与质量项。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{cmd,bat}]
+end_of_line = crlf
+
+[Makefile]
+indent_style = tab

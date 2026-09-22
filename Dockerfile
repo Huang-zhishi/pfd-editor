@@ -7,6 +7,11 @@
 #     -e API_TARGET=http://192.168.x.x \
 #     pfd-editor
 # ============================================================
+# 审计 3.1：基础镜像尚未固定 digest（本机无法访问 registry，取不到可信 digest）。
+# 补齐方式（在有网络的环境执行一次）：
+#   docker buildx imagetools inspect node:20-alpine   # 复制返回的 Digest
+#   FROM node:20-alpine@sha256:<digest>               # 替换下面这行
+# 另外 .github/dependabot.yml 已配置 docker 生态跟踪，会自动提升级 PR。
 FROM node:20-alpine
 
 WORKDIR /app

@@ -1,0 +1,31 @@
+# Dependabot 配置（工程化审计 §2.3）
+# 目的：让依赖升级（GitHub Actions、Docker 基础镜像、devDependencies）自动提 PR，
+#       而不是靠人工记得。
+version: 2
+updates:
+  # GitHub Actions：跟踪 ci.yml / cd.yml 中固定 SHA 的 Action 是否有新版本
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+
+  # Docker 基础镜像：node:20-alpine 的更新（含 digest 变更）
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(docker)"
+
+  # 开发依赖（ESLint 等；运行时仍为零依赖）
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(deps)"

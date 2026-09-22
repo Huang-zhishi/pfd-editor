@@ -182,6 +182,33 @@ jobs:
         if: failure()
         run: cat /tmp/pfd-server.log
 
+  lint:
+    name: Lint (ESLint warning budget)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # 审计 2.1/2.2：引入 lint 门禁。采用"警告预算"策略 —— 现有代码有历史遗留
+      # （见架构审计 §2.x/§5.x/§7.x），一次性设为 error 会让 CI 不可用；
+      # 改为把当前基线固定为预算，**只允许下调，新增违规立刻失败**。
+      # 预算数值在 package.json 的 scripts.lint 中（当前 30）。
+      - name: Install devDependencies
+        run: npm ci
+
+      - name: ESLint (warning budget)
+        run: npm run lint
+
+      - name: ESLint report on failure
+        if: failure()
+        run: npx eslint . || true
+
   auth-regression:
     name: Auth regression (PFD_API_TOKEN)
     runs-on: ubuntu-latest
