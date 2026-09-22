@@ -201,12 +201,31 @@
 
 **诚实说明**：`.git` 目录体积**仍为 19M** —— `git rm --cached` 只移除索引与后续检出，历史对象仍在。要真正瘦身需重写历史（`git filter-repo`）或重新初始化仓库，属高风险操作，**未执行**，已在下方列为后续可选项。
 
-### 第二批建议（未开始）
+### 第二批（2026-09-22 完成）：lint 门禁 / CHANGELOG / 依赖自动跟进 / 资源上限
+
+提交 `b8f5365`。
+
+| 条目 | 修复内容 | 验证结果 |
+|---|---|---|
+| **2.2** 无任何代码规范配置 | 新增 `eslint.config.js`（ESLint 10 扁平配置）+ `.editorconfig`。**采用"警告预算"策略**：规则全设 `warn`，把当前基线固定为预算、只允许下调，**新增违规立刻失败**；规则含 `no-var`/`no-empty`/`no-restricted-properties`（`substr`、`document.write`）/`camelcase`/`eqeqeq`/`no-eval` 等 | 基线实测 **30 警告 / 0 错误**（可维护） |
+| **2.1** CI 无 lint | 新增 `lint` 作业（`npm ci` + `npm run lint`，预算 30），失败时额外打印完整报告 | CI 现有 5 个作业 |
+| **5.2** 无 CHANGELOG | 新增 `CHANGELOG.md`（Keep a Changelog 格式），含 1.0.0 的新增/变更/修复/升级注意/已知限制，并记录「未发布」计划项 | — |
+| **2.3** 依赖升级靠人工 | 新增 `.github/dependabot.yml`：跟踪 github-actions（每周）、docker 基础镜像（每周）、npm devDependencies（每月） | — |
+| **3.6** compose 无资源上限 | 增加 `deploy.resources`（limits 0.5 CPU / 256M；reservations 0.1 CPU / 64M） | 配置级 |
+| **3.1** 镜像未固定 digest | ⚠️ **未完成，如实记录**：本机 Docker daemon 未运行且 registry 被网络策略拦截，**取不到可信 digest，没有编造**。已在 `Dockerfile` 原位写明补齐命令（`docker buildx imagetools inspect node:20-alpine`），并配 Dependabot 的 docker 生态自动跟进；CHANGELOG「已知限制」同步记录 | 待有网络环境补齐 |
+
+**两个刻意的技术选择（避免被误改）**
+1. **不启用 `no-undef` / `no-unused-vars`**：本项目是"全局脚本"形态（无 ESM），跨文件全局符号（`TEMPLATES`/`doc`/`$` 等）无法静态解析，启用只会产生大量假阳性淹没真问题。待架构审计 §2.1/§9.4（模块化）落地后再开。
+2. **不引入 Prettier 全量重排**：遗留代码全量重排会产生数千行无意义 diff 并掩盖真实改动，`.editorconfig` + ESLint 已覆盖真正有价值的格式与质量项。
+
+**顺带修复**：`server.js` 进程兜底里我上一批自己留的空 `catch`（被新规则 `no-empty` 抓到）—— 正好说明 lint 门禁开始起作用。
+
+### 第三批建议（未开始）
 
 | 批次 | 建议条目 | 说明 |
 |---|---|---|
-| 第二批 | **2.1/2.2**（ESLint + Prettier 配置与 CI 接入）、**1.2**（CI 增加 lint 与覆盖率门槛）、**5.2**（CHANGELOG）、**8.2/8.4**（镜像 digest 固定、资源上限） | 需要引入 devDependencies（不影响运行时零依赖），建议单独一批 |
 | 第三批 | **9.x**（日志目录化与轮转、systemd 重启风暴限制）、**10.1**（启动脚本能力差异表）、**10.3/10.5/10.7**（脚本健壮性与 systemd 加固） | 运维侧改动，需在目标机验证 |
-| 后续 | **1.1/1.2/1.4**（架构重构类）、**2.4**（去 `document.write`）、**9.3**（灰度/蓝绿） | 属结构性改造，建议独立立项 |
+| 第四批 | **1.2**（CI 覆盖率门槛，需先有单测）、**2.5**（制品归档与失败通知）、**9.3**（灰度/蓝绿）、**3.1**（digest 补齐） | 依赖前置条件或需环境配合 |
+| 后续 | **1.1/1.2/1.4**（架构重构类）、**2.4**（去 `document.write`）、**6.4**（根目录 14 份中文文档迁入 `doc/`） | 属结构性改造，建议独立立项 |
 
 > 跨清单说明：`3.1`（镜像未固定 digest）、`8.6`（Actions 未固定 SHA）、`9.1`（无结构化日志）等条目已在**安全审计第四批**一并修复（Actions 12 处固定 SHA、结构化日志与审计、SBOM/溯源），此处不重复计数。
