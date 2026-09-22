@@ -9,13 +9,14 @@ services:
     ports:
       - "8090:8090"
     environment:
-      PORT: "8090"
+      PORT: "${PORT:-8090}"
       # server.js 默认只监听 127.0.0.1；容器内需监听 0.0.0.0 才能被映射访问
-      HOST: "0.0.0.0"
-      # 项目库接口鉴权令牌（留空=不鉴权）。对外暴露时强烈建议设置
-      PFD_API_TOKEN: ""
+      HOST: "${HOST:-0.0.0.0}"
+      # 项目库接口鉴权令牌（留空=不鉴权）。对外暴露时强烈建议在 .env 中设置
+      #   .env 已被 .gitignore 忽略，令牌不会入库；未设置时保持向后兼容（不鉴权）。
+      PFD_API_TOKEN: "${PFD_API_TOKEN:-}"
       # 后端传感器 API 地址（/api/* 转发目标）。审计 8.3：不再有默认值，必须显式提供
-      API_TARGET: "http://192.168.1.78"
+      API_TARGET: "${API_TARGET:-http://192.168.1.78}"
     volumes:
       # 项目库持久化（命名卷由镜像内 /app/projects 初始化，自动继承 pfd 用户属主，容器重建不丢数据）
       - pfd-projects:/app/projects
@@ -43,6 +44,14 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+
+    # 审计 9.x/7.1：日志留存与轮转 —— json-file 驱动默认无上限，会无限增长
+    #   容器日志不落 journald，这里用 docker 侧轮转（等价于 T3 的 journald 部分）
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   pfd-projects:

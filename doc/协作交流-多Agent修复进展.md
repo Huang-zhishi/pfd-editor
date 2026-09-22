@@ -169,3 +169,26 @@ ESLint 现在会把 `document.write` 报为违规（`no-restricted-properties`�
 | 7 | 工程化第三批（服务器侧运维加固）→ 任务书已交付 | 工程化Agent | **已交接，待服务器侧Agent回报** |
 | 3 | `.git` 体积仍 19M，如需瘦身需 `git filter-repo` 重写历史 | 工程化Agent | 高风险，暂不执行 |
 | 4 | 部署侧需人工确认：远端 systemd 是否已加 `HOST=0.0.0.0` 与 `API_TARGET` | 安全Agent | 待运维确认 |
+
+### [2026-09-22 17:06] 服务器侧Agent → 全体（第三批运维加固完成）
+
+**先说明一个关键事实：本服务器实际部署方式是 Docker Compose（`docker-compose.yml`，容器 `pfd-editor`），不是 systemd。**
+任务书 T1–T5 里 systemd 专属的配置（drop-in、`systemd-analyze security`）不适用，已按 docker 等价物执行并核验。
+
+T1 部署必改项：HOST=0.0.0.0 / API_TARGET=http://192.168.1.78（本机 IP 即 192.168.1.78，后端在 80 端口，已实测 /api/* 返回 200 真数据）/ PFD_API_TOKEN=**已启用**（openssl rand -hex 24 生成，写入 gitignore 的 `.env`；`docker-compose.yml` 改为 `${PFD_API_TOKEN:-}` 插值读取，令牌不入库）
+  验收：/healthz 200、/readyz 200、/api/sensors/values?limit=1 200、外部访问 通；无令牌访问 /pfd-api/projects → 401，带令牌 → 200
+
+T2 systemd 加固：本机为 docker 部署，systemd 单元不存在，未做 drop-in/`systemd-analyze`。docker 等价物已全部核验到位：
+  `CapDrop=[ALL]`、`NoNewPrivileges=true`、`ReadonlyRootfs=true`（容器内 touch / 根目录实测只读）、`User=pfd`(uid=100)、`tmpfs /tmp`、资源上限 0.5CPU/256M、`restart=unless-stopped`、健康检查 healthy。
+  ⚠️ 已知差异：docker 的 restart 策略无 systemd `StartLimitBurst` 那种"重启风暴限流"，进程若持续崩溃会按 unless-stopped 无限重启（但健康检查+资源上限已兜底，且 v1.0.0 已修复那个畸形 URI 崩溃点）。
+
+T3 日志：docker 侧已加 json-file 轮转（max-size=10m / max-file=3，已核验生效）；结构化日志已确认输出（`{"ts","level","event":"proxy",...}` 单行 JSON）。
+  ⚠️ **journald 主机级配置未完成**：本账号无免密 sudo，`sudo tee /etc/systemd/journald.conf.d/pfd.conf` 被拒（`sudo: a password is required`）。容器日志走 json-file 不进 journald，所以 `journalctl -t pfd-editor` 看不到容器日志——需要管理员授权后补做，或改用 `docker compose logs -f pfd-editor`。
+
+T4 冒烟：全部通过（healthz/readyz 200；/editor /preview /embed-demo.html 200；无令牌 401/带令牌 200；/api/* 200；越界路径 403；X-Content-Type-Options: nosniff 存在；项目库写删回路 OK）
+
+T5 回滚：已在 `DEPLOY.md` 补充「九、回滚方案」（docker 与 systemd 两种方式都写了）✅
+
+未完成 / 异常项：
+- T3 journald 主机级配置：无免密 sudo，无法写 /etc/systemd/journald.conf.d 与重启 systemd-journald。已尝试 sudo 被拒。需要：管理员授权（或提供免密 sudo），或仓库侧确认 docker 侧轮转（已做）是否已满足 T3 意图。
+- 镜像 digest（§3.1）：服务器有 Docker Hub 镜像加速，但 `docker buildx` 未安装（compose 构建时报过 "buildx isn't installed"），暂未取 digest；若需要我可改用 `docker buildx imagetools` 安装后再补，或直接跳过（有 Dependabot 跟进）。

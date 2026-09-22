@@ -120,3 +120,40 @@ sudo ss -tlnp | grep 8090          # 确认端口监听
 - **实时数据没出来**：先 `curl http://127.0.0.1:后端端口/api/sensors/list` 确认后端本机可通，再核对 `API_TARGET`。
 - **浏览器访问不到**：依次排查——服务状态是否 `active (running)`、`ss -tlnp` 是否监听、云安全组是否放行 8090。
 - **想要 HTTPS/域名**：后续加一层 Nginx 反代 + 证书即可，本项目无需改动，届时告诉我帮你配。
+
+## 九、回滚方案（工程化审计 §9.1）
+
+> 本服务器当前实际部署方式为 **Docker Compose**（`docker-compose.yml`，容器名 `pfd-editor`），
+> 与上文 §3 的 systemd/tarball 方式不同。下面两种方式都给出，按实际部署方式选对应章节。
+
+### 9.1 Docker Compose 部署的回滚
+
+```bash
+cd <项目目录>
+
+# 1) 回滚代码到上一个可用版本（v1.0.0 之前的 tag/commit 会连安全修复一起回滚，谨慎）
+git fetch --tags
+git checkout <上一个可用 commit 或 tag>
+# 或直接恢复上一份部署包后重新解压覆盖
+
+# 2) 配置回滚：.env（含 PFD_API_TOKEN / API_TARGET 等）与 docker-compose.yml 是解耦的
+#    —— 回滚代码通常不需要动 .env；若需回滚配置，编辑 .env 后重建即可
+docker compose up -d --build
+
+# 3) 数据回滚：项目库在命名卷 pfd-projects（/app/projects），重建容器不丢数据
+docker compose ps && curl -s localhost:8090/healthz
+```
+
+### 9.2 systemd 部署的回滚
+
+```bash
+# 1) 代码：git checkout 上一个 tag/commit，或恢复上一份部署包
+# 2) 配置：drop-in 方式改的配置，回滚只需删掉 drop-in
+sudo rm -f /etc/systemd/system/pfd-editor.service.d/10-deploy.conf \
+           /etc/systemd/system/pfd-editor.service.d/20-hardening.conf
+sudo systemctl daemon-reload && sudo systemctl restart pfd-editor
+# 3) 数据：项目库在 /opt/pfd-editor/projects（或 compose 命名卷），回滚不影响
+```
+
+> ⚠️ 回滚到 v1.0.0 **之前**的版本会同时回滚安全修复（4 个 P0：路径穿越任意文件读取、
+> 畸形 URI 致进程退出、项目库零鉴权、默认绑定 0.0.0.0）。若非必要不建议回滚到该版本之前。
