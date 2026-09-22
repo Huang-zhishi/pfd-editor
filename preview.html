@@ -66,8 +66,8 @@
   .equip-group.selected .mon-panel{stroke-width:2.2;stroke:var(--cyan)}
 
   /* Hover panel */
-  .hover-panel{position:fixed;z-index:60;pointer-events:none;min-width:190px;max-width:260px;background:#12112Bf2;backdrop-filter:blur(8px);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;box-shadow:0 8px 24px #000a;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
-  .hover-panel.show{opacity:1;transform:translateY(0)}
+  .hover-panel{position:fixed;left:0;top:0;z-index:60;pointer-events:none;min-width:190px;max-width:260px;background:#12112Bf2;backdrop-filter:blur(8px);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;box-shadow:0 8px 24px #000a;opacity:0;transition:opacity .12s}   /* transform 留给 JS 定位用（合成器属性，免布局） */
+  .hover-panel.show{opacity:1}
   .hover-panel .hp-head{display:flex;align-items:center;gap:6px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--line)}
   .hover-panel .hp-name{font-size:12px;font-weight:600;color:var(--text)}
   .hover-panel .hp-tag{font-size:9px;color:var(--cyan);padding:1px 6px;background:#00E5FF1a;border-radius:4px}
@@ -771,21 +771,36 @@
     for(let i=1;i<pts.length;i++) d += ` L ${pts[i].x} ${pts[i].y}`;
     return d;
   }
-  function pointAlongPath(pts, t){
-    let segs=[], total=0;
+  // 路径弧长查找表：按 pts 数组缓存（render 重建 _pts 即新数组，缓存自动失效），
+  // 避免逐粒子每帧重算各段长度（粒子循环每帧每粒子都要查点）
+  const pathLUTCache = new WeakMap();
+  function pathLUT(pts){
+    let lut = pathLUTCache.get(pts);
+    if(lut) return lut;
+    const acc = [0];
+    let total = 0;
     for(let i=1;i<pts.length;i++){
-      const d=Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
-      segs.push(d); total+=d;
+      total += Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+      acc.push(total);
     }
-    let dist=t*total, acc=0;
-    for(let i=1;i<pts.length;i++){
-      if(acc+segs[i-1]>=dist){
-        const r = segs[i-1]===0?0:(dist-acc)/segs[i-1];
-        return { x: pts[i-1].x+(pts[i].x-pts[i-1].x)*r, y: pts[i-1].y+(pts[i].y-pts[i-1].y)*r };
-      }
-      acc+=segs[i-1];
-    }
-    return pts[pts.length-1];
+    lut = { acc, total };
+    pathLUTCache.set(pts, lut);
+    return lut;
+  }
+  // out 可选：复用外部对象，粒子循环逐帧调用时避免每点产生垃圾对象
+  function pointAlongPath(pts, t, out){
+    const lut = pathLUT(pts);
+    if(!lut.total) return pts[pts.length-1];   // 退化路径与旧版行为一致（空数组返回 undefined）
+    const p = out || {};
+    const dist = t*lut.total;
+    // 二分定位所在段：最小的 i 使 acc[i] >= dist
+    let lo = 1, hi = pts.length-1;
+    while(lo < hi){ const mid = (lo+hi)>>1; if(lut.acc[mid] < dist) lo = mid+1; else hi = mid; }
+    const segLen = lut.acc[lo]-lut.acc[lo-1];
+    const r = segLen===0 ? 0 : (dist-lut.acc[lo-1])/segLen;
+    p.x = pts[lo-1].x+(pts[lo].x-pts[lo-1].x)*r;
+    p.y = pts[lo-1].y+(pts[lo].y-pts[lo-1].y)*r;
+    return p;
   }
 
   // ============================================================
@@ -1055,12 +1070,19 @@
   // ============================================================
   const hoverPanel = el('hoverPanel');
   let hoverCid = null;
+  // 面板尺寸在内容渲染后量一次缓存，mousemove 定位时零布局读取
+  let hoverSize = { w: 190, h: 80 };
+  function measureHover(){
+    hoverSize.w = hoverPanel.offsetWidth;
+    hoverSize.h = hoverPanel.offsetHeight;
+  }
   function showHover(comp, ev){
     hoverCid = comp.id;
     el('hpName').textContent = comp.props.name || TEMPLATES[comp.type].name;
     el('hpTag').textContent = comp.props.tag || '—';
     hoverPanel.classList.add('show');
     renderHoverRows(comp);
+    measureHover();
     moveHover(ev);
   }
   function renderHoverRows(comp){
@@ -1095,17 +1117,16 @@
   function refreshHover(){
     if(!hoverCid) return;
     const comp = getComp(hoverCid);
-    if(comp) renderHoverRows(comp);
+    if(comp){ renderHoverRows(comp); measureHover(); }
   }
   function moveHover(ev){
     if(!hoverPanel.classList.contains('show')) return;
     const pad = 14;
     const x = ev.clientX + pad, y = ev.clientY + pad;
-    const rect = hoverPanel.getBoundingClientRect();
-    const nx = (x + rect.width > window.innerWidth) ? ev.clientX - rect.width - pad : x;
-    const ny = (y + rect.height > window.innerHeight) ? ev.clientY - rect.height - pad : y;
-    hoverPanel.style.left = Math.max(6, nx) + 'px';
-    hoverPanel.style.top  = Math.max(6, ny) + 'px';
+    const nx = (x + hoverSize.w > window.innerWidth) ? ev.clientX - hoverSize.w - pad : x;
+    const ny = (y + hoverSize.h > window.innerHeight) ? ev.clientY - hoverSize.h - pad : y;
+    // transform 定位（合成器属性）：替代 left/top，mousemove 不触发布局
+    hoverPanel.style.transform = `translate(${Math.max(6, nx)}px,${Math.max(6, ny)}px)`;
   }
   function hideHover(){ hoverCid=null; hoverPanel.classList.remove('show'); }
   function hoverTime(){
@@ -1389,6 +1410,7 @@
     try{ if(running){ svg.unpauseAnimations(); } else { svg.pauseAnimations(); } }catch(err){}
   }
   let flowNodes = [];   // 粒子节点池：复用于每次动画帧，避免每帧销毁/重建
+  let flowNodeMeta = [];   // 每节点静态样式缓存（r/fill/opacity 由拖尾位+管型决定、逐帧不变），仅变化时写 DOM
   const FLOW_TRAIL = 4; // 每个主粒子随影拖尾数（拖尾越长越流畅，节点数 = 粒子数*(1+FLOW_TRAIL)）
   function startFlow(){
     if(flowRAF) return;
@@ -1396,19 +1418,22 @@
     if(svg && !svg.querySelector('animate,animateTransform') && doc.components.length) render();
     if(typeof applySMILState==='function') applySMILState();
     function ensureNodes(n){
-      // 若上次池中的节点已被重渲染清出 DOM（未连接），整体重建池
-      if(flowNodes.length && !flowNodes[0].isConnected){ flowNodes = []; layerFlow.innerHTML=''; }
-      while(flowNodes.length < n){
+      // 数量未变且池节点仍在 DOM 中 → 复用不动
+      if(flowNodes.length === n && (!n || flowNodes[0].isConnected)) return;
+      // 数量变化或池已被重渲染清出 DOM 时整体重建，保证池与 DOM 严格一致（避免孤儿节点）
+      layerFlow.innerHTML = '';
+      flowNodes = [];
+      flowNodeMeta = [];
+      for(let i=0;i<n;i++){
         const c = mk('circle');
         c.setAttribute('class','flow-dot');
+        c.setAttribute('cx',0); c.setAttribute('cy',0);   // 位置统一由 transform 平移驱动
         layerFlow.appendChild(c);
         flowNodes.push(c);
-      }
-      while(flowNodes.length > n){
-        const extra = flowNodes.pop();
-        extra.remove();
+        flowNodeMeta.push(null);
       }
     }
+    const scratchPt = {x:0, y:0};   // 逐帧复用的查点输出对象
     function tick(){
       // 计算当前需要的粒子总数（含拖尾）
       const n = FLOW_TRAIL + 1;
@@ -1416,23 +1441,33 @@
       doc.pipes.forEach(pipe=>{ if(pipe._pts && pipe._pts.length>=2 && !pipeRunStopped(pipe)) need += 3*n; });
       ensureNodes(need);
       let idx = 0;
+      const now = performance.now()/1000;
       // 管道粒子（含拖尾：沿路径滞后、渐隐渐小）
       doc.pipes.forEach(pipe=>{
         if(!pipe._pts || pipe._pts.length<2) return;
         if(pipeRunStopped(pipe)) return;   // 来源设备停止 → 该输出线不再走料
         const pt = PIPE_TYPES[pipe.type] || PIPE_TYPES.solid;
-        const t = (performance.now()/1000 * (pt.speed||0.3)) % 1;
+        const t = (now * (pt.speed||0.3)) % 1;
         for(let k=0;k<3;k++){
           const base = (t+k/3)%1;
           for(let j=0;j<n;j++){
             const u = ((base - j*0.018) % 1 + 1) % 1;
-            const p = pointAlongPath(pipe._pts, u);
             const fade = 1 - j/n;
-            const c = flowNodes[idx++];
-            c.setAttribute('cx',p.x); c.setAttribute('cy',p.y);
-            c.setAttribute('r', 2.6 * (0.35 + 0.65*fade));
-            c.setAttribute('fill',pt.color);
-            c.setAttribute('opacity', 0.12 + 0.88*fade);
+            const r = 2.6 * (0.35 + 0.65*fade);
+            const op = 0.12 + 0.88*fade;
+            const p = pointAlongPath(pipe._pts, u, scratchPt);
+            const c = flowNodes[idx];
+            // r/fill/opacity 逐帧不变，仅节点归属变化（管增减/换管型）时写一次
+            const m = flowNodeMeta[idx];
+            if(!m || m.r!==r || m.fill!==pt.color || m.opacity!==op){
+              c.setAttribute('r', r);
+              c.setAttribute('fill', pt.color);
+              c.setAttribute('opacity', op);
+              flowNodeMeta[idx] = { r, fill: pt.color, opacity: op };
+            }
+            // 逐帧只写 transform（合成器属性），避免 cx/cy 几何属性每帧强制 SVG 重绘
+            c.setAttribute('transform', `translate(${p.x},${p.y})`);
+            idx++;
           }
         }
       });
@@ -1443,7 +1478,7 @@
   }
   function stopFlow(){
     if(flowRAF){ cancelAnimationFrame(flowRAF); flowRAF=null; }
-    layerFlow.innerHTML=''; flowNodes.length=0;
+    layerFlow.innerHTML=''; flowNodes.length=0; flowNodeMeta.length=0;
     // 停止后剥离 SMIL 动画元素
     if(svg && svg.querySelector('animate,animateTransform') && doc.components.length) render();
     if(typeof applySMILState==='function') applySMILState();

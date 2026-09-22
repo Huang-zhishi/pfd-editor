@@ -78,10 +78,7 @@ TEMPLATES.tubeCooler = {
       const bedReturn = clamp(R*0.35, 6, 12);
       const airMargin = clamp(drumW*0.08, 5, 20);
       const airSpan = Math.max(0, drumW - 2*airMargin);
-      const hwMargin = clamp(drumW*0.12, 6, 20);
-      const hwRise = Math.max(0, Math.min(clamp(R, 4, 28), drumTop - clamp(K*2, 1, 3)));
-      const hwTop = drumTop - clamp(K*2, 1, 3);
-      const hwRMin = clamp(K*1.5, 0.8, 2), hwRMax = clamp(K*5, 2.5, 7);
+
       const drivePlateH = clamp(K*5, 3, 6);
       const uid = Math.random().toString(36).substr(2,6);
       const clipId = `clip_drum_${uid}`;
@@ -407,7 +404,7 @@ TEMPLATES.tubeCooler = {
 
       let particles = '';
       // 11a. 物料粒子：被扬料板带起→顶点→抛落（雨幕效果）
-      const matParticleCount = 18;   // 性能：28→18
+      const matParticleCount = 10;   // 性能：28→18→10
       const matSpray = partR*1.8;
       for(let i=0; i<matParticleCount; i++){
         const phase = i/matParticleCount;
@@ -462,7 +459,7 @@ TEMPLATES.tubeCooler = {
       }
 
       // 11b. 冷却空气粒子：小而亮，逆向流动（从airIn到airOut方向，即从右到左+向上飘）
-      const airParticleCount = 10;   // 性能：16→10
+      const airParticleCount = 6;   // 性能：16→10→6
       for(let i=0; i<airParticleCount; i++){
         const phase = i/airParticleCount;
         const delay = -(phase*rotDur*1.5).toFixed(2);
@@ -488,12 +485,7 @@ TEMPLATES.tubeCooler = {
           <animateTransform attributeName="transform" type="translate" values="${_atv}" dur="${rotDur*1.5}s" begin="${delay}s" repeatCount="indefinite"/>
           <animate attributeName="opacity" values="${aop.join(';')}" dur="${rotDur*1.5}s" begin="${delay}s" repeatCount="indefinite"/>
         </circle></g>`;
-        // 冷空气尾迹小点
-        // 尾迹小点与主粒子只差一个固定偏移，复用同一组 translate（少算一组值）
-        particles += `<g clip-path="url(#${clipIdInner})"><circle cx="${(parseFloat(axv[0])-partR).toFixed(1)}" cy="${(parseFloat(ayv[0])+partR*0.5).toFixed(1)}" r="${F(partR*0.35)}" fill="${c}" opacity="${(parseFloat(aop[0])*0.35).toFixed(2)}">
-          <animateTransform attributeName="transform" type="translate" values="${_atv}" dur="${rotDur*1.5}s" begin="${delay}s" repeatCount="indefinite"/>
-          <animate attributeName="opacity" values="${aop.map(v=>(parseFloat(v)*0.4).toFixed(2)).join(';')}" dur="${rotDur*1.5}s" begin="${delay}s" repeatCount="indefinite"/>
-        </circle></g>`;
+        // 性能：冷空气尾迹小点已移除（每粒子多 1 节点 × 2 SMIL，收益低）
       }
 
       // 12. 风管统一画法：金属管壁 + 深色管腔 + 变径短节 + 端面把合法兰 + 2 颗螺栓
@@ -516,37 +508,6 @@ TEMPLATES.tubeCooler = {
       };
       const airDucts = makeDuct(airInX, cy+R+ductGap, h, 1) + makeDuct(airOutX, cy-R-ductGap, 0, -1);
 
-      // 12b. 散热热气：从筒体顶部上升（热空气从被冷却物料表面向上散发）
-      let heatWaves = '';
-      const hwCount = 8;          // 性能：12→8
-      for(let i=0; i<hwCount; i++){
-        const phase = i/hwCount;
-        const hwDur = 4 + (i%4)*0.8;
-        const delay = -(phase*hwDur).toFixed(2);
-        const baseX = drumL + hwMargin + ((drumW-2*hwMargin) * (i/(hwCount-1)));
-        const sway = clamp(K*4, 2, 7) * (1 + (i*19 % 5)*0.15);
-        let hx=[], hy=[], hr=[], ho=[];
-        for(let k=0; k<=24; k++){
-          const t = k/24;
-          const y = hwTop - hwRise*t;
-          const x = baseX + Math.sin(t*Math.PI*2 + phase*Math.PI*4)*sway;
-          const r = hwRMin + (hwRMax-hwRMin)*t;
-          const op = t < 0.2 ? t/0.2*0.25 : (t > 0.75 ? (1-t)/0.25*0.25 : 0.25);
-          hx.push(x.toFixed(1));
-          hy.push(y.toFixed(1));
-          hr.push(r.toFixed(1));
-          ho.push(op.toFixed(2));
-        }
-        // 性能：cx/cy → transform: translate（同上），r / opacity 保留
-        const _hx0 = parseFloat(hx[0]), _hy0 = parseFloat(hy[0]);
-        const _htv = hx.map((v, k) => (parseFloat(v) - _hx0).toFixed(1) + ' ' + (parseFloat(hy[k]) - _hy0).toFixed(1)).join(';');
-        heatWaves += `<circle cx="${hx[0]}" cy="${hy[0]}" r="${hr[0]}" fill="${c}" opacity="${ho[0]}">
-          <animateTransform attributeName="transform" type="translate" values="${_htv}" dur="${hwDur}s" begin="${delay}s" repeatCount="indefinite"/>
-          <animate attributeName="r" values="${hr.join(';')}" dur="${hwDur}s" begin="${delay}s" repeatCount="indefinite"/>
-          <animate attributeName="opacity" values="${ho.join(';')}" dur="${hwDur}s" begin="${delay}s" repeatCount="indefinite"/>
-        </circle>`;
-      }
-
       // 13. 铭牌（保留板 + 文字 / 文案不变；板色 / 描边统到基准色系「法兰 / 接管」件色）
       //     字号按机高 clamp，板宽 / 板高 / 位置随之定尺封顶，并夹在画布内保证不越界
       const plateFs = clamp(h*0.043, 3.5, 9);
@@ -565,7 +526,6 @@ TEMPLATES.tubeCooler = {
         ${base1}${base2}
         ${trunnions}
         ${airDucts}
-        ${heatWaves}
         ${inBox}${outBox}${manholes}
         ${drumBody}
         <g clip-path="url(#${clipId})">
