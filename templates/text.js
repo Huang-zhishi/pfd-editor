@@ -4,9 +4,14 @@
  *   TEMPLATES 容器与加载顺序见 templates.js，本文件只注册 TEMPLATES.text。
  * ============================================================ */
 
+/* 局部转义（与 instrument.js 同策略）：文本内容来自文档 JSON，必须转义；
+   不依赖宿主全局 esc()，使模板可被独立渲染校验（此前 render-check 一直报
+   "text: esc is not defined"，就是这处对全局函数的隐式依赖）。 */
+const escT = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 TEMPLATES.text = {
     name: '文本标注', category: '通用与标注',
     defaultSize: { w: 140, h: 40 },
     ports: [],
-    render: (w,h,p)=>`<rect x="0" y="0" width="${w}" height="${h}" rx="3" fill="#12112B99" stroke="${p.color}" stroke-width="1" stroke-dasharray="4 3"/><text x="${w/2}" y="${h/2+5}" text-anchor="middle" fill="${p.color}" font-size="15" font-weight="600" font-family="inherit">${esc(p.name||'文本')}</text>`
+    render: (w,h,p)=>`<rect x="0" y="0" width="${w}" height="${h}" rx="3" fill="#12112B99" stroke="${p.color}" stroke-width="1" stroke-dasharray="4 3"/><text x="${w/2}" y="${h/2+5}" text-anchor="middle" fill="${p.color}" font-size="15" font-weight="600" font-family="inherit">${escT(p.name||'文本')}</text>`
 };

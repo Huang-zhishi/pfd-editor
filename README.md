@@ -87,6 +87,14 @@ node server.js
 | `API_TARGET` | `http://192.168.1.78` | `/api/*` 反向代理的目标后端 |
 | `PROJECT_DIR` | `<项目根>/projects` | 项目库 JSON 存放目录 |
 | `PFD_API_TOKEN` | 空 | 项目库接口（`/pfd-api/projects`）访问令牌。留空 = 不鉴权；设置后所有该前缀请求必须带 `X-PFD-Token` 头 |
+| `PFD_CORS_ORIGINS` | 空 | 允许跨域访问 `/api/*` 的来源（逗号分隔）。留空 = 不开放跨域（同源不受影响） |
+| `PFD_EMBED_ORIGINS` | 空 | 允许 iframe 嵌入预览页的宿主来源（逗号分隔）。留空 = 仅同源；预览页同时用它校验 postMessage 来源 |
+| `PFD_API_ALLOW` | 空 | 允许 `?api=` 跨源覆盖后端地址的白名单（逗号分隔）。留空 = 只允许同源 |
+| `PFD_PROXY_TIMEOUT_MS` | `15000` | `/api/*` 上游请求超时（毫秒） |
+| `PFD_API_MAX_BYTES` | `2097152` | `/api/*` 请求体上限（字节，默认 2MB） |
+| `PFD_PROJECT_MAX_BYTES` | `10485760` | 项目库接口请求体上限（字节，默认 10MB） |
+
+> 健康检查：`GET /healthz`（存活）、`GET /readyz`（就绪，检查项目库目录可写）。
 
 样例见仓库根目录 `.env.example`（注意：`server.js` 是零依赖设计，**不解析 `.env` 文件**，请通过 systemd `Environment=`、docker-compose `environment` 或 shell `export` 注入）。
 

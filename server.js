@@ -4,7 +4,7 @@
  *   - /api/* 反向代理到后端传感器服务，绕过浏览器 CORS 限制
  * 配置（环境变量，可选）：
  *   PORT        监听端口，默认 8090
- *   API_TARGET  后端地址，默认 http://192.168.1.78
+ *   API_TARGET  后端地址（必填；未设置时 /api/* 返回 503）
  *   PROJECT_DIR 项目库存放目录，默认 <项目根>/projects
  * 启动：node server.js（或 PowerShell：$env:PORT=9000; node server.js）
  * ============================================================ */
@@ -15,8 +15,11 @@ const path = require('path');
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8090;
 const ROOT = __dirname;
-// 后端 API 目标（2026-09 切换至局域网后端）
-const API_TARGET = process.env.API_TARGET || 'http://192.168.1.78';
+/* 后端 API 目标（审计 7.1）：原来默认硬编码内网地址 http://192.168.1.78，
+   等于把环境拓扑写进源码/镜像，换环境必须改代码。现改为必须显式配置：
+   · 未配置时 /api/* 直接返回 503 并给出明确提示，而不是静默指向某个内网地址
+   · deploy.sh / docker-compose.yml 已显式设置该变量，既有部署不受影响 */
+const API_TARGET = process.env.API_TARGET || '';
 
 /* 监听地址（审计 3.2）：默认只监听回环地址 —— 原来 server.listen(PORT) 未指定 host，
    等于绑 0.0.0.0，把「无鉴权的项目库接口」直接暴露给整个局域网。
@@ -78,7 +81,7 @@ function securityHeaders(){
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
-      "connect-src 'self'" + (API_TARGET ? ' ' + API_TARGET : ''),
+      "connect-src 'self'" + (API_TARGET ? ' ' + API_TARGET : ''),   // 未配置后端时不额外放开
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -130,7 +133,23 @@ try {
 
 // 项目库文件接口。前缀刻意避开 /api/*，后者已被反向代理到后端传感器服务
 const PROJECT_API = '/pfd-api/projects';
-const PROJECT_MAX_BYTES = 10 * 1024 * 1024;
+// 项目库请求体上限（可用 PFD_PROJECT_MAX_BYTES 覆盖，便于测试与按需调整）
+const PROJECT_MAX_BYTES = process.env.PFD_PROJECT_MAX_BYTES
+  ? parseInt(process.env.PFD_PROJECT_MAX_BYTES, 10)
+  : 10 * 1024 * 1024;
+
+/* 结构化日志（审计 9.4）：单行 JSON，便于采集与检索；敏感头不记录。 */
+function logLine(level, event, fields){
+  const rec = Object.assign({ ts: new Date().toISOString(), level, event }, fields || {});
+  const line = JSON.stringify(rec);
+  if (level === 'error') console.error(line); else console.log(line);
+}
+/* 审计日志：写/删等状态变更单独留痕（who=来源 IP，无身份体系时至少可追溯来源） */
+function auditLog(req, action, name, extra){
+  logLine('info', 'audit', Object.assign({
+    action, name, ip: req.socket && req.socket.remoteAddress, ua: req.headers['user-agent'] || '',
+  }, extra || {}));
+}
 
 function sendJSON(res, code, obj) {
   res.writeHead(code, Object.assign({ 'Content-Type': 'application/json; charset=utf-8' }, securityHeaders()));
@@ -149,16 +168,24 @@ function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
+    let overflow = false;
     req.on('data', (c) => {
+      if (overflow) return;                       // 已超限，丢弃后续数据
       size += c.length;
       if (size > PROJECT_MAX_BYTES) {
-        reject(new Error('内容过大（>10MB）'));
-        req.destroy();
+        /* 审计 2.3：原实现直接 req.destroy()，socket 被销毁后调用方再 sendJSON(400)
+           根本发不出去，客户端只看到连接重置，无法区分"太大"与"网络故障"。
+           改为：停止累积、暂停读取、把错误交给调用方回 413，然后自行销毁。 */
+        overflow = true;
+        req.pause();
+        const e = new Error('请求体过大（上限 ' + Math.round(PROJECT_MAX_BYTES / 1024 / 1024) + 'MB）');
+        e.code = 'BODY_TOO_LARGE';
+        reject(e);
         return;
       }
       chunks.push(c);
     });
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('end', () => { if (!overflow) resolve(Buffer.concat(chunks).toString('utf8')); });
     req.on('error', reject);
   });
 }
@@ -186,7 +213,8 @@ async function handleProjectsApi(req, res, urlPath) {
         }
       }));
       const files = stats.filter(Boolean).sort((a, b) => b.mtime - a.mtime);
-      sendJSON(res, 200, { success: true, dir: PROJECT_DIR, files });
+      // 审计 7.3：不再回显服务器绝对路径（dir）
+      sendJSON(res, 200, { success: true, files });
       return;
     }
 
@@ -200,7 +228,10 @@ async function handleProjectsApi(req, res, urlPath) {
     if (req.method === 'GET') {
       fs.readFile(full, 'utf8', (err, txt) => {
         if (err) { sendJSON(res, 404, { success: false, error: '项目不存在' }); return; }
-        sendJSON(res, 200, { success: true, name, content: txt });
+        // 返回 mtime 作为并发控制基线（审计 3.3）：客户端保存时回传，用于检测覆盖冲突
+        fs.stat(full, (e2, st) => {
+          sendJSON(res, 200, { success: true, name, content: txt, mtime: e2 ? null : st.mtimeMs });
+        });
       });
       return;
     }
@@ -208,10 +239,35 @@ async function handleProjectsApi(req, res, urlPath) {
     if (req.method === 'POST') {
       const body = await readBody(req);
       JSON.parse(body);   // 先校验为合法 JSON，避免把损坏内容写进项目库
-      fs.writeFile(full, body, 'utf8', (err) => {
+
+      /* 并发写保护（审计 3.3）：原来后写无条件覆盖先写，多客户端同时保存会静默丢一方修改。
+         客户端可带上 X-PFD-Base-Mtime（= 载入时服务端返回的 mtime）；与当前文件 mtime
+         不一致说明期间已被他人改动 → 返回 409 由客户端提示，而不是静默覆盖。
+         不带该头则保持原有行为（向后兼容）。 */
+      const baseMtime = req.headers['x-pfd-base-mtime'];
+      const doWrite = () => fs.writeFile(full, body, 'utf8', (err) => {
         if (err) { sendJSON(res, 500, { success: false, error: '写入失败：' + err.message }); return; }
-        console.log('[PROJECTS] 保存', name);
-        sendJSON(res, 200, { success: true, name, mtime: Date.now() });
+        auditLog(req, 'save', name, { bytes: Buffer.byteLength(body, 'utf8') });
+        fs.stat(full, (e2, st) => {
+          sendJSON(res, 200, { success: true, name, mtime: e2 ? Date.now() : st.mtimeMs });
+        });
+      });
+
+      if (baseMtime === undefined) { doWrite(); return; }
+      // 注意回调签名是 (err, stats)：第一个参数是错误，不能当 stats 用。
+      // mtime 比较用容差（±2ms）：不同客户端可能截断或四舍五入，不应因此误判冲突。
+      const baseNum = Number(baseMtime);
+      fs.stat(full, (err, st) => {
+        if (!err && st && !isFinite(baseNum)) {
+          sendJSON(res, 400, { success: false, error: 'X-PFD-Base-Mtime 不是合法数字' });
+          return;
+        }
+        if (!err && st && Math.abs(st.mtimeMs - baseNum) > 2) {
+          auditLog(req, 'save-conflict', name, { baseMtime, actualMtime: Math.round(st.mtimeMs) });
+          sendJSON(res, 409, { success: false, error: '该项目已被其他会话修改，请重新载入后再保存', mtime: st.mtimeMs });
+          return;
+        }
+        doWrite();   // 文件不存在（首次保存）或 mtime 一致 → 正常写入
       });
       return;
     }
@@ -219,7 +275,7 @@ async function handleProjectsApi(req, res, urlPath) {
     if (req.method === 'DELETE') {
       fs.unlink(full, (err) => {
         if (err) { sendJSON(res, 404, { success: false, error: '项目不存在' }); return; }
-        console.log('[PROJECTS] 删除', name);
+        auditLog(req, 'delete', name);
         sendJSON(res, 200, { success: true, name });
       });
       return;
@@ -230,8 +286,12 @@ async function handleProjectsApi(req, res, urlPath) {
     // 审计 §5.8：400 只用于"客户端数据有问题"；服务端自身故障（IO 失败等）必须是 5xx，
     // 否则客户端会把服务端错误当成自己请求的问题，无法做重试/告警分流。
     const msg = (e && e.message) || String(e);
-    const isClientError = (e && e.name === 'SyntaxError') || /非法文件名|内容过大|不支持的方法/.test(msg);
-    console.error('[PROJECTS] ' + (isClientError ? '请求错误' : '服务端错误') + '：', msg);
+    if (e && e.code === 'BODY_TOO_LARGE') {
+      sendJSON(res, 413, { success: false, error: msg });
+      return;
+    }
+    const isClientError = (e && e.name === 'SyntaxError') || /非法文件名|不支持的方法/.test(msg);
+    logLine(isClientError ? 'warn' : 'error', isClientError ? 'request-invalid' : 'server-error', { msg, url: urlPath });
     sendJSON(res, isClientError ? 400 : 500, { success: false, error: msg });
   }
 }
@@ -262,13 +322,27 @@ function sendFile(res, filePath) {
         body = Buffer.from(at >= 0 ? txt.slice(0, at) + inject + txt.slice(at) : txt + inject, 'utf8');
       }
     }
-    res.writeHead(200, Object.assign({ 'Content-Type': MIME[ext] || 'application/octet-stream' }, securityHeaders()));
+    /* 审计 6.3：可被浏览器直接渲染的类型按原类型返回；其余一律 octet-stream + attachment，
+       避免站内出现用户可控文件时被同源当作可执行内容加载。 */
+    const RENDERABLE = ['.html', '.htm', '.js', '.css', '.json', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico'];
+    const headers = Object.assign({}, securityHeaders());
+    if (RENDERABLE.indexOf(ext) >= 0) {
+      headers['Content-Type'] = MIME[ext] || 'application/octet-stream';
+    } else {
+      headers['Content-Type'] = 'application/octet-stream';
+      headers['Content-Disposition'] = 'attachment';
+    }
+    res.writeHead(200, headers);
     res.end(body);
   });
 }
 
 // API 代理：将 /api/* 请求转发到后端，绕过浏览器 CORS 限制
 function proxyRequest(req, res) {
+  if (!API_TARGET) {
+    sendJSON(res, 503, { success: false, error: '服务端未配置后端地址（请设置环境变量 API_TARGET）' });
+    return;
+  }
   const rawPath = req.url.split('?')[0];
 
   /* 审计 4.1：/api/ 前缀可被逃逸 —— new URL() 会归一化 '..'，'/api/../admin' 最终打到后端
@@ -287,7 +361,7 @@ function proxyRequest(req, res) {
     sendJSON(res, 403, { success: false, error: '仅允许代理 /api/*' });
     return;
   }
-  console.log('[PROXY]', req.method, req.url, '->', targetUrl);
+  logLine('info', 'proxy', { method: req.method, url: req.url, target: targetUrl });
 
   const isHttps = parsedUrl.protocol === 'https:';
   const transport = isHttps ? https : http;
@@ -322,12 +396,12 @@ function proxyRequest(req, res) {
 
   // 审计 4.4：上游超时保护（原来没有，挂起即长期占用连接）
   proxyReq.setTimeout(PROXY_TIMEOUT_MS, () => {
-    console.error('[PROXY ERROR] 上游超时（' + PROXY_TIMEOUT_MS + 'ms）：', targetUrl);
+    logLine('error', 'proxy-timeout', { target: targetUrl, timeoutMs: PROXY_TIMEOUT_MS });
     proxyReq.destroy(new Error('upstream timeout'));
   });
 
   proxyReq.on('error', (e) => {
-    console.error('[PROXY ERROR]', e.message);
+    logLine('error', 'proxy-error', { msg: e.message, target: targetUrl });
     if (!res.headersSent) {
       sendJSON(res, 502, { success: false, error: 'Proxy error: ' + e.message });
     } else {
@@ -367,6 +441,22 @@ const server = http.createServer((req, res) => {
     console.warn('[HTTP] 非法请求路径已拒绝：', req.url);
     res.writeHead(400, Object.assign({ 'Content-Type': 'text/plain; charset=utf-8' }, securityHeaders()));
     res.end('400 Bad Request');
+    return;
+  }
+
+  /* 健康检查端点（工程化审计 7.2 / Docker HEALTHCHECK 依赖）：
+     /healthz 存活探针 —— 进程能响应即 200，不检查外部依赖；
+     /readyz  就绪探针 —— 额外检查项目库目录可写（写探针文件后立即删除）。 */
+  if (reqPath === '/healthz') {
+    sendJSON(res, 200, { ok: true, uptime: Math.round(process.uptime()), pid: process.pid });
+    return;
+  }
+  if (reqPath === '/readyz') {
+    const probe = path.join(PROJECT_DIR, '.ready-probe');
+    fs.writeFile(probe, 'ok', (err) => {
+      if (err) { sendJSON(res, 503, { ok: false, error: '项目库目录不可写：' + err.code }); return; }
+      fs.unlink(probe, () => sendJSON(res, 200, { ok: true, projects: true }));
+    });
     return;
   }
 
@@ -459,7 +549,7 @@ server.listen(PORT, HOST, () => {
   console.log('  监听:    ' + HOST + ':' + PORT + (isExposed() ? '  （对外暴露）' : '  （仅本机）'));
   console.log('  Editor:  http://' + (HOST === '0.0.0.0' ? 'localhost' : HOST) + ':' + PORT + '/editor');
   console.log('  Preview: http://' + (HOST === '0.0.0.0' ? 'localhost' : HOST) + ':' + PORT + '/preview');
-  console.log('  API:     /api/* -> ' + API_TARGET + '/api/*');
+  console.log('  API:     ' + (API_TARGET ? '/api/* -> ' + API_TARGET + '/api/*' : '未配置（需设置 API_TARGET，否则 /api/* 返回 503）'));
   console.log('  项目库:  ' + PROJECT_DIR);
   console.log('  鉴权:    ' + (API_TOKEN ? '已启用（X-PFD-Token）' : '未启用'));
   console.log('  CORS:    ' + (CORS_ORIGINS.length ? CORS_ORIGINS.join(', ') : '不开放（仅同源）'));

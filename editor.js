@@ -95,7 +95,13 @@ const _apiParam = (function(){
     return '';
   }
 })();
-const SENSOR_API_BASE = _apiParam || (_isFileProtocol ? 'http://192.168.1.78' : '');
+/* 审计 7.1：file:// 兜底原来硬编码内网地址；改为留空并给出明确提示，
+   需要直连后端时用 ?api= 显式指定（且需登记在 PFD_API_ALLOW 白名单）。 */
+const SENSOR_API_BASE = _apiParam || '';
+if(_isFileProtocol && !SENSOR_API_BASE){
+  console.warn('[API] 以 file:// 打开且未指定 ?api=，传感器功能不可用。'
+    + '建议通过 node server.js 启动后访问，或用 editor.html?api=http://<后端地址> 指定。');
+}
 const SENSOR_API = {
   async _get(path){
     const ctrl = typeof AbortController!=='undefined' ? new AbortController() : null;
@@ -1304,7 +1310,12 @@ function buildPalette(filter=''){
       const ic = document.createElement('div'); ic.className='pa-icon';
       ic.innerHTML = paletteThumb(key, t);
       const nm = document.createElement('div');
-      nm.innerHTML = `<div class="pa-name">${t.name}</div>`;
+      // 审计 5.7：原来用 innerHTML 拼接模板名，与本文件其余 40+ 处 esc() 写法不一致；
+      // 改用 textContent，彻底消除拼接注入面（当前 t.name 来自模板常量，属纵深防御）。
+      const nmInner = document.createElement('div');
+      nmInner.className = 'pa-name';
+      nmInner.textContent = t.name;
+      nm.appendChild(nmInner);
       el.appendChild(ic); el.appendChild(nm);
       el.addEventListener('mousedown', e=>startPaletteDrag(e, key));
       body.appendChild(el);
@@ -2856,6 +2867,7 @@ window.addEventListener('keyup', e=>{ if(e.code==='Space'){ spaceDown=false; svg
 let _lastFileHandle = null;   // 最近一次保存的文件句柄（用于增量保存）
 let _lastFileName = 'pfd_doc.json';
 let _currentProjectFile = null;   // 当前项目在项目库中的文件名（null = 尚未入库）
+let _projectBaseMtime = null;     // 载入/上次保存时服务端返回的 mtime（并发写保护基线，审计 3.3）
 
 // 保存状态栏信息
 function updateFileInfo(name, ts){
@@ -3183,11 +3195,34 @@ async function saveToLibrary(name){
   const data = buildProjectData();
   const json = JSON.stringify(data, null, 2);
   try{
+    /* 并发写保护（审计 3.3）：带上载入时的 mtime 作为基线，
+       服务端发现文件已被他人改动会返回 409，这里提示用户而不是静默覆盖。 */
+    const headers = { 'Content-Type':'application/json' };
+    if(_projectBaseMtime !== null) headers['X-PFD-Base-Mtime'] = String(_projectBaseMtime);
     const r = await projFetch(PROJ_API + '/' + encodeURIComponent(target), {
-      method:'POST', headers:{ 'Content-Type':'application/json' }, body: json
+      method:'POST', headers, body: json
     });
-    const j = await r.json();
+    const j = await r.json().catch(()=>null);
+    if(r.status === 409){
+      const ok = confirm('该项目在项目库中已被其他会话修改。\n\n确定 = 用当前画布内容覆盖\n取消 = 放弃本次保存');
+      if(!ok){ flash('已取消保存（项目库版本较新）'); return; }
+      // 用户确认覆盖：清掉基线重发一次
+      _projectBaseMtime = null;
+      const r2 = await projFetch(PROJ_API + '/' + encodeURIComponent(target), {
+        method:'POST', headers:{ 'Content-Type':'application/json' }, body: json
+      });
+      const j2 = await r2.json().catch(()=>null);
+      if(!j2 || !j2.success) throw new Error((j2 && j2.error) || '保存失败');
+      _projectBaseMtime = (typeof j2.mtime === 'number') ? Math.round(j2.mtime) : null;
+      _currentProjectFile = target;
+      setDirty(false);
+      updateFileInfo(target, Date.now());
+      flash('已覆盖保存到项目库：' + target);
+      refreshProjectList();
+      return;
+    }
     if(!j || !j.success) throw new Error((j && j.error) || '保存失败');
+    _projectBaseMtime = (typeof j.mtime === 'number') ? Math.round(j.mtime) : null;
     _currentProjectFile = target;
     setDirty(false);
     updateFileInfo(target, Date.now());
@@ -3208,6 +3243,7 @@ async function loadFromLibrary(name){
     if(!j || !j.success) throw new Error((j && j.error) || '读取失败');
     if(restoreFromText(j.content, name)){
       _currentProjectFile = name;
+      _projectBaseMtime = (typeof j.mtime === 'number') ? Math.round(j.mtime) : null;   // 并发基线
       const nameInput = $('projName'); if(nameInput) nameInput.value = name;
       closeProjectPanel();
     }
@@ -3222,7 +3258,7 @@ async function deleteFromLibrary(name){
     const r = await projFetch(PROJ_API + '/' + encodeURIComponent(name), { method:'DELETE' });
     const j = await r.json();
     if(!j || !j.success) throw new Error((j && j.error) || '删除失败');
-    if(_currentProjectFile === name) _currentProjectFile = null;
+    if(_currentProjectFile === name){ _currentProjectFile = null; _projectBaseMtime = null; }
     flash('已从项目库删除：' + name);
     refreshProjectList();
   }catch(e){

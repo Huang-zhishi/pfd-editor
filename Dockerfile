@@ -11,8 +11,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# 项目无 package.json / node_modules，直接复制全部静态资源与 server.js
-COPY . .
+# 审计 8.5：白名单式 COPY —— 原来 `COPY . .` 会把 doc/（含审计文档）、projects/（业务数据）、
+# 各类日志与临时产物一起打进镜像。这里只复制运行必需文件。
+COPY server.js ./
+COPY templates.js editor.js editor.html preview.html embed-demo.html demo-template.json ./
+COPY templates ./templates
 
 # 以非 root 用户运行（安全实践）；projects 目录需对 pfd 可写，否则项目库保存会 ENOENT/EACCES
 RUN addgroup -S pfd && adduser -S pfd -G pfd \
@@ -23,10 +26,18 @@ USER pfd
 ENV PORT=8090
 # server.js 默认只监听 127.0.0.1（审计 3.2）；容器内必须监听 0.0.0.0 才能通过端口映射访问
 ENV HOST=0.0.0.0
-ENV API_TARGET=http://192.168.1.78
+# 审计 8.3：不再把内网地址烘焙进镜像（原来 ENV API_TARGET=http://192.168.1.78），
+# 运行时通过 docker run -e / compose environment 注入。
+# 未设置时 /api/* 会返回 503 并提示配置 API_TARGET。
+ENV API_TARGET=
 # 建议启用：容器通常对外暴露，未设置令牌时项目库接口对同网段任何人可读写删
 # ENV PFD_API_TOKEN=change-me
 
 EXPOSE 8090
+
+# 审计 8.2：健康探针。使用 node 内置 fetch（Node 18+），无需额外工具，
+# 命中 server.js 新增的 /healthz 端点；start-period 给足启动时间。
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8090)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "server.js"]

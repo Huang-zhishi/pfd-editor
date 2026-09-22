@@ -22,10 +22,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
 
@@ -39,6 +39,7 @@ jobs:
       - name: Smoke test (serve + curl)
         env:
           PORT: 18090
+          PFD_PROJECT_MAX_BYTES: "1000"
         run: |
           # 必须 export：裸赋值不会传给子进程，node 会退回默认端口 8090
           export PROJECT_DIR="$(mktemp -d)"
@@ -74,6 +75,50 @@ jobs:
           curl -fsS "http://127.0.0.1:${PORT}/pfd-api/projects/ci-test.json" | grep -q '"success":true'
           curl -fsS -X DELETE "http://127.0.0.1:${PORT}/pfd-api/projects/ci-test.json" >/dev/null
           echo "projects API round-trip OK"
+
+          # ---- 健康检查端点（工程化审计 §7.2 / Docker HEALTHCHECK 依赖）----
+          echo "== health endpoints =="
+          curl -fsS "http://127.0.0.1:${PORT}/healthz" | grep -q '"ok":true' || { echo "FAIL: /healthz"; exit 1; }
+          curl -fsS "http://127.0.0.1:${PORT}/readyz"  | grep -q '"ok":true' || { echo "FAIL: /readyz"; exit 1; }
+          echo "health endpoints OK"
+
+          # ---- 并发写保护（安全审计 §3.3）----
+          echo "== optimistic write lock =="
+          curl -fsS -X POST "http://127.0.0.1:${PORT}/pfd-api/projects/ci-lock.json" \
+            -H 'Content-Type: application/json' \
+            -d '{"version":1,"components":[],"pipes":[],"meta":{}}' >/dev/null
+          base=$(curl -fsS "http://127.0.0.1:${PORT}/pfd-api/projects/ci-lock.json" | sed -n 's/.*"mtime":\([0-9.]*\).*/\1/p')
+          [ -n "$base" ] || { echo "FAIL: GET 未返回 mtime"; exit 1; }
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${PORT}/pfd-api/projects/ci-lock.json" \
+            -H 'Content-Type: application/json' -H "X-PFD-Base-Mtime: ${base}" \
+            -d '{"version":1,"components":[],"pipes":[],"meta":{}}')
+          [ "$code" = "200" ] || { echo "FAIL: 正确基线应 200，实际 $code"; exit 1; }
+          stale=$(awk -v b="$base" 'BEGIN{printf "%d", b-5000}')
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${PORT}/pfd-api/projects/ci-lock.json" \
+            -H 'Content-Type: application/json' -H "X-PFD-Base-Mtime: ${stale}" \
+            -d '{"version":1,"components":[],"pipes":[],"meta":{}}')
+          [ "$code" = "409" ] || { echo "FAIL: 过期基线应 409，实际 $code"; exit 1; }
+          curl -fsS -X DELETE "http://127.0.0.1:${PORT}/pfd-api/projects/ci-lock.json" >/dev/null
+          echo "optimistic write lock OK"
+
+          # ---- 结构化日志（安全审计 §9.4）----
+          echo "== structured logs =="
+          grep -q '"event":"audit"' /tmp/pfd-server.log || { echo "FAIL: 缺少审计日志"; exit 1; }
+          echo "structured logs OK"
+
+          # ---- 请求体上限 413（安全审计 §2.3，上限已由 env 调成 1000 字节）----
+          echo "== request body limit =="
+          head -c 5000 /dev/zero | tr '\0' 'x' > /tmp/ci-big.json
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${PORT}/pfd-api/projects/ci-big.json" \
+            -H 'Content-Type: application/json' --data-binary @/tmp/ci-big.json)
+          echo "  5000 bytes (limit 1000) -> ${code}"
+          [ "$code" = "413" ] || { echo "FAIL: 超限应返回 413，实际 $code"; exit 1; }
+          echo "body limit OK"
+
+          # ---- 列表不暴露服务器路径（安全审计 §7.3）----
+          curl -fsS "http://127.0.0.1:${PORT}/pfd-api/projects" | grep -q '"dir"' \
+            && { echo "FAIL: 列表不应回显 dir"; exit 1; }
+          echo "no dir field OK"
 
           # ---- 安全回归（对应安全审计 §1.1/§1.3）----
           # 注意：原来这里只断言 /projects 返回 403，但越界路径可以绕过它，用例通过 ≠ 防护有效
@@ -137,10 +182,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
 
@@ -185,10 +230,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
 
@@ -257,7 +302,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Build image
         run: docker build -t pfd-editor:ci .

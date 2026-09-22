@@ -14,11 +14,25 @@ services:
       HOST: "0.0.0.0"
       # 项目库接口鉴权令牌（留空=不鉴权）。对外暴露时强烈建议设置
       PFD_API_TOKEN: ""
-      # 后端传感器 API 地址（server.js 中 /api/* 的转发目标）
+      # 后端传感器 API 地址（/api/* 转发目标）。审计 8.3：不再有默认值，必须显式提供
       API_TARGET: "http://192.168.1.78"
     volumes:
       # 项目库持久化（命名卷由镜像内 /app/projects 初始化，自动继承 pfd 用户属主，容器重建不丢数据）
       - pfd-projects:/app/projects
+
+    # 审计 8.2：健康检查（与镜像内 HEALTHCHECK 一致）
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8090/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    # 审计 8.4：容器加固 —— 去掉全部 capability、根文件系统只读（projects 卷可写）
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /tmp
 
 volumes:
   pfd-projects:
