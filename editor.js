@@ -41,6 +41,25 @@ const layerFlow = $('layerFlow');
 const layerOverlay = $('layerOverlay');
 const _isEditor = !!$('btnSave'); // true when running on editor page (has toolbar buttons)
 
+/* 后端传感器连接状态：用于把"拉取失败"从静默变成可观测（审计 §5.3）
+   原来两处 catch 都是空实现，无法区分"后端没配"与"网络坏了"。 */
+let sensorApiState = { ok: null, error: '', at: 0 };
+function setSensorApiState(ok, err){
+  sensorApiState = { ok: ok, error: err || '', at: Date.now() };
+  const el = (typeof $ === 'function') ? $('stSensor') : null;
+  if(el){
+    el.textContent = ok ? '正常' : ('离线' + (err ? '（' + err + '）' : ''));
+    el.style.color = ok ? 'var(--green)' : 'var(--red)';
+    el.title = ok ? ('最近一次成功：' + new Date(sensorApiState.at).toLocaleTimeString())
+                  : ('最近一次失败：' + new Date(sensorApiState.at).toLocaleTimeString() + '\n' + sensorApiState.error);
+  }
+}
+function logSensorFailure(where, e){
+  const msg = (e && e.message) || String(e);
+  console.warn('[SENSOR] ' + where + ' 失败：' + msg);
+  setSensorApiState(false, msg);
+}
+
 /* ============================================================
  * 0. 后端传感器 API（编辑器与预览页共用）
  *    - 通过 http(s):// 访问时使用相对路径 /api/*，由当前服务器代理转发（避免CORS问题）；
@@ -2081,7 +2100,7 @@ async function loadSensorCatalog(){
         if(comp && tq) renderTagSuggest(comp, tq.value||'');
       }
     }
-  }catch(e){ /* CORS/网络失败时静默，回退到 KNOWN_TAGS */ }
+  }catch(e){ logSensorFailure('传感器目录拉取', e); }   // 失败可观测；检索仍回退 KNOWN_TAGS
 }
 
 // 拉取全部传感器实时值到缓存（type 一并缓存，供监控器面板"开/关"显示使用）
@@ -2097,8 +2116,9 @@ async function refreshSensorValues(){
       refreshReactorLevel(sensorValueMap);   // 反应釜：绑定液位 tag 时按实时值更新液面与读数
       refreshSwitchValveAuto(sensorValueMap); // 三通阀自动模式：根据 A/B 开关量互斥切换
       refreshRunState(sensorValueMap);       // 运行开关：按开关 tag（可多个 + 与/或逻辑）驱动各设备动画开/停
+      setSensorApiState(true);
     }
-  }catch(e){ /* 静默 */ }
+  }catch(e){ logSensorFailure('实时值拉取', e); }
 }
 
 // 更新当前选中组件的 tag 行实时数值（不覆盖正在编辑的输入框）
@@ -2604,12 +2624,44 @@ function alignSelection(type){
 
 function pushHistory(){
   histStack = histStack.slice(0, histIdx+1);
-  histStack.push(JSON.stringify(doc));
+  let snap;
+  try{
+    snap = JSON.stringify(doc);
+  }catch(e){
+    // 序列化失败（循环引用等）时放弃本次快照，但绝不让调用方整体失败（审计 §5.2）
+    console.error('[HISTORY] 快照序列化失败，本次不入栈：', e && e.message);
+    return;
+  }
+  histStack.push(snap);
   if(histStack.length>50) histStack.shift();
   histIdx = histStack.length-1;
 }
-function undo(){ if(histIdx>0){ histIdx--; doc=JSON.parse(histStack[histIdx]); selClear(); renderAll(); renderProps(); setDirty(false);} }
-function redo(){ if(histIdx<histStack.length-1){ histIdx++; doc=JSON.parse(histStack[histIdx]); selClear(); renderAll(); renderProps(); setDirty(false);} }
+/* 历史快照读取：快照损坏时跳过该步并提示，而不是抛异常让撤销/重做整体失效（审计 §5.2） */
+function readHistory(i){
+  try{
+    const d = JSON.parse(histStack[i]);
+    if(!d || !Array.isArray(d.components)) throw new Error('快照结构非法');
+    return d;
+  }catch(e){
+    console.error('[HISTORY] 快照解析失败，已跳过该步：', e && e.message);
+    flash('历史记录损坏，已跳过该步');
+    return null;
+  }
+}
+function undo(){
+  if(histIdx<=0) return;
+  const d = readHistory(histIdx-1);
+  histIdx--;
+  if(!d) return;
+  doc=d; selClear(); renderAll(); renderProps(); setDirty(false);
+}
+function redo(){
+  if(histIdx>=histStack.length-1) return;
+  const d = readHistory(histIdx+1);
+  histIdx++;
+  if(!d) return;
+  doc=d; selClear(); renderAll(); renderProps(); setDirty(false);
+}
 
 function setDirty(d=true){
   dirty = d;
@@ -2656,7 +2708,12 @@ $('btnPNG').onclick = exportPNG;
 $('btnUndo').onclick = undo;
 $('btnRedo').onclick = redo;
 $('btnRun').onclick = ()=>{ running=!running; $('btnRun').classList.toggle('active',running); if(running) startFlow(); else stopFlow(); };
-$('btnPreview').onclick = ()=>{ localStorage.setItem('pfd_doc', JSON.stringify(doc, (k,v)=> k.charAt(0)==='_' ? undefined : v)); setDirty(false); window.open('preview.html', '_blank'); };
+$('btnPreview').onclick = ()=>{
+  // 写失败时不打开预览：否则预览展示的是上一次的旧数据，用户会误以为已同步（审计 §5.1）
+  if(!writePreviewDoc()) return;
+  setDirty(false);
+  window.open('preview.html', '_blank');
+};
 $('btnExport').onclick = exportStandalone;
 $('btnSensors').onclick = openSensorPanel;
 $('smClose').onclick = closeSensorPanel;
@@ -3285,7 +3342,12 @@ function exportPNG(){
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#070612'; ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.scale(scale, scale);
-    try{ ctx.drawImage(img, 0, 0); }catch(e){}
+    try{ ctx.drawImage(img, 0, 0); }
+    catch(e){
+      // 画布污染/尺寸异常会让 drawImage 抛错，导出图会缺内容，必须可见（审计 §5.5）
+      console.error('[EXPORT] PNG 绘制失败：', e && e.message);
+      flash('PNG 导出内容可能不完整：' + (e && e.message));
+    }
     URL.revokeObjectURL(url);
     canvas.toBlob(blob=>{
       if(!blob){ flash('导出失败'); return; }
@@ -3320,7 +3382,12 @@ async function exportStandalone(){
     out = out.slice(0, es) + 'const EMBED = true;' + out.slice(ee);
 
     // 2) 内联全部设备模板 + editor.js（替换外部加载脚本标签，保持 templates → editor 顺序）
-    const fetchSrc = f => fetch(f+'?v='+Date.now()).then(r=>r.text());
+    // 必须校验 r.ok：模板/脚本 404 时错误页 HTML 会被当源码内联进导出文件，
+    // 生成一个"能打开但功能全废"的产物且无任何提示（审计 §5.4）
+    const fetchSrc = f => fetch(f+'?v='+Date.now()).then(r=>{
+      if(!r.ok) throw new Error(f + ' 加载失败（HTTP ' + r.status + '），导出已中止');
+      return r.text();
+    });
     // 模板已按设备拆分到 templates/，清单唯一来源是入口 templates.js 的 TEMPLATE_FILES
     const loaderTxt = await fetchSrc('templates.js');
     const mf = /TEMPLATE_FILES\s*=\s*\[([\s\S]*?)\]/.exec(loaderTxt);
@@ -3372,7 +3439,11 @@ async function loadTemplate(){
     try{
       const resp = await fetch('demo-template.json?v='+Date.now());
       if(resp.ok) data = await resp.json();
-    }catch(e){}
+      else console.warn('[TEMPLATE] demo-template.json 不可用（HTTP ' + resp.status + '），回退内置示例');
+    }catch(e){
+      // 预期内的回退（file:// 下无服务端），但要留痕，便于区分"文件缺失"与"网络故障"（审计 §5.5）
+      console.warn('[TEMPLATE] demo-template.json 拉取失败，回退内置示例：', e && e.message);
+    }
     if(!data){
       data = {"components":[{"id":"cv5i1lk","type":"box","x":280,"y":20,"w":81.72177124023438,"h":81.07854080200195,"rotation":0,"props":{"name":"XV0106","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"c2h1sjg","type":"switchValve","x":400,"y":60,"w":120,"h":150,"rotation":0,"props":{"name":"固体三通阀","tag":"","color":"#9C99FF","params":[],"showPorts":true,"switchValve":0}},{"id":"cftedn3","type":"screwConveyor","x":480,"y":280,"w":148.60397338867188,"h":59.87129211425781,"rotation":0,"props":{"name":"螺旋输送机","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"cvgr8ry","type":"screwConveyor","x":300,"y":280,"w":148.60397338867188,"h":59.87129211425781,"rotation":0,"props":{"name":"螺旋输送机","tag":"","color":"#9C99FF","params":[],"showPorts":true,"mirrored":true}},{"id":"c7wraui","type":"silo","x":220,"y":360,"w":90,"h":150,"rotation":0,"props":{"name":"料仓","tag":"V0201","color":"#9C99FF","params":[],"showPorts":true}},{"id":"c9i9h7o","type":"silo","x":620,"y":360,"w":90,"h":150,"rotation":0,"props":{"name":"料仓","tag":"V0202","color":"#9C99FF","params":[],"showPorts":true}},{"id":"cdwj84q","type":"weighFeeder","x":220,"y":600,"w":90.7869873046875,"h":92.75439453125,"rotation":0,"props":{"name":"配料秤/称重料斗","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"cxi7c5v","type":"screwConveyor","x":360,"y":620,"w":310.05682373046875,"h":71.91217041015625,"rotation":0,"props":{"name":"螺旋输送机","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"c8o55q0","type":"box","x":320,"y":380,"w":88.30654907226562,"h":66.027099609375,"rotation":0,"props":{"name":"L0106A","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"clqb7q1","type":"screwConveyor","x":480,"y":540,"w":268.11614990234375,"h":62.30609130859375,"rotation":0,"props":{"name":"螺旋输送机","tag":"","color":"#9C99FF","params":[],"showPorts":true,"mirrored":true}},{"id":"cky5j1k","type":"rotaryKiln","x":700,"y":680,"w":380,"h":180,"rotation":0,"props":{"name":"回转窑/旋转煅烧窑","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"c5tli5c","type":"tubeCooler","x":1140,"y":700,"w":300,"h":157.7227783203125,"rotation":0,"props":{"name":"回转滚筒冷却机","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"c41zzyw","type":"valve","x":780,"y":560,"w":39.6124267578125,"h":27.36431884765625,"rotation":0,"props":{"name":" ","tag":"手动阀","color":"#9C99FF","params":[],"showPorts":true}},{"id":"cpa9whi","type":"dustCollector","x":880,"y":340,"w":120,"h":180,"rotation":0,"props":{"name":"除尘布袋","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"cpkytsa","type":"screwConveyor","x":880,"y":560,"w":201.2919921875,"h":57.05426025390625,"rotation":0,"props":{"name":"螺旋输送机","tag":"L0205B","color":"#9C99FF","params":[],"showPorts":true}},{"id":"c335rfh","type":"blower","x":740,"y":280,"w":75.861328125,"h":69.99862670898438,"rotation":0,"props":{"name":"离心风机/鼓风机","tag":"","color":"#9C99FF","params":[],"showPorts":true,"mirrored":true}},{"id":"clbc8do","type":"desulfTower","x":1000,"y":0,"w":120,"h":297.28591871261597,"rotation":0,"props":{"name":"工业脱硫塔","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"cti8zsk","type":"blower","x":1120,"y":280,"w":75.861328125,"h":62.295166015625,"rotation":0,"props":{"name":"泵","tag":"","color":"#9C99FF","params":[],"showPorts":true,"mirrored":false}},{"id":"cqqfd5n","type":"box","x":780,"y":200,"w":62.61798095703125,"h":41.09211730957031,"rotation":0,"props":{"name":"C0204","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"c4ndpuc","type":"blower","x":240,"y":820,"w":66.66668701171875,"h":86.7183837890625,"rotation":90,"props":{"name":"。。。。供风机","tag":"C0204C","color":"#9C99FF","params":[],"showPorts":true,"mirrored":true}},{"id":"chqjt6v","type":"blower","x":240,"y":920,"w":66.66668701171875,"h":86.7183837890625,"rotation":90,"props":{"name":"。。。。供风机","tag":"C0204C","color":"#9C99FF","params":[],"showPorts":true,"mirrored":true}},{"id":"cepvyg7","type":"valve","x":580,"y":940,"w":84.008056640625,"h":44.7008056640625,"rotation":0,"props":{"name":"气密阀","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"cqxvh8j","type":"coolingPond","x":1200,"y":380,"w":192.5611572265625,"h":120,"rotation":0,"props":{"name":"冷却水池","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"ceq4k9q","type":"screwConveyor","x":1260,"y":900,"w":213.18994140625,"h":79.015869140625,"rotation":0,"props":{"name":"L0301","tag":"","color":"#9C99FF","params":[],"showPorts":true,"mirrored":true}},{"id":"cva5r78","type":"pump","x":1460,"y":400,"w":46.450439453125,"h":29.742584228515625,"rotation":0,"props":{"name":"工业抽水泵","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"cs6c3nk","type":"pump","x":1460,"y":440,"w":46.450439453125,"h":29.742584228515625,"rotation":0,"props":{"name":"工业抽水泵","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"cp0llhp","type":"pump","x":1440,"y":620,"w":46.450439453125,"h":29.742584228515625,"rotation":270,"props":{"name":"工业抽水泵","tag":"","color":"#9C99FF","params":[],"showPorts":true}},{"id":"cjeo19x","type":"pump","x":1520,"y":620,"w":46.450439453125,"h":29.742584228515625,"rotation":270,"props":{"name":"工业抽水泵","tag":"","color":"#9C99FF","params":[],"showPorts":true}}],"pipes":[{"id":"psgi3ck","type":"solid","from":{"cid":"cv5i1lk","port":"right"},"to":{"cid":"c2h1sjg","port":"inlet"},"label":"锰粉","width":2.5,"labelPos":0.5,"bend":{"x":340,"y":80},"straight":true},{"id":"pcczsn9","type":"solid","from":{"cid":"c2h1sjg","port":"outletB"},"to":{"cid":"cftedn3","port":"inlet"},"label":"锰粉","width":2.5,"labelPos":0.5,"straight":true},{"id":"pxcrk9s","type":"solid","from":{"cid":"c2h1sjg","port":"outletA"},"to":{"cid":"cvgr8ry","port":"inlet"},"label":"锰粉","width":2.5,"labelPos":0.5,"straight":true},{"id":"pbvxtrn","type":"solid","from":{"cid":"cftedn3","port":"outlet"},"to":{"cid":"c9i9h7o","port":"top"},"label":"","width":2.5,"labelPos":0.5,"straight":true},{"id":"pchv8g2","type":"solid","from":{"cid":"cvgr8ry","port":"outlet"},"to":{"cid":"c7wraui","port":"top"},"label":"","width":2.5,"labelPos":0.5,"straight":true},{"id":"pl8d487","type":"solid","from":{"cid":"c7wraui","port":"bottom"},"to":{"cid":"cdwj84q","port":"inlet"},"label":"","width":2.5,"labelPos":0.5,"straight":true},{"id":"pm4rgij","type":"solid","from":{"cid":"c8o55q0","port":"bottom"},"to":{"cid":"cxi7c5v","port":"left"},"label":"煤粉","width":2.5,"labelPos":0.5,"straight":true},{"id":"pl9e86s","type":"solid","from":{"cid":"c9i9h7o","port":"bottom"},"to":{"cid":"clqb7q1","port":"inlet"},"label":"","width":2.5,"labelPos":0.5,"straight":true},{"id":"pw8cdvg","type":"solid","from":{"cid":"clqb7q1","port":"right"},"to":{"cid":"cxi7c5v","port":"inlet"},"label":"锰粉","width":2.5,"labelPos":0.5},{"id":"px92weh","type":"solid","from":{"cid":"cdwj84q","port":"outlet"},"to":{"cid":"cky5j1k","port":"inlet"},"label":"锰粉","width":2.5,"labelPos":0.5,"bend":{"x":440,"y":760}},{"id":"pm7wq9k","type":"solid","from":{"cid":"cxi7c5v","port":"outlet"},"to":{"cid":"cky5j1k","port":"inlet"},"label":"","width":2.5,"labelPos":0.5},{"id":"pgevbfl","type":"gas","from":{"cid":"cky5j1k","port":"flueGas"},"to":{"cid":"c41zzyw","port":"in"},"label":"","width":2.5,"labelPos":0.5,"bend":{"x":760,"y":620}},{"id":"p79s3st","type":"gas","from":{"cid":"c41zzyw","port":"out"},"to":{"cid":"cpa9whi","port":"cleanGas"},"label":"","width":2.5,"labelPos":0.5},{"id":"pg7bhry","type":"solid","from":{"cid":"cpa9whi","port":"outlet"},"to":{"cid":"cpkytsa","port":"inlet"},"label":"","width":2.5,"labelPos":0.5,"straight":true},{"id":"prfhzfb","type":"gas","from":{"cid":"cpa9whi","port":"inlet"},"to":{"cid":"c335rfh","port":"in"},"label":"","width":2.5,"labelPos":0.5,"bend":{"x":840,"y":320}},{"id":"pgbphj7","type":"cool","from":{"cid":"clbc8do","port":"slurryOut"},"to":{"cid":"cti8zsk","port":"in"},"label":"","width":2.5,"labelPos":0.5},{"id":"p4tq6sk","type":"cool","from":{"cid":"cti8zsk","port":"out"},"to":{"cid":"clbc8do","port":"sprayIn"},"label":"","width":2.5,"labelPos":0.5,"bend":{"x":1140,"y":100}},{"id":"pxr9ykg","type":"gas","from":{"cid":"c335rfh","port":"out"},"to":{"cid":"clbc8do","port":"overflow"},"label":"","width":2.5,"labelPos":0.5,"bend":{"x":980,"y":260}},{"id":"pdtzx5p","type":"solid","from":{"cid":"clbc8do","port":"gasIn"},"to":{"cid":"cqqfd5n","port":"right"},"label":"","width":2.5,"labelPos":0.5},{"id":"pamlvg0","type":"gas","from":{"cid":"chqjt6v","port":"out"},"to":{"cid":"cepvyg7","port":"in"},"label":"天然气","width":2.5,"labelPos":0.5},{"id":"pj76rvv","type":"hot","from":{"cid":"c4ndpuc","port":"out"},"to":{"cid":"cky5j1k","port":"outlet"},"label":"热气","width":2.5,"labelPos":0.5,"bend":{"x":1100,"y":860}},{"id":"p36lfwj","type":"gas","from":{"cid":"cepvyg7","port":"out"},"to":{"cid":"cky5j1k","port":"outlet"},"label":"天然气","width":2.5,"labelPos":0.5,"bend":{"x":1100,"y":820}},{"id":"p5e4ef1","type":"solid","from":{"cid":"cky5j1k","port":"fuel"},"to":{"cid":"c5tli5c","port":"inlet"},"label":"氧化锰","width":2.5,"labelPos":0.5},{"id":"pu17jwl","type":"solid","from":{"cid":"c5tli5c","port":"airIn"},"to":{"cid":"ceq4k9q","port":"inlet"},"label":"","width":2.5,"labelPos":0.5},{"id":"pgkglyf","type":"cool","from":{"cid":"c5tli5c","port":"airOut"},"to":{"cid":"cqxvh8j","port":"inlet"},"label":"","width":2.5,"labelPos":0.5,"bend":{"x":1220,"y":360}},{"id":"p33vqz6","type":"cool","from":{"cid":"cqxvh8j","port":"overflow"},"to":{"cid":"cva5r78","port":"in"},"label":"","width":2.5,"labelPos":0.5,"bend":{"x":1420,"y":420}},{"id":"p9qftun","type":"cool","from":{"cid":"cqxvh8j","port":"overflow"},"to":{"cid":"cs6c3nk","port":"in"},"label":"","width":2.5,"labelPos":0.5,"bend":{"x":1420,"y":460}},{"id":"pyw4kkt","type":"cool","from":{"cid":"cva5r78","port":"out"},"to":{"cid":"cqxvh8j","port":"inlet"},"label":"","width":2.5,"labelPos":0.5,"bend":{"x":1580,"y":340}},{"id":"pu003ij","type":"cool","from":{"cid":"cs6c3nk","port":"out"},"to":{"cid":"cqxvh8j","port":"inlet"},"label":"","width":2.5,"labelPos":0.5,"bend":{"x":1580,"y":360}},{"id":"p2x1sez","type":"cool","from":{"cid":"c5tli5c","port":"outlet"},"to":{"cid":"cp0llhp","port":"in"},"label":"","width":2.5,"labelPos":0.5,"bend":{"x":1500,"y":680}},{"id":"p05w7jb","type":"gas","from":{"cid":"c5tli5c","port":"outlet"},"to":{"cid":"cjeo19x","port":"in"},"label":"","width":2.5,"labelPos":0.5},{"id":"p5qpd4q","type":"cool","from":{"cid":"cp0llhp","port":"out"},"to":{"cid":"cqxvh8j","port":"outlet"},"label":"","width":2.5,"labelPos":0.5},{"id":"pzp4x7w","type":"cool","from":{"cid":"cjeo19x","port":"out"},"to":{"cid":"cqxvh8j","port":"outlet"},"label":"","width":2.5,"labelPos":0.5}],"meta":{"title":"1#还原系统","bg":"#070612"}};
     }
@@ -3387,6 +3458,32 @@ async function loadTemplate(){
   }catch(e){
     console.error('loadTemplate error:', e);
     flash('加载模板失败：' + e.message);
+  }
+}
+
+/* 把当前文档写入 localStorage 供预览页读取。
+   localStorage 可能写失败：配额超限（QuotaExceededError）或隐私/无痕模式禁用（SecurityError）。
+   原来直接 setItem 不捕获 —— 失败时预览页读到的是上一次的旧文档，用户以为已同步（审计 §5.1）。
+   现在：捕获异常 + 写后读校验，失败给出明确提示且不打开预览。 */
+function writePreviewDoc(){
+  let txt;
+  try{
+    txt = JSON.stringify(doc, (k,v)=> k.charAt(0)==='_' ? undefined : v);
+  }catch(e){
+    alert('序列化当前文档失败：' + (e && e.message));
+    return false;
+  }
+  try{
+    localStorage.setItem('pfd_doc', txt);
+    if(localStorage.getItem('pfd_doc') !== txt) throw new Error('写入后校验不一致');
+    return true;
+  }catch(e){
+    const quota = e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
+    console.error('[STORAGE] 写入 pfd_doc 失败：', e && e.name, e && e.message);
+    alert(quota
+      ? '浏览器本地存储空间不足，无法把当前流程同步给预览页。\n建议：清理浏览器站点数据，或改用「项目库保存」后再从项目库打开预览。'
+      : '写入本地存储失败（隐私/无痕模式可能禁用了 localStorage）：\n' + (e && e.message));
+    return false;
   }
 }
 
