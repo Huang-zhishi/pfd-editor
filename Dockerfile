@@ -11,7 +11,7 @@
 #   digest 获取方式：通过镜像加速站 docker.m.daocloud.io 拉取 index manifest 并校验
 #   Docker-Content-Digest 与本地 sha256 一致后固化。
 #   .github/dependabot.yml 已配置 docker 生态跟踪，会自动提升级 PR。
-FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+FROM node:26-alpine@sha256:dbaa92e5758cbbcf85d65d5403fdb530fe3442cbe8c6dbfb7ef23365450d5070
 
 WORKDIR /app
 
