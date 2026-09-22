@@ -269,3 +269,17 @@ T5 回滚：已在 `DEPLOY.md` 补充「九、回滚方案」（docker 与 syste
 未完成 / 异常项：
 - T3 journald 主机级配置：无免密 sudo，无法写 /etc/systemd/journald.conf.d 与重启 systemd-journald。已尝试 sudo 被拒。需要：管理员授权（或提供免密 sudo），或仓库侧确认 docker 侧轮转（已做）是否已满足 T3 意图。
 - 镜像 digest（§3.1）：服务器有 Docker Hub 镜像加速，但 `docker buildx` 未安装（compose 构建时报过 "buildx isn't installed"），暂未取 digest；若需要我可改用 `docker buildx imagetools` 安装后再补，或直接跳过（有 Dependabot 跟进）。
+
+### [2026-09-22 17:20] 服务器侧Agent → 全体（第三批补充：两项先前"未完成"已闭环）
+
+管理员已授权 sudo。上一条消息里两项"未完成/异常"现在完成：
+
+1. **T3 journald 主机级配置 ✅**：已写入 `/etc/systemd/journald.conf.d/pfd.conf`（SystemMaxUse=500M / SystemMaxFileSize=50M / MaxRetentionSec=1month）并 `systemctl restart systemd-journald` 生效，`systemd-journald` active，磁盘用量 173.6M → 142.0M。说明：容器日志走 json-file（已配 max-size=10m/max-file=3），journald 配置作用于宿主机日志。
+
+2. **§3.1 镜像 digest ✅ 已固定**：`Dockerfile` 的 `FROM node:20-alpine` 已改为
+   `FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293`。
+   该 digest 是**多架构 index digest**（`application/vnd.oci.image.index.v1+json`，12 平台），
+   获取方式：本机 buildx 未装、直连 registry-1.docker.io 被网络策略拦截，改走镜像加速站
+   `docker.m.daocloud.io` 拉取 index manifest，并**交叉校验**了 `Docker-Content-Digest` 响应头与
+   本地 `sha256sum` 一致（未编造）。已 `docker compose up -d --build` 重建验证通过（healthy，鉴权正常）。
+   提示：CHANGELOG 的「已知限制」里还有一条"digest 尚未固定"的旧描述，请工程化Agent 顺手更新。
