@@ -683,8 +683,11 @@
     document.body.classList.add('embed');
   }
 
-  el('docTitle').textContent = doc.meta.title || '未命名流程';
-  document.title = (doc.meta.title || 'PFD') + ' · 预览';
+  // 审计 §5.7：doc.meta 可能缺失（旧文件 / embed 注入 / ?doc= 传入的裸数据），
+  // 直接读 doc.meta.title 会抛 TypeError 让初始化整体中断。
+  const docTitle = (doc.meta && doc.meta.title) || '未命名流程';
+  el('docTitle').textContent = docTitle;
+  document.title = docTitle + ' · 预览';
 
   // 数据源：初始为null，异步连接后端后赋值（无任何模拟数据）
   let adapter = null;
@@ -1528,7 +1531,11 @@
   // ============================================================
   // 工具栏 / 键盘
   // ============================================================
-  const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  /* 转义统一走 editor.js 的全局 esc()（审计 §4.9：原来两处实现不一致，editor 版缺 & > '）。
+     保留同名局部常量指向它，避免改动本文件其余 7 处调用点；editor.js 未加载时兜底为等价实现。 */
+  const esc = (typeof window !== 'undefined' && typeof window.esc === 'function')
+    ? window.esc
+    : (s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
   el('btnZoomIn').onclick = ()=>zoomBy(1.2);
   el('btnZoomOut').onclick = ()=>zoomBy(0.8);
   el('btnZoomFit').onclick = zoomFit;

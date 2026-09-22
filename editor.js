@@ -1691,11 +1691,14 @@ function addPipe(from, to){
   setDirty();
 }
 
-// 判断两条管道是否连接同一对端口（不管方向）
+/* 判断两条管道是否连接同一对端口（不管方向）。
+   审计 §5.6：外部导入/旧版本数据可能缺 from/to，直接读 .cid 会抛 TypeError 导致连线中断 ——
+   这里做防御性解析，结构不完整的管道一律视为"不构成重复连接"（由入口校验负责提示）。 */
 function sameConnection(p, from, to){
-  const a = {cid:from.cid, port:from.port}, b = {cid:to.cid, port:to.port};
-  const f = {cid:p.from.cid, port:p.from.port}, t = {cid:p.to.cid, port:p.to.port};
-  const same = (x,y)=> x.cid===y.cid && x.port===y.port;
+  const port = (o)=> (o && typeof o === 'object') ? { cid:o.cid, port:o.port } : null;
+  const a = port(from), b = port(to), f = port(p && p.from), t = port(p && p.to);
+  if(!a || !b || !f || !t) return false;
+  const same = (x,y)=> !!x && !!y && x.cid===y.cid && x.port===y.port;
   return (same(f,a) && same(t,b)) || (same(f,b) && same(t,a));
 }
 
@@ -2365,7 +2368,12 @@ function renderParamsList(comp){
       : '<div class="pr-empty" style="padding:10px;font-size:11px;color:var(--text3)">暂无 Tag · 搜索或点击下方添加</div>';
   }
 }
-function esc(s){ return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+/* 统一转义工具（审计 §4.9）：覆盖 & < > " ' 五个字符。
+   原实现只转义 " 和 <（缺 &、>、'）：在单引号属性或需要 & 语义的位置会留下注入面，
+   且与 preview.html 的同名实现行为不一致。preview.html 已改为复用本函数。 */
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 function renderPropsLive(){
   const sc = selSingle();
   if(!sc || sc.kind!=='component') return;
@@ -2703,7 +2711,27 @@ $('btnTemplate').onclick = ()=>{ loadTemplate(); };
 $('btnSave').onclick = saveProject;            // 项目库：已入库原地覆盖，未入库则打开面板命名
 $('btnLoad').onclick = openProjectPanel;       // 项目库：可视化列表中选择加载
 $('btnExportJson').onclick = ()=>{ openModal('导出 JSON', JSON.stringify(doc,null,2), txt=>{ navigator.clipboard?.writeText(txt); flash('已复制到剪贴板'); }); };
-$('btnImport').onclick = ()=>{ openModal('导入 JSON', '', txt=>{ try{ doc=JSON.parse(txt); selClear(); pushHistory(); renderAll(); renderProps(); setDirty(); flash('已导入'); }catch(e){ alert('JSON 解析失败: '+e.message); } }); };
+/* 导入 JSON：与本地文件载入走同一条 validate → normalize → apply 链路（审计 §10.5/§1.3/§1.4）。
+   原来直接 doc=JSON.parse(txt) 赋给全局，缺 pipes 等字段会在渲染层抛 TypeError，
+   页面停在半渲染状态且提示无效。 */
+$('btnImport').onclick = ()=>{ openModal('导入 JSON', '', txt=>{
+  let parsed;
+  try{
+    parsed = JSON.parse(txt);
+  }catch(e){
+    alert('JSON 解析失败：' + e.message);
+    return;
+  }
+  try{
+    applyProjectData(parsed);
+    _currentProjectFile = null;          // 导入来源与项目库无关
+    _lastFileName = '导入的项目';
+    updateFileInfo(_lastFileName, Date.now());
+    flash('已导入');
+  }catch(e){
+    alert('导入失败：' + e.message);
+  }
+}); };
 $('btnPNG').onclick = exportPNG;
 $('btnUndo').onclick = undo;
 $('btnRedo').onclick = redo;
@@ -2817,10 +2845,39 @@ function updateFileInfo(name, ts){
 }
 
 // 是否为合法项目文档
-function isValidProject(obj){
-  return obj && typeof obj === 'object' &&
-    Array.isArray(obj.components) && Array.isArray(obj.pipes) &&
-    obj.meta && typeof obj.meta === 'object';
+/* 项目数据入口校验（审计 §10.5）：返回"问题清单"，空数组 = 通过。
+   只检查会导致渲染崩溃或语义不明的结构/类型问题，不做业务语义校验。
+   原实现只判断三个字段的存在性 —— 缺 pipes 时能通过校验，随后在渲染层以
+   TypeError 爆开（实测：Cannot read properties of undefined (reading 'length')）。 */
+function projectDataProblems(obj){
+  const errs = [];
+  if(!obj || typeof obj !== 'object' || Array.isArray(obj)) return ['根节点必须是 JSON 对象'];
+  if(!Array.isArray(obj.components)) errs.push('缺少 components 数组');
+  if(!Array.isArray(obj.pipes)) errs.push('缺少 pipes 数组');
+  if(!obj.meta || typeof obj.meta !== 'object' || Array.isArray(obj.meta)) errs.push('缺少 meta 对象');
+  if(obj.version !== undefined && (typeof obj.version !== 'number' || !isFinite(obj.version))) errs.push('version 必须是数字');
+  if(typeof obj.version === 'number' && obj.version > (doc.version || 1)) {
+    errs.push('文件版本 v' + obj.version + ' 高于当前编辑器支持的 v' + (doc.version || 1) + '，可能无法完整打开');
+  }
+  (Array.isArray(obj.components) ? obj.components : []).forEach((c, i)=>{
+    if(!c || typeof c !== 'object'){ errs.push('components[' + i + '] 不是对象'); return; }
+    if(!c.id) errs.push('components[' + i + '] 缺少 id');
+    if(!c.type) errs.push('components[' + i + '] 缺少 type');
+    else if(!TEMPLATES[c.type]) errs.push('components[' + i + '] 类型 "' + c.type + '" 未注册（可能来自更新版本）');
+  });
+  (Array.isArray(obj.pipes) ? obj.pipes : []).forEach((p, i)=>{
+    if(!p || typeof p !== 'object'){ errs.push('pipes[' + i + '] 不是对象'); return; }
+    if(!p.id) errs.push('pipes[' + i + '] 缺少 id');
+    if(!p.from || !p.from.cid) errs.push('pipes[' + i + '] 缺少 from.cid');
+    if(!p.to || !p.to.cid) errs.push('pipes[' + i + '] 缺少 to.cid');
+  });
+  return errs;
+}
+function isValidProject(obj){ return projectDataProblems(obj).length === 0; }
+/* 校验失败时把问题清单转成可读提示（最多列 6 条，其余折叠计数） */
+function projectProblemText(problems){
+  const head = problems.slice(0, 6).join('\n· ');
+  return '\n· ' + head + (problems.length > 6 ? '\n… 共 ' + problems.length + ' 项问题' : '');
 }
 
 // 组装保存数据（含配置参数与元信息）
@@ -2840,8 +2897,9 @@ function buildProjectData(){
 
 // 校验并恢复项目
 function applyProjectData(data){
-  if(!isValidProject(data)){
-    throw new Error('文件内容不是有效的项目数据（缺少 components/pipes/meta）');
+  const problems = projectDataProblems(data);
+  if(problems.length){
+    throw new Error('文件内容不是有效的项目数据：' + projectProblemText(problems));
   }
   doc = {
     version: data.version || 1,

@@ -84,13 +84,18 @@ async function handleProjectsApi(req, res, urlPath) {
   try {
     // GET /pfd-api/projects —— 列出目录下全部 .json（按修改时间倒序）
     if (req.method === 'GET' && (rest === '' || rest === '/')) {
-      const files = fs.readdirSync(PROJECT_DIR)
-        .filter((n) => /\.json$/i.test(n))
-        .map((n) => {
-          const st = fs.statSync(path.join(PROJECT_DIR, n));
+      // 审计 §5.8：原来用 readdirSync/statSync 在异步 handler 里做同步 IO，会阻塞事件循环。
+      // 改为异步 + 单个文件失败（列表期间被删/无权限）只跳过该条，不让整表 500。
+      const names = await fs.promises.readdir(PROJECT_DIR);
+      const stats = await Promise.all(names.filter((n) => /\.json$/i.test(n)).map(async (n) => {
+        try {
+          const st = await fs.promises.stat(path.join(PROJECT_DIR, n));
           return { name: n, size: st.size, mtime: st.mtimeMs };
-        })
-        .sort((a, b) => b.mtime - a.mtime);
+        } catch (e) {
+          return null;
+        }
+      }));
+      const files = stats.filter(Boolean).sort((a, b) => b.mtime - a.mtime);
       sendJSON(res, 200, { success: true, dir: PROJECT_DIR, files });
       return;
     }
@@ -132,7 +137,12 @@ async function handleProjectsApi(req, res, urlPath) {
 
     sendJSON(res, 405, { success: false, error: '不支持的方法' });
   } catch (e) {
-    sendJSON(res, 400, { success: false, error: e.message });
+    // 审计 §5.8：400 只用于"客户端数据有问题"；服务端自身故障（IO 失败等）必须是 5xx，
+    // 否则客户端会把服务端错误当成自己请求的问题，无法做重试/告警分流。
+    const msg = (e && e.message) || String(e);
+    const isClientError = (e && e.name === 'SyntaxError') || /非法文件名|内容过大|不支持的方法/.test(msg);
+    console.error('[PROJECTS] ' + (isClientError ? '请求错误' : '服务端错误') + '：', msg);
+    sendJSON(res, isClientError ? 400 : 500, { success: false, error: msg });
   }
 }
 
