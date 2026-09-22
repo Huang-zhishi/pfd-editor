@@ -18,6 +18,26 @@ const ROOT = __dirname;
 // 后端 API 目标（2026-09 切换至局域网后端）
 const API_TARGET = process.env.API_TARGET || 'http://192.168.1.78';
 
+/* 监听地址（审计 3.2）：默认只监听回环地址 —— 原来 server.listen(PORT) 未指定 host，
+   等于绑 0.0.0.0，把「无鉴权的项目库接口」直接暴露给整个局域网。
+   需要局域网访问时显式设置 HOST=0.0.0.0（deploy.sh / docker-compose 已显式设置）。 */
+const HOST = process.env.HOST || '127.0.0.1';
+
+/* 项目库接口访问令牌（审计 3.1）：PFD_API_TOKEN 为空时不鉴权（向后兼容），
+   设置后所有 /pfd-api/* 请求必须带 X-PFD-Token 头。
+   令牌会自动注入到对外提供的 HTML 页面里（见 sendFile），前端据此自动带上，
+   无需人工配置；对直接调用 API 的脚本则需自行携带。 */
+const API_TOKEN = process.env.PFD_API_TOKEN || '';
+const TOKEN_HEADER = 'x-pfd-token';
+
+function isExposed(){ return HOST !== '127.0.0.1' && HOST !== 'localhost' && HOST !== '::1'; }
+
+function authOk(req){
+  if (!API_TOKEN) return true;
+  const got = req.headers[TOKEN_HEADER];
+  return typeof got === 'string' && got.length === API_TOKEN.length && got === API_TOKEN;
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -81,6 +101,12 @@ function readBody(req) {
 
 async function handleProjectsApi(req, res, urlPath) {
   const rest = urlPath.slice(PROJECT_API.length);
+  // 鉴权（审计 3.1）：原来列目录/读/写/删全部零鉴权，局域网内任何人都能读写删除全部项目。
+  if (!authOk(req)) {
+    res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8', 'WWW-Authenticate': 'X-PFD-Token' });
+    res.end(JSON.stringify({ success: false, error: '未授权：缺少或错误的 X-PFD-Token' }));
+    return;
+  }
   try {
     // GET /pfd-api/projects —— 列出目录下全部 .json（按修改时间倒序）
     if (req.method === 'GET' && (rest === '' || rest === '/')) {
@@ -150,12 +176,22 @@ function sendFile(res, filePath) {
   const ext = path.extname(filePath).toLowerCase();
   fs.readFile(filePath, (err, data) => {
     if (err) {
+      // 审计 1.4：原来把服务器绝对路径回显在 404 响应里（信息泄漏），只回资源名
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('404 Not Found: ' + filePath);
-    } else {
-      res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
-      res.end(data);
+      res.end('404 Not Found: ' + path.basename(filePath));
+      return;
     }
+    let body = data;
+    /* 令牌注入（审计 3.1 配套）：启用鉴权时把令牌注入到 HTML 页面，
+       前端据此自动带上 X-PFD-Token，无需人工配置；对页面以外的资源不注入。 */
+    if (API_TOKEN && (ext === '.html' || ext === '.htm')) {
+      const inject = '<script>window.__PFD_TOKEN=' + JSON.stringify(API_TOKEN) + ';<\/script>';
+      const txt = data.toString('utf8');
+      const at = txt.lastIndexOf('</body>');
+      body = Buffer.from(at >= 0 ? txt.slice(0, at) + inject + txt.slice(at) : txt + inject, 'utf8');
+    }
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    res.end(body);
   });
 }
 
@@ -213,7 +249,18 @@ function handleOptions(req, res) {
 }
 
 const server = http.createServer((req, res) => {
-  const reqPath = decodeURIComponent(req.url.split('?')[0]);
+  /* 请求路径解析必须包住异常（审计 2.1/2.2）：
+     decodeURIComponent 对畸形百分号编码（例如 GET /%）会抛 URIError，原实现位于处理器顶层
+     且无 try/catch —— 实测一条未认证请求即可让进程退出（http=000），构成远程 DoS。 */
+  let reqPath;
+  try {
+    reqPath = decodeURIComponent(req.url.split('?')[0]);
+  } catch (e) {
+    console.warn('[HTTP] 非法请求路径已拒绝：', req.url);
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('400 Bad Request');
+    return;
+  }
 
   // 项目库文件接口（须在 /api/* 代理之前判断）
   if (reqPath === PROJECT_API || reqPath.startsWith(PROJECT_API + '/')) {
@@ -239,12 +286,34 @@ const server = http.createServer((req, res) => {
   }
 
   let urlPath = reqPath;
-  
+
   // 别名映射
   if (ALIASES[urlPath]) urlPath = ALIASES[urlPath];
-  
-  let filePath = path.join(ROOT, urlPath);
-  
+
+  /* 路径穿越防护（审计 1.1/1.3）：把解析结果收敛回 ROOT 之内。
+     原实现直接 path.join(ROOT, urlPath) —— '..' 会被归一化并逃出根目录，实测：
+       · GET /%2e%2e%2fscada_layout_editor.html → 200，读到 web 根目录之外的文件；
+       · GET /../RS/projects/x.json → 200，绕过上面 /projects 的 403。
+     必须在 decodeURIComponent 之后、任何 fs 调用之前做这个判断。 */
+  const resolved = path.resolve(ROOT, '.' + urlPath);
+  if (resolved !== ROOT && !resolved.startsWith(ROOT + path.sep)) {
+    console.warn('[HTTP] 越界路径已拒绝：', req.url);
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('403 Forbidden');
+    return;
+  }
+  /* 上面的 /projects 前缀判断作用在原始 URL 上，可被规范化路径绕过
+     （实测 GET /../RS/projects/x.json 解析后落在 PROJECT_DIR 内却被放行）。
+     这里按【解析后的真实路径】再判一次 —— 项目库只允许走 /pfd-api/projects 接口。 */
+  const projectDirResolved = path.resolve(PROJECT_DIR);
+  if (resolved === projectDirResolved || resolved.startsWith(projectDirResolved + path.sep)) {
+    console.warn('[HTTP] 拒绝直接访问项目库目录：', req.url);
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('403 Forbidden');
+    return;
+  }
+  let filePath = resolved;
+
   // 如果路径没有扩展名，尝试添加.html
   if (!path.extname(urlPath)) {
     const htmlPath = filePath + '.html';
@@ -253,17 +322,37 @@ const server = http.createServer((req, res) => {
       return;
     }
   }
-  
+
   sendFile(res, filePath);
 });
 
-server.listen(PORT, () => {
+/* 进程级兜底（审计 2.1）：任何未捕获异常都不该让服务"静默消失"。
+   记录后优雅退出，交由容器 restart: unless-stopped / systemd Restart=on-failure 拉起。 */
+process.on('uncaughtException', (e) => {
+  console.error('[FATAL] 未捕获异常：', (e && e.stack) || e);
+  try { server.close(() => process.exit(1)); } catch (err) {}
+  setTimeout(() => process.exit(1), 3000).unref();
+});
+process.on('unhandledRejection', (e) => {
+  console.error('[FATAL] 未处理的 Promise 拒绝：', (e && e.stack) || e);
+});
+
+server.listen(PORT, HOST, () => {
   console.log('========================================');
   console.log('  PFD Editor Server Started (with API proxy)');
   console.log('========================================');
-  console.log('  Editor:  http://localhost:' + PORT + '/editor');
-  console.log('  Preview: http://localhost:' + PORT + '/preview');
+  console.log('  监听:    ' + HOST + ':' + PORT + (isExposed() ? '  （对外暴露）' : '  （仅本机）'));
+  console.log('  Editor:  http://' + (HOST === '0.0.0.0' ? 'localhost' : HOST) + ':' + PORT + '/editor');
+  console.log('  Preview: http://' + (HOST === '0.0.0.0' ? 'localhost' : HOST) + ':' + PORT + '/preview');
   console.log('  API:     /api/* -> ' + API_TARGET + '/api/*');
   console.log('  项目库:  ' + PROJECT_DIR);
+  console.log('  鉴权:    ' + (API_TOKEN ? '已启用（X-PFD-Token）' : '未启用'));
   console.log('========================================');
+  // 审计 3.1/3.2 的组合告警：对外监听 + 无鉴权 = 项目库对同网段任何人可读写删
+  if (isExposed() && !API_TOKEN) {
+    console.warn('  ⚠️  当前监听 ' + HOST + ' 且未设置 PFD_API_TOKEN：');
+    console.warn('      /pfd-api/projects 对同网段任何人可列目录/读写/删除，请二选一：');
+    console.warn('      1) 去掉 HOST（默认仅监听 127.0.0.1）；');
+    console.warn('      2) 设置 PFD_API_TOKEN=<强随机串> 启用接口鉴权。');
+  }
 });

@@ -78,6 +78,39 @@ node server.js
 
 备选方式：`powershell -File serve.ps1` 或 `python -m http.server 8090`。注意二者均无 API 代理，实时数据、传感器目录检索不可用（页面仍可正常搭建流程）。
 
+### 环境变量
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `PORT` | `8090` | 监听端口 |
+| `HOST` | `127.0.0.1` | 监听地址。**默认仅本机可访问**（安全默认值）；需要局域网/容器访问时显式设为 `0.0.0.0` |
+| `API_TARGET` | `http://192.168.1.78` | `/api/*` 反向代理的目标后端 |
+| `PROJECT_DIR` | `<项目根>/projects` | 项目库 JSON 存放目录 |
+| `PFD_API_TOKEN` | 空 | 项目库接口（`/pfd-api/projects`）访问令牌。留空 = 不鉴权；设置后所有该前缀请求必须带 `X-PFD-Token` 头 |
+
+样例见仓库根目录 `.env.example`（注意：`server.js` 是零依赖设计，**不解析 `.env` 文件**，请通过 systemd `Environment=`、docker-compose `environment` 或 shell `export` 注入）。
+
+### ⚠️ 升级须知：监听地址已改为默认仅本机（2026-09-22 安全修复）
+
+安全审计发现原来 `server.listen(PORT)` 未指定 host，等于绑定 `0.0.0.0`，把**无鉴权的项目库接口**直接暴露给整个局域网。现已改为默认只监听 `127.0.0.1`。
+
+**如果你用 systemd 单元或自定义命令启动，且没有显式设置 `HOST`，升级后服务将只在服务器本机可访问，外部会连不上。** 两种处理方式：
+
+```bash
+# 方式 1：需要对外提供访问 —— 显式放开（并强烈建议同时启用令牌）
+sudo systemctl edit pfd-editor
+#   [Service]
+#   Environment=HOST=0.0.0.0
+#   Environment=PFD_API_TOKEN=<openssl rand -hex 24 生成>
+sudo systemctl daemon-reload && sudo systemctl restart pfd-editor
+```
+
+```bash
+# 方式 2：只允许本机 / 反向代理访问 —— 保持默认即可（推荐配合 nginx 反代 + 认证）
+```
+
+> 若沿用旧版 `deploy.sh` 重新部署：该脚本被 `.gitignore` 排除，不随代码同步，请手工按方式 1 补上 `HOST`。
+
 ## 后端 API 约定
 
 前端统一走同源相对路径 `/api/*`，由 `server.js` 代理转发，避免 CORS。响应格式为 `{ success: boolean, data: [...] }`。

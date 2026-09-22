@@ -10,6 +10,10 @@ services:
       - "8090:8090"
     environment:
       PORT: "8090"
+      # server.js 默认只监听 127.0.0.1；容器内需监听 0.0.0.0 才能被映射访问
+      HOST: "0.0.0.0"
+      # 项目库接口鉴权令牌（留空=不鉴权）。对外暴露时强烈建议设置
+      PFD_API_TOKEN: ""
       # 后端传感器 API 地址（server.js 中 /api/* 的转发目标）
       API_TARGET: "http://192.168.1.78"
     volumes:

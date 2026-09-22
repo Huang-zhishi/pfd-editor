@@ -21,7 +21,11 @@ RUN addgroup -S pfd && adduser -S pfd -G pfd \
 USER pfd
 
 ENV PORT=8090
+# server.js 默认只监听 127.0.0.1（审计 3.2）；容器内必须监听 0.0.0.0 才能通过端口映射访问
+ENV HOST=0.0.0.0
 ENV API_TARGET=http://192.168.1.78
+# 建议启用：容器通常对外暴露，未设置令牌时项目库接口对同网段任何人可读写删
+# ENV PFD_API_TOKEN=change-me
 
 EXPOSE 8090
 

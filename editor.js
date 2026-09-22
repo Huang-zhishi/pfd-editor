@@ -3070,6 +3070,15 @@ function restoreFromText(text, fileName){
  *     覆盖保存；本地文件对话框降为面板内的次要入口。
  * ============================================================ */
 const PROJ_API = 'pfd-api/projects';
+/* 项目库请求统一入口（审计 3.1 配套）：服务端启用 PFD_API_TOKEN 时，令牌由 server.js
+   注入到页面（window.__PFD_TOKEN），这里自动带上 —— 无需人工配置，也不影响未启用鉴权的部署。 */
+function projFetch(url, opts){
+  const o = Object.assign({}, opts || {});
+  const t = (typeof window !== 'undefined' && window.__PFD_TOKEN) || '';
+  o.headers = Object.assign({}, o.headers || {});
+  if(t) o.headers['X-PFD-Token'] = t;
+  return fetch(url, o);
+}
 
 // 规范化项目文件名：清洗非法字符并补全 .json 后缀
 function projFileName(raw){
@@ -3104,7 +3113,7 @@ async function refreshProjectList(){
   const list = $('projList'); if(!list) return;
   list.innerHTML = '<div class="sm-empty">读取中…</div>';
   try{
-    const r = await fetch(PROJ_API);
+    const r = await projFetch(PROJ_API);
     const j = await r.json();
     if(!j || !j.success) throw new Error((j && j.error) || '接口返回异常');
     const dirEl = $('projDir');
@@ -3147,7 +3156,7 @@ async function saveToLibrary(name){
   const data = buildProjectData();
   const json = JSON.stringify(data, null, 2);
   try{
-    const r = await fetch(PROJ_API + '/' + encodeURIComponent(target), {
+    const r = await projFetch(PROJ_API + '/' + encodeURIComponent(target), {
       method:'POST', headers:{ 'Content-Type':'application/json' }, body: json
     });
     const j = await r.json();
@@ -3167,7 +3176,7 @@ async function saveToLibrary(name){
 // 从项目库读取并应用
 async function loadFromLibrary(name){
   try{
-    const r = await fetch(PROJ_API + '/' + encodeURIComponent(name));
+    const r = await projFetch(PROJ_API + '/' + encodeURIComponent(name));
     const j = await r.json();
     if(!j || !j.success) throw new Error((j && j.error) || '读取失败');
     if(restoreFromText(j.content, name)){
@@ -3183,7 +3192,7 @@ async function loadFromLibrary(name){
 
 async function deleteFromLibrary(name){
   try{
-    const r = await fetch(PROJ_API + '/' + encodeURIComponent(name), { method:'DELETE' });
+    const r = await projFetch(PROJ_API + '/' + encodeURIComponent(name), { method:'DELETE' });
     const j = await r.json();
     if(!j || !j.success) throw new Error((j && j.error) || '删除失败');
     if(_currentProjectFile === name) _currentProjectFile = null;

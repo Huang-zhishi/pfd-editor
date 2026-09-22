@@ -75,9 +75,83 @@ jobs:
           curl -fsS -X DELETE "http://127.0.0.1:${PORT}/pfd-api/projects/ci-test.json" >/dev/null
           echo "projects API round-trip OK"
 
+          # ---- 安全回归（对应安全审计 §1.1/§1.3）----
+          # 注意：原来这里只断言 /projects 返回 403，但越界路径可以绕过它，用例通过 ≠ 防护有效
+          echo "== path traversal must be rejected =="
+          for evil in "/%2e%2e%2fpackage.json" "/%2e%2e%2f%2e%2e%2fetc%2fpasswd" "/../README.md" "/..%2fprojects%2fci-test.json"; do
+            code=$(curl -s --path-as-is -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}${evil}")
+            echo "  ${evil} -> ${code}"
+            case "${code}" in
+              403|404) ;;
+              *) echo "FAIL: 越界路径未被拒绝（${evil} -> ${code}）"; exit 1 ;;
+            esac
+          done
+
+          # ---- 安全回归（对应安全审计 §2.1/§2.2）----
+          echo "== malformed URI must not kill the server =="
+          code=$(curl -s --path-as-is -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}/%" || true)
+          echo "  GET /% -> ${code}（期望 400）"
+          [ "${code}" = "400" ] || { echo "FAIL: 畸形 URI 未返回 400"; exit 1; }
+          curl -fsS "http://127.0.0.1:${PORT}/editor" >/dev/null \
+            || { echo "FAIL: 服务被畸形 URI 打死（后续请求失败）"; exit 1; }
+          echo "  server still alive after malformed URI"
+
+          # ---- 默认监听地址（对应安全审计 §3.2）----
+          grep -q '仅本机' /tmp/pfd-server.log \
+            || { echo "FAIL: 未设置 HOST 时应默认仅监听 127.0.0.1"; cat /tmp/pfd-server.log; exit 1; }
+          echo "default bind is loopback-only"
+
       - name: Server log on failure
         if: failure()
         run: cat /tmp/pfd-server.log
+
+  auth-regression:
+    name: Auth regression (PFD_API_TOKEN)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 对应安全审计 §3.1：启用令牌后项目库接口必须 401，带正确令牌才放行
+      - name: Token enforcement
+        env:
+          PORT: 18091
+          PFD_API_TOKEN: ci-token-123
+        run: |
+          export PROJECT_DIR="$(mktemp -d)"
+          node server.js >/tmp/pfd-auth.log 2>&1 &
+          SRV=$!
+          trap 'kill "$SRV" 2>/dev/null || true' EXIT
+
+          ready=''
+          for _ in $(seq 1 30); do
+            curl -fsS "http://127.0.0.1:${PORT}/editor" >/dev/null 2>&1 && { ready=1; break; }
+            sleep 1
+          done
+          [ -n "$ready" ] || { echo "FAIL: server not ready"; cat /tmp/pfd-auth.log; exit 1; }
+
+          set -e
+          code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}/pfd-api/projects")
+          echo "无令牌 -> ${code}（期望 401）"
+          [ "${code}" = "401" ] || { echo "FAIL: 无令牌未被拒绝"; exit 1; }
+
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H 'X-PFD-Token: wrong-token' "http://127.0.0.1:${PORT}/pfd-api/projects")
+          echo "错误令牌 -> ${code}（期望 401）"
+          [ "${code}" = "401" ] || { echo "FAIL: 错误令牌未被拒绝"; exit 1; }
+
+          curl -fsS -H 'X-PFD-Token: ci-token-123' "http://127.0.0.1:${PORT}/pfd-api/projects" | grep -q '"success":true' \
+            || { echo "FAIL: 正确令牌被拒绝"; exit 1; }
+          echo "令牌鉴权 OK"
+
+          # 令牌应被注入到 HTML 页面（前端据此自动携带，无需人工配置）
+          curl -fsS "http://127.0.0.1:${PORT}/editor" | grep -q '__PFD_TOKEN' \
+            || { echo "FAIL: 令牌未注入 HTML 页面"; exit 1; }
+          echo "令牌注入 OK"
 
   docker-build:
     name: Docker build
