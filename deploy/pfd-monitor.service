@@ -1,0 +1,13 @@
+# PFD Editor · 监控探针服务（与 pfd-monitor.timer 配合，每分钟跑一次）
+[Unit]
+Description=PFD Editor health probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# 运行用户需能写 /var/log/pfd-monitor.log（安装时 chown 或改用可写路径）
+User=root
+ExecStart=/usr/local/bin/pfd-monitor.sh
+# 失败也算执行完成（由 timer 决定下次运行）；退出码供外部联动告警
+RemainAfterExit=no

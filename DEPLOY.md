@@ -157,3 +157,54 @@ sudo systemctl daemon-reload && sudo systemctl restart pfd-editor
 
 > ⚠️ 回滚到 v1.0.0 **之前**的版本会同时回滚安全修复（4 个 P0：路径穿越任意文件读取、
 > 畸形 URI 致进程退出、项目库零鉴权、默认绑定 0.0.0.0）。若非必要不建议回滚到该版本之前。
+
+## 十、前置 Nginx（压缩 / 缓存 / 限流，评估 A 项）
+
+本服务器已在 8090 前置一层 nginx（容器只监听本机 18090），一次性解决四个审计条目：
+
+| 审计条目 | 解决方式 |
+|---|---|
+| 性能 §1.2 静态资源零压缩 | `gzip`：`editor.js` 实测 188KB → 58KB（~69%） |
+| 性能 §1.1 零缓存头 | 静态资源 `Cache-Control: public, max-age=31536000, immutable` |
+| 性能 §3.4 无限流 | `limit_req`（/api 20r/s、/pfd-api 10r/s）+ `limit_conn`（50/ip） |
+| API 契约 §2.1 实时接口不禁缓存 | `/api/*`、`/pfd-api/*` 强制 `Cache-Control: no-store` |
+
+关键设计：**HTML（/editor /preview 等）设为 `no-cache`**，因为 `server.js` 会把
+`PFD_API_TOKEN` 注入到 HTML，缓存会导致令牌轮换后页面拿到旧令牌。
+
+配置文件：仓库 `deploy/nginx-pfd-editor.conf`（已部署到 `/etc/nginx/conf.d/pfd-editor.conf`）。
+
+部署/回滚：
+```bash
+# 部署（需要 sudo）
+sudo cp deploy/nginx-pfd-editor.conf /etc/nginx/conf.d/pfd-editor.conf
+sudo nginx -t && sudo nginx -s reload
+# 回滚：删掉该文件并 reload
+sudo rm -f /etc/nginx/conf.d/pfd-editor.conf && sudo nginx -s reload
+```
+
+⚠️ 注意：前置 nginx 后，`server.js` 审计日志里的来源 IP 会变为 docker 网桥网关
+（`172.x.0.1`）——真实来源 IP 请查 `/var/log/nginx/access.log`（或后续让 `server.js`
+读 `X-Real-IP`，属仓库侧改动，见协作文件待办）。
+
+## 十一、最小监控探针（评估 C 项）
+
+每 1 分钟探测 `/healthz` `/readyz` `/api` 可用性，结果写 `/var/log/pfd-monitor.log`。
+
+部署（需要 sudo）：
+```bash
+sudo install -m 0755 deploy/pfd-monitor.sh /usr/local/bin/pfd-monitor.sh
+sudo cp deploy/pfd-monitor.service deploy/pfd-monitor.timer /etc/systemd/system/
+sudo touch /var/log/pfd-monitor.log
+sudo systemctl daemon-reload
+sudo systemctl enable --now pfd-monitor.timer
+```
+
+查看：
+```bash
+systemctl list-timers pfd-monitor.timer   # 定时器
+sudo tail /var/log/pfd-monitor.log        # 探针历史（all-ok / FAIL 行）
+```
+
+告警联动：脚本失败时退出码非 0，在 `deploy/pfd-monitor.sh` 末尾的 TODO 处接
+webhook/邮件即可。
