@@ -101,6 +101,20 @@ jobs:
             || { echo "FAIL: 未设置 HOST 时应默认仅监听 127.0.0.1"; cat /tmp/pfd-server.log; exit 1; }
           echo "default bind is loopback-only"
 
+          # ---- 安全响应头（对应安全审计 §6.1/§6.2）----
+          echo "== security headers =="
+          hdr=$(curl -s -D - -o /dev/null "http://127.0.0.1:${PORT}/editor")
+          for h in "X-Content-Type-Options: nosniff" "Referrer-Policy: no-referrer" "Content-Security-Policy:" "X-Frame-Options: SAMEORIGIN"; do
+            echo "$hdr" | grep -qi "$h" || { echo "FAIL: 缺少响应头 ${h}"; exit 1; }
+          done
+          echo "security headers OK"
+
+          # ---- CORS 默认不开放（对应安全审计 §4.2）----
+          echo "== CORS must be closed by default =="
+          acao=$(curl -s -D - -o /dev/null -H 'Origin: https://evil.example' "http://127.0.0.1:${PORT}/editor" | grep -i '^access-control-allow-origin' || true)
+          [ -z "$acao" ] || { echo "FAIL: 默认不应回 CORS 头，实际：$acao"; exit 1; }
+          echo "no ACAO by default OK"
+
       - name: Server log on failure
         if: failure()
         run: cat /tmp/pfd-server.log
@@ -152,6 +166,78 @@ jobs:
           curl -fsS "http://127.0.0.1:${PORT}/editor" | grep -q '__PFD_TOKEN' \
             || { echo "FAIL: 令牌未注入 HTML 页面"; exit 1; }
           echo "令牌注入 OK"
+
+  proxy-regression:
+    name: Proxy regression (prefix / headers / timeout / body limit)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 对应安全审计 §4.1/§4.3/§4.4：用假上游回显收到的请求头，验证代理收敛行为
+      - name: Proxy hardening
+        env:
+          PORT: 18092
+          API_TARGET: http://127.0.0.1:19001
+          PFD_PROXY_TIMEOUT_MS: "1500"
+          PFD_API_MAX_BYTES: "1000"
+        run: |
+          cat > /tmp/upstream.js <<'JS'
+          const http = require('http');
+          http.createServer((req, res) => {
+            if (req.url.startsWith('/api/slow')) return;   // 故意挂起，用于测超时
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ path: req.url, headers: req.headers }));
+          }).listen(19001, '127.0.0.1');
+          JS
+          node /tmp/upstream.js &
+          UP=$!
+          export PROJECT_DIR="$(mktemp -d)"
+          node server.js >/tmp/pfd-proxy.log 2>&1 &
+          SRV=$!
+          trap 'kill "$UP" "$SRV" 2>/dev/null || true' EXIT
+
+          ready=''
+          for _ in $(seq 1 30); do
+            curl -fsS "http://127.0.0.1:${PORT}/editor" >/dev/null 2>&1 && { ready=1; break; }
+            sleep 1
+          done
+          [ -n "$ready" ] || { echo "FAIL: server not ready"; cat /tmp/pfd-proxy.log; exit 1; }
+
+          set -e
+          echo "== /api/ prefix escape must be rejected (audit 4.1) =="
+          for evil in "/api/../editor" "/api/%2e%2e/editor" "/api/..%2fadmin"; do
+            code=$(curl -s --path-as-is -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}${evil}")
+            echo "  ${evil} -> ${code}"
+            [ "${code}" = "400" ] || { echo "FAIL: prefix escape not rejected"; exit 1; }
+          done
+
+          echo "== forward header allowlist (audit 4.3) =="
+          body=$(curl -fsS -H 'Cookie: secret=abc' -H 'Authorization: Bearer T' -H 'X-Forwarded-For: 1.2.3.4' "http://127.0.0.1:${PORT}/api/echo")
+          for h in cookie authorization x-forwarded-for; do
+            if echo "$body" | grep -qi "\"$h\""; then echo "FAIL: $h must not be forwarded"; exit 1; fi
+          done
+          echo "  cookie / authorization / x-forwarded-for not forwarded OK"
+
+          echo "== upstream timeout (audit 4.4) =="
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:${PORT}/api/slow")
+          echo "  /api/slow -> ${code} (expect 502)"
+          [ "${code}" = "502" ] || { echo "FAIL: upstream timeout not enforced"; exit 1; }
+
+          echo "== request body limit (audit 4.4) =="
+          head -c 5000 /dev/zero | tr '\0' 'x' > /tmp/big.txt
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data-binary @/tmp/big.txt "http://127.0.0.1:${PORT}/api/echo")
+          echo "  5000 bytes (limit 1000) -> ${code} (expect 413)"
+          [ "${code}" = "413" ] || { echo "FAIL: body limit not enforced"; exit 1; }
+
+      - name: Server log on failure
+        if: failure()
+        run: cat /tmp/pfd-proxy.log
 
   docker-build:
     name: Docker build

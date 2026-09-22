@@ -38,6 +38,65 @@ function authOk(req){
   return typeof got === 'string' && got.length === API_TOKEN.length && got === API_TOKEN;
 }
 
+/* ---------- 安全基线（审计 4.2/4.3/4.4/6.1/6.2） ---------- */
+
+/* 允许跨域访问 /api/* 的来源白名单（逗号分隔）。默认为空 = 不发送任何 CORS 头。
+   编辑器/预览页与 API 同源，本身不需要 CORS；原来无条件回 `Access-Control-Allow-Origin: *`
+   等于让任意站点都能借用户浏览器读取传感器数据（代理成了开放只读中继）。 */
+const CORS_ORIGINS = (process.env.PFD_CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+
+/* 允许把预览页嵌入 iframe 的来源白名单（逗号分隔）。默认为空 = 仅允许同源嵌入
+   （发送 X-Frame-Options: SAMEORIGIN + CSP frame-ancestors 'self'）。
+   需要跨域嵌入时显式配置，例如 PFD_EMBED_ORIGINS=https://host.example。 */
+const EMBED_ORIGINS = (process.env.PFD_EMBED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+
+/* 转发给后端的请求头白名单（审计 4.3）。
+   原来 {...req.headers} 把客户端全部头透传过去，包括 cookie / authorization
+   （把调用方凭据转发给后端）与可伪造的 x-forwarded-*（污染后端审计）。 */
+const FORWARD_HEADERS = ['accept', 'accept-language', 'accept-encoding', 'content-type', 'content-length', 'user-agent', 'cache-control', 'pragma', 'if-none-match'];
+
+/* 上游请求超时与 /api/* 请求体上限（审计 4.4）：原来两者都没有，
+   上游挂起即长期占用连接（慢速耗尽），大体积 POST 也会被无条件转发。 */
+const PROXY_TIMEOUT_MS = process.env.PFD_PROXY_TIMEOUT_MS ? parseInt(process.env.PFD_PROXY_TIMEOUT_MS, 10) : 15000;
+const API_MAX_BYTES = process.env.PFD_API_MAX_BYTES ? parseInt(process.env.PFD_API_MAX_BYTES, 10) : 2 * 1024 * 1024;
+
+/* 统一的响应安全头（审计 6.1/6.2） */
+function securityHeaders(){
+  const h = {
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
+    // 内联脚本是本项目既有形态（document.write 注入 + 内联 handler），
+    // 因此 script-src 必须放开 'unsafe-inline'；其余指令仍能收敛风险面。
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "connect-src 'self'" + (API_TARGET ? ' ' + API_TARGET : ''),
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors " + (EMBED_ORIGINS.length ? "'self' " + EMBED_ORIGINS.join(' ') : "'self'"),
+    ].join('; '),
+  };
+  // 配置了跨域嵌入白名单时不再下发 X-Frame-Options（两者叠加会以更严格者为准，导致嵌入失效）
+  if (!EMBED_ORIGINS.length) h['X-Frame-Options'] = 'SAMEORIGIN';
+  return h;
+}
+
+/* 回写 CORS 头：仅在请求来源命中白名单时回显该来源（不回 *，也不回凭据） */
+function applyCors(req, headers){
+  const origin = req.headers.origin;
+  if (origin && CORS_ORIGINS.indexOf(origin) >= 0) {
+    headers['Access-Control-Allow-Origin'] = origin;
+    headers['Vary'] = 'Origin';
+    headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
+    headers['Access-Control-Allow-Headers'] = 'Content-Type';
+  }
+  return headers;
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -69,7 +128,7 @@ const PROJECT_API = '/pfd-api/projects';
 const PROJECT_MAX_BYTES = 10 * 1024 * 1024;
 
 function sendJSON(res, code, obj) {
-  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.writeHead(code, Object.assign({ 'Content-Type': 'application/json; charset=utf-8' }, securityHeaders()));
   res.end(JSON.stringify(obj));
 }
 
@@ -103,7 +162,7 @@ async function handleProjectsApi(req, res, urlPath) {
   const rest = urlPath.slice(PROJECT_API.length);
   // 鉴权（审计 3.1）：原来列目录/读/写/删全部零鉴权，局域网内任何人都能读写删除全部项目。
   if (!authOk(req)) {
-    res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8', 'WWW-Authenticate': 'X-PFD-Token' });
+    res.writeHead(401, Object.assign({ 'Content-Type': 'application/json; charset=utf-8', 'WWW-Authenticate': 'X-PFD-Token' }, securityHeaders()));
     res.end(JSON.stringify({ success: false, error: '未授权：缺少或错误的 X-PFD-Token' }));
     return;
   }
@@ -177,7 +236,7 @@ function sendFile(res, filePath) {
   fs.readFile(filePath, (err, data) => {
     if (err) {
       // 审计 1.4：原来把服务器绝对路径回显在 404 响应里（信息泄漏），只回资源名
-      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.writeHead(404, Object.assign({ 'Content-Type': 'text/plain; charset=utf-8' }, securityHeaders()));
       res.end('404 Not Found: ' + path.basename(filePath));
       return;
     }
@@ -190,61 +249,97 @@ function sendFile(res, filePath) {
       const at = txt.lastIndexOf('</body>');
       body = Buffer.from(at >= 0 ? txt.slice(0, at) + inject + txt.slice(at) : txt + inject, 'utf8');
     }
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    res.writeHead(200, Object.assign({ 'Content-Type': MIME[ext] || 'application/octet-stream' }, securityHeaders()));
     res.end(body);
   });
 }
 
 // API 代理：将 /api/* 请求转发到后端，绕过浏览器 CORS 限制
 function proxyRequest(req, res) {
+  const rawPath = req.url.split('?')[0];
+
+  /* 审计 4.1：/api/ 前缀可被逃逸 —— new URL() 会归一化 '..'，'/api/../admin' 最终打到后端
+     /admin，绕过后端任何基于前缀的访问控制（实测已复现）。这里同时拦住字面量与编码形式。 */
+  if (/\.\.|%2e/i.test(rawPath)) {
+    console.warn('[PROXY] 拒绝含路径回溯的请求：', req.url);
+    sendJSON(res, 400, { success: false, error: '非法请求路径' });
+    return;
+  }
+
   const targetUrl = API_TARGET + req.url;
+  const parsedUrl = new URL(targetUrl);
+  // 归一化后仍必须落在 /api/ 前缀内
+  if (!parsedUrl.pathname.startsWith('/api/')) {
+    console.warn('[PROXY] 归一化后越出 /api 前缀，已拒绝：', req.url, '->', parsedUrl.pathname);
+    sendJSON(res, 403, { success: false, error: '仅允许代理 /api/*' });
+    return;
+  }
   console.log('[PROXY]', req.method, req.url, '->', targetUrl);
 
-  const parsedUrl = new URL(targetUrl);
   const isHttps = parsedUrl.protocol === 'https:';
   const transport = isHttps ? https : http;
+
+  // 审计 4.3：只转发白名单请求头（不透传 cookie/authorization/x-forwarded-* 等）
+  const fwd = {};
+  FORWARD_HEADERS.forEach((k) => { if (req.headers[k] !== undefined) fwd[k] = req.headers[k]; });
+  fwd.host = parsedUrl.hostname;
+  fwd.origin = API_TARGET;
+  fwd.referer = API_TARGET + '/';
+
   const options = {
     hostname: parsedUrl.hostname,
     port: parsedUrl.port || (isHttps ? 443 : 80),
     path: parsedUrl.pathname + parsedUrl.search,
     method: req.method,
-    headers: {
-      ...req.headers,
-      host: parsedUrl.hostname,
-      origin: API_TARGET,
-      referer: API_TARGET + '/',
-    },
+    headers: fwd,
   };
 
   const proxyReq = transport.request(options, (proxyRes) => {
-    // 添加 CORS 头，允许前端访问
-    const headers = { ...proxyRes.headers };
-    headers['Access-Control-Allow-Origin'] = '*';
-    headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
-    headers['Access-Control-Allow-Headers'] = 'Content-Type';
+    const headers = applyCors(req, { ...proxyRes.headers });
+    // 剥离 hop-by-hop 头（审计 4.5）
+    delete headers['connection'];
+    delete headers['keep-alive'];
+    delete headers['transfer-encoding'];
+    delete headers['upgrade'];
+    delete headers['proxy-authenticate'];
+    delete headers['proxy-authorization'];
     res.writeHead(proxyRes.statusCode, headers);
     proxyRes.pipe(res);
+  });
+
+  // 审计 4.4：上游超时保护（原来没有，挂起即长期占用连接）
+  proxyReq.setTimeout(PROXY_TIMEOUT_MS, () => {
+    console.error('[PROXY ERROR] 上游超时（' + PROXY_TIMEOUT_MS + 'ms）：', targetUrl);
+    proxyReq.destroy(new Error('upstream timeout'));
   });
 
   proxyReq.on('error', (e) => {
     console.error('[PROXY ERROR]', e.message);
     if (!res.headersSent) {
-      res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: false, error: 'Proxy error: ' + e.message }));
+      sendJSON(res, 502, { success: false, error: 'Proxy error: ' + e.message });
+    } else {
+      res.destroy();
+    }
+  });
+
+  /* 审计 4.4：/api/* 请求体上限（原来只对项目库接口有 10MB 限制） */
+  let sent = 0;
+  req.on('data', (c) => {
+    sent += c.length;
+    if (sent > API_MAX_BYTES) {
+      console.warn('[PROXY] 请求体超过上限，已中止：', sent, '>', API_MAX_BYTES);
+      proxyReq.destroy(new Error('request body too large'));
+      if (!res.headersSent) sendJSON(res, 413, { success: false, error: '请求体过大' });
     }
   });
 
   req.pipe(proxyReq);
 }
 
-// OPTIONS 预检请求直接通过
+// OPTIONS 预检：仅在来源命中白名单时回 CORS 头（审计 4.2）
 function handleOptions(req, res) {
-  res.writeHead(204, {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Max-Age': '86400',
-  });
+  const headers = applyCors(req, Object.assign({ 'Access-Control-Max-Age': '86400' }, securityHeaders()));
+  res.writeHead(204, headers);
   res.end();
 }
 
@@ -257,7 +352,7 @@ const server = http.createServer((req, res) => {
     reqPath = decodeURIComponent(req.url.split('?')[0]);
   } catch (e) {
     console.warn('[HTTP] 非法请求路径已拒绝：', req.url);
-    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.writeHead(400, Object.assign({ 'Content-Type': 'text/plain; charset=utf-8' }, securityHeaders()));
     res.end('400 Bad Request');
     return;
   }
@@ -280,7 +375,7 @@ const server = http.createServer((req, res) => {
 
   // 项目库存放目录不对外静态暴露，读写一律走上面的接口
   if (reqPath === '/projects' || reqPath.startsWith('/projects/')) {
-    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.writeHead(403, Object.assign({ 'Content-Type': 'text/plain; charset=utf-8' }, securityHeaders()));
     res.end('403 Forbidden');
     return;
   }
@@ -298,7 +393,7 @@ const server = http.createServer((req, res) => {
   const resolved = path.resolve(ROOT, '.' + urlPath);
   if (resolved !== ROOT && !resolved.startsWith(ROOT + path.sep)) {
     console.warn('[HTTP] 越界路径已拒绝：', req.url);
-    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.writeHead(403, Object.assign({ 'Content-Type': 'text/plain; charset=utf-8' }, securityHeaders()));
     res.end('403 Forbidden');
     return;
   }
@@ -308,7 +403,7 @@ const server = http.createServer((req, res) => {
   const projectDirResolved = path.resolve(PROJECT_DIR);
   if (resolved === projectDirResolved || resolved.startsWith(projectDirResolved + path.sep)) {
     console.warn('[HTTP] 拒绝直接访问项目库目录：', req.url);
-    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.writeHead(403, Object.assign({ 'Content-Type': 'text/plain; charset=utf-8' }, securityHeaders()));
     res.end('403 Forbidden');
     return;
   }
@@ -337,6 +432,13 @@ process.on('unhandledRejection', (e) => {
   console.error('[FATAL] 未处理的 Promise 拒绝：', (e && e.stack) || e);
 });
 
+/* 服务级超时（审计 4.4）：Node 默认 server.timeout=0（不超时），慢速攻击可长期占用连接。
+   这里给出保守上限，避免连接被无限持有。 */
+server.headersTimeout = 20000;
+server.requestTimeout = 60000;
+server.keepAliveTimeout = 5000;
+server.timeout = 120000;
+
 server.listen(PORT, HOST, () => {
   console.log('========================================');
   console.log('  PFD Editor Server Started (with API proxy)');
@@ -347,6 +449,9 @@ server.listen(PORT, HOST, () => {
   console.log('  API:     /api/* -> ' + API_TARGET + '/api/*');
   console.log('  项目库:  ' + PROJECT_DIR);
   console.log('  鉴权:    ' + (API_TOKEN ? '已启用（X-PFD-Token）' : '未启用'));
+  console.log('  CORS:    ' + (CORS_ORIGINS.length ? CORS_ORIGINS.join(', ') : '不开放（仅同源）'));
+  console.log('  嵌入:    ' + (EMBED_ORIGINS.length ? EMBED_ORIGINS.join(', ') : '仅同源可 iframe 嵌入'));
+  console.log('  代理:    超时 ' + PROXY_TIMEOUT_MS + 'ms，请求体上限 ' + Math.round(API_MAX_BYTES / 1024) + 'KB');
   console.log('========================================');
   // 审计 3.1/3.2 的组合告警：对外监听 + 无鉴权 = 项目库对同网段任何人可读写删
   if (isExposed() && !API_TOKEN) {
