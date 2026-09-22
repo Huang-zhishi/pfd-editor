@@ -29,10 +29,19 @@ for /f "tokens=5" %%P in ('netstat -ano ^| findstr /C:":%PORT% " ^| findstr LIST
 )
 
 rem ---- 2. pick a runtime ----
+rem 审计 10.4：原来写死了某个托管 Node 的绝对路径（含具体版本号），换机即失效。
+rem 现在：PATH 上的 node 优先；找不到再枚举 WorkBuddy 托管目录（不写死版本号）。
 set "NODE_EXE="
-if exist "%USERPROFILE%\.workbuddy\binaries\node\versions\24.18.1\node.exe" set "NODE_EXE=%USERPROFILE%\.workbuddy\binaries\node\versions\24.18.1\node.exe"
-if not defined NODE_EXE where node >nul 2>&1
-if errorlevel 1 set "NODE_EXE=" 2>nul
+for /f "delims=" %%N in ('where node 2^>nul') do if not defined NODE_EXE set "NODE_EXE=%%N"
+if not defined NODE_EXE (
+  for /d %%D in ("%USERPROFILE%\.workbuddy\binaries\node\versions\*") do (
+    if not defined NODE_EXE if exist "%%D\node.exe" set "NODE_EXE=%%D\node.exe"
+  )
+)
+rem 版本以 .nvmrc 为准（当前 20）；这里只回显，不强制失败，避免阻断旧环境
+set "NODE_VER="
+if defined NODE_EXE for /f "delims=" %%V in ('"%NODE_EXE%" -v 2^>nul') do set "NODE_VER=%%V"
+if defined NODE_VER echo [start] node %NODE_VER%  (expect v20.x per .nvmrc)
 
 set "PY_EXE="
 if not defined NODE_EXE (

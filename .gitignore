@@ -22,8 +22,20 @@ AGENTS.md
 
 # 部署产物（本机打包生成，不进仓库）
 pfd-editor-ubuntu24.tar.gz
-deploy.sh
-DEPLOY.md
+
+# 本地环境变量（可能含令牌/后端地址；样例见 .env.example）
+.env
+.env.local
+.env.*.local
+
+# 工具上传与分享产物（审计 6.1/6.2/6.3）
+#   原来这两类目录没被规则覆盖，导致 3 个 2.5MB 的分享 zip 与 3 个上传文件
+#   （含供应商产品说明书 PDF）被提交进仓库；已用 git rm --cached 移出索引。
+.uploads/
+.trae-html-share-packages/
+
+# 说明：deploy.sh 与 DEPLOY.md 已改为纳入版本控制（审计 6.7）——
+#   它们被排除时曾导致"安全修复无法随代码同步到服务器、升级须知无处承载"的实际问题。
 
 # 项目库运行数据（server.js 默认 PROJECT_DIR，属本机业务数据）
 projects/

@@ -36,6 +36,11 @@ jobs:
             echo "OK  $f"
           done
 
+      - name: Template render check
+        # 审计 1.4/2.1：模板渲染回归 —— 清单与注册一致性 + NaN/undefined 扫描。
+        # 脚本随仓库提供（.github/scripts/render-check.js），不依赖外部目录。
+        run: node .github/scripts/render-check.js .
+
       - name: Smoke test (serve + curl)
         env:
           PORT: 18090
