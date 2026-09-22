@@ -76,7 +76,19 @@ node server.js
 | http://localhost:8090/preview | 只读预览页 |
 | http://localhost:8090/embed-demo.html | iframe 嵌入示例 |
 
-备选方式：`powershell -File serve.ps1` 或 `python -m http.server 8090`。注意二者均无 API 代理，实时数据、传感器目录检索不可用（页面仍可正常搭建流程）。
+### 启动方式与能力差异（工程化审计 §10.1）
+
+项目有四条启动路径，**能力并不相同**，按需选择：
+
+| 启动方式 | 平台 | API 代理 | 项目库接口 | 健康检查 | 说明 |
+|---|---|---|---|---|---|
+| `node server.js` | 跨平台 | ✅ | ✅ | ✅ `/healthz` `/readyz` | **推荐**，完整功能 |
+| `start.cmd [端口]` | Windows | ✅ | ✅ | ✅ | 一键启动：探测 Node（PATH 优先，其次托管目录）、等待端口就绪、自动开浏览器 |
+| `serve.ps1 [-Port]` | Windows | ❌ | ❌ | ❌ | 轻量静态服务器，仅能看页面与搭建流程；**实时数据、项目库不可用** |
+| `python -m http.server` | 跨平台 | ❌ | ❌ | ❌ | 同上；且会把整个仓库目录当静态服务暴露，仅限本机临时使用 |
+
+> 结论：需要实时数据或项目库时**必须用 `node server.js`**；另外三条只适合临时查看页面。
+> 部署到服务器请用 systemd 或 Docker（见 `DEPLOY.md` 与 `Dockerfile`），不要用后两条。
 
 ### 环境变量
 
