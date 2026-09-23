@@ -18,7 +18,7 @@ WORKDIR /app
 # 审计 8.5：白名单式 COPY —— 原来 `COPY . .` 会把 doc/（含审计文档）、projects/（业务数据）、
 # 各类日志与临时产物一起打进镜像。这里只复制运行必需文件。
 COPY server.js ./
-COPY templates.js editor.js editor.html preview.html embed-demo.html demo-template.json ./
+COPY templates.js editor.js editor.html preview.html embed-demo.html demo-template.json shared.css ./
 COPY templates ./templates
 
 # 以非 root 用户运行（安全实践）；projects 目录需对 pfd 可写，否则项目库保存会 ENOENT/EACCES
