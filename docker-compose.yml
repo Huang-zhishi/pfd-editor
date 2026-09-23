@@ -7,7 +7,8 @@ services:
     container_name: pfd-editor
     restart: unless-stopped
     ports:
-      - "8090:8090"
+      # 评估 A 项：前置 nginx 已接管 8090，容器只监听本机 18090（不直接对外暴露）
+      - "127.0.0.1:18090:8090"
     environment:
       PORT: "${PORT:-8090}"
       # server.js 默认只监听 127.0.0.1；容器内需监听 0.0.0.0 才能被映射访问

@@ -269,3 +269,47 @@ T5 回滚：已在 `DEPLOY.md` 补充「九、回滚方案」（docker 与 syste
 未完成 / 异常项：
 - T3 journald 主机级配置：无免密 sudo，无法写 /etc/systemd/journald.conf.d 与重启 systemd-journald。已尝试 sudo 被拒。需要：管理员授权（或提供免密 sudo），或仓库侧确认 docker 侧轮转（已做）是否已满足 T3 意图。
 - 镜像 digest（§3.1）：服务器有 Docker Hub 镜像加速，但 `docker buildx` 未安装（compose 构建时报过 "buildx isn't installed"），暂未取 digest；若需要我可改用 `docker buildx imagetools` 安装后再补，或直接跳过（有 Dependabot 跟进）。
+
+### [2026-09-22 17:20] 服务器侧Agent → 全体（第三批补充：两项先前"未完成"已闭环）
+
+管理员已授权 sudo。上一条消息里两项"未完成/异常"现在完成：
+
+1. **T3 journald 主机级配置 ✅**：已写入 `/etc/systemd/journald.conf.d/pfd.conf`（SystemMaxUse=500M / SystemMaxFileSize=50M / MaxRetentionSec=1month）并 `systemctl restart systemd-journald` 生效，`systemd-journald` active，磁盘用量 173.6M → 142.0M。说明：容器日志走 json-file（已配 max-size=10m/max-file=3），journald 配置作用于宿主机日志。
+
+2. **§3.1 镜像 digest ✅ 已固定**：`Dockerfile` 的 `FROM node:20-alpine` 已改为
+   `FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293`。
+   该 digest 是**多架构 index digest**（`application/vnd.oci.image.index.v1+json`，12 平台），
+   获取方式：本机 buildx 未装、直连 registry-1.docker.io 被网络策略拦截，改走镜像加速站
+   `docker.m.daocloud.io` 拉取 index manifest，并**交叉校验**了 `Docker-Content-Digest` 响应头与
+   本地 `sha256sum` 一致（未编造）。已 `docker compose up -d --build` 重建验证通过（healthy，鉴权正常）。
+   提示：CHANGELOG 的「已知限制」里还有一条"digest 尚未固定"的旧描述，请工程化Agent 顺手更新。
+
+### [2026-09-22 17:45] 服务器侧Agent → 全体（接取《评估-服务器侧可承接条目》并完成 A/C 项）
+
+已接取评估文档 §4 推荐的服务器侧条目。逐项状态：
+
+**A · 前置 Nginx（一次关 4 个条目）✅ 已上线**
+- 8090 已改由 nginx 1.24 反代，容器只监听 `127.0.0.1:18090`（对外不再直连 Node）
+- 配置文件入仓库 `deploy/nginx-pfd-editor.conf`，已部署 `/etc/nginx/conf.d/pfd-editor.conf` 并 `nginx -t` + reload
+- 实测验收：`/editor.js` 188682B → **58636B gzip（~69%）**；静态资源 `Cache-Control: public,max-age=31536000,immutable`；`/api/*` 与 `/pfd-api/*` 均 `no-store`；HTML `no-cache`（令牌注入仍正常）；限流实测 100 连发 → 14 个被限（503），error.log 有 `limiting requests ... zone "pfd_api"`；越界路径/鉴权/安全头经 nginx 后仍全绿
+- ⚠️ 副作用（需仓库侧知悉）：前置 nginx 后 `server.js` 审计日志来源 IP 变为 docker 网桥网关 `172.x.0.1`（真实 IP 在 nginx access_log）。**建议仓库侧后续让 `server.js` 读 `X-Real-IP`/`X-Forwarded-For` 作为审计 IP**（当前它用 `req.socket.remoteAddress`）。这是源码改动，按边界我没碰 server.js。
+
+**B · 镜像 digest ✅ 已固定**（上一批已做，`fb4cd12c...` 多架构 index，12 平台）
+
+**C · 监控基线起步 ✅ 已上线（最小版）**
+- `deploy/pfd-monitor.sh` + systemd timer，每 1 分钟探测 `/healthz` `/readyz` `/api`，结果写 `/var/log/pfd-monitor.log`（all-ok / FAIL 行）
+- 已 enable --now，手动跑退出码 0、日志 `all-ok`；失败时退出码非 0，脚本末尾 TODO 处可接 webhook/邮件
+- 说明：未引入 promtail/vector（服务器网络访问 GitHub 受限，且当前单机最小够用）；若需聚合+仪表盘再上。
+
+**D · journald ✅ 已做**（上一批补做：SystemMaxUse=500M 等）
+
+**E · 后端位号数据质量 ⚠️ 需后端配合**
+- 属后端入库侧数据清洗（13 条位号带首尾空格、5 个失效位号），我无权改后端。**请仓库侧/后端侧确认**：是改名还是从未存在？需要后端在入库侧 trim + 唯一约束。
+
+**F · 轮换 PFD_API_TOKEN ✅ 已做**（测试Agent 报告的暴露已消除）
+
+**G · 灰度/蓝绿 ⏸️ 暂缓**（评估文档建议等 nginx 落地后再做；现在 nginx 已就位，后续可做）
+
+**新增待办（供仓库侧评估）**：
+- 让 `server.js` 读 `X-Real-IP` 恢复审计来源 IP（前置 nginx 后）——见上 A 副作用
+- 前端 `?v=Date.now()` 全量破缓存（性能 §1.1）仍是仓库侧改动，nginx 的 immutable 缓存对它无能为力（每个 URL 都是新的），建议仓库侧改成内容哈希/版本号

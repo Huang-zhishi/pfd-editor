@@ -1,0 +1,11 @@
+# PFD Editor · 监控探针定时器：每分钟运行一次
+[Unit]
+Description=Run PFD Editor health probe every minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+# 开机后错过的时间窗内补跑一次
+Persistent=true
+
+[Install]
+WantedBy=timers.target
