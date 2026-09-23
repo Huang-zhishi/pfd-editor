@@ -12,7 +12,7 @@
     "check": "node --check server.js && node --check editor.js && node --check templates.js",
     "render-check": "node .github/scripts/render-check.js",
     "test": "npm run check && npm run render-check",
-    "lint": "eslint . --max-warnings 30",
+    "lint": "eslint . --max-warnings 2",
     "lint:fix": "eslint . --fix"
   },
   "comment": "运行时零依赖：dependencies 为空是刻意设计。此文件只用于声明版本、Node 版本约束与脚本入口。",

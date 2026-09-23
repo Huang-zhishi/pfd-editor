@@ -65,6 +65,31 @@ const LABEL_FONT_SIZE = 10;
 const VIEW_ZOOM_MIN = 0.3;
 const VIEW_ZOOM_MAX = 3;
 
+/* 交互与性能策略参数（审计 6.3 / 6.4）
+   吸附半径、撤销历史上限、FPS 徽章节流与分级阈值、预览页历史缓存 TTL 原来都是
+   散落在函数体里的字面量，调参数要全文搜数字。集中为命名常量，单位与依据见注释。 */
+/* 连接线端点吸附半径（6.3）：三级优先级 端口 > 设备中心 > 管道 > 自由点。
+   ⚠️ 与 zoom 的联动：距离比较全发生在换算后的 SVG 用户坐标系里，单位是用户坐标，
+   屏幕上的实际吸附范围 = 半径 × zoom（放大时更易吸附、缩小时更难）。
+   若要求"屏幕恒定吸附手感"，需按 1/zoom 缩放半径再比较；本次只做命名化，不改行为。 */
+const SNAP_R_PORT = 12;    // 端口吸附半径（优先级最高）
+const SNAP_R_COMP = 20;    // 设备中心吸附半径
+const SNAP_R_PIPE = 15;    // 管道折线吸附半径
+/* 撤销历史上限（6.4）：单位"步"，超出丢弃最旧快照。
+   依据：快照是全文档 JSON 字符串，50 步在常规文档规模下内存可控，够一般编辑回溯。 */
+const HIST_MAX = 50;
+/* FPS 徽章（6.4）：
+   FPS_DT_MAX  异常帧间隔上限（ms），超过视为切后台/长任务，不计入统计；
+   FPS_PAINT_MS  DOM 写入节流间隔（ms）——每帧写 DOM 会让测量工具本身成为性能问题；
+   FPS_WARN / FPS_BAD  分级阈值（FPS）：≥WARN 绿 / BAD~WARN 黄 / <BAD 红。 */
+const FPS_DT_MAX = 500;
+const FPS_PAINT_MS = 250;
+const FPS_WARN = 50;
+const FPS_BAD = 30;
+/* 预览页真实历史数据缓存 TTL（6.4，ms）：同参查询 10s 内直接命中缓存，
+   避免趋势曲线高频重复打后端。preview.html 消费同一常量（该页加载 editor.js）。 */
+const HISTORY_CACHE_TTL_MS = 10000;
+
 // 管道标签底板宽度（渲染 / 增量移动 / 增量拖动三处共用，避免字面量各写一份）
 function pipeLabelWidth(text){ return String(text == null ? '' : text).length * LABEL_CHAR_W + LABEL_PAD_X; }
 
@@ -180,20 +205,21 @@ const PIPE_TYPES = {
 /* ============================================================
  * 1. 状态管理
  * ============================================================ */
-var doc = { version: 1, components: [], pipes: [], meta: { title:'未命名流程', bg:'#070612' } };
-var compMap = new Map();  // id -> component，O(1)查找缓存
-var pipeMap = new Map();  // id -> pipe，O(1)查找缓存
-var selection = []; // 数组，支持多选: [{kind:'component'|'pipe', id}]
-var mode = 'select';  // 'select' | 'connect' | 'pan'
-var zoom = 1, panX = 0, panY = 0;
-var snap = true, snapGrid = 20;
-var running = false;
-var histStack = [], histIdx = -1;
-var dirty = false;
+let doc = { version: 1, components: [], pipes: [], meta: { title:'未命名流程', bg:'#070612' } };
+const compMap = new Map();  // id -> component，O(1)查找缓存
+const pipeMap = new Map();  // id -> pipe，O(1)查找缓存
+let selection = []; // 数组，支持多选: [{kind:'component'|'pipe', id}]
+let mode = 'select';  // 'select' | 'connect' | 'pan'
+let zoom = 1, panX = 0, panY = 0;
+let snap = true;
+const snapGrid = 20;
+let running = false;
+let histStack = [], histIdx = -1;
+let dirty = false;
 const STUB = 18; // 端口引出短线长度
 
 /* 索引缓存：O(1)查找代替O(n)线性查找 */
-var compPipeIndex = new Map(); // compId -> [pipe,...] 反向索引
+const compPipeIndex = new Map(); // compId -> [pipe,...] 反向索引
 function rebuildIndex(){
   compMap.clear();
   pipeMap.clear();
@@ -843,9 +869,9 @@ function updateMonitorLead(comp){
 function refreshMonitorLeads(){
   doc.components.forEach(c=>{ if(c.type==='monitor') updateMonitorLead(c); });
 }
-// 连接线端点智能吸附：端口(12px) > 设备中心(20px) > 管道(15px) > 自由点
+// 连接线端点智能吸附：端口 > 设备中心 > 管道 > 自由点（半径见 SNAP_R_* 常量，zoom 联动说明同处）
 function snapLeadTarget(comp, sp){
-  let best=null, bestD=12;
+  let best=null, bestD=SNAP_R_PORT;
   doc.components.forEach(c=>{
     if(c.id===comp.id || c.type==='monitor') return;
     const t = TEMPLATES[c.type]; if(!t) return;
@@ -856,7 +882,7 @@ function snapLeadTarget(comp, sp){
     });
   });
   if(best) return best;
-  bestD=20; best=null;
+  bestD=SNAP_R_COMP; best=null;
   doc.components.forEach(c=>{
     if(c.id===comp.id || c.type==='monitor') return;
     const cx=c.x+c.w/2, cy=c.y+c.h/2;
@@ -864,7 +890,7 @@ function snapLeadTarget(comp, sp){
     if(d<bestD){ bestD=d; best={targetType:'comp', cid:c.id}; }
   });
   if(best) return best;
-  bestD=15; best=null;
+  bestD=SNAP_R_PIPE; best=null;
   doc.pipes.forEach(p=>{
     if(!p._pts || p._pts.length<2) return;
     const t = nearestTOnPolyline(p._pts, sp);
@@ -1272,7 +1298,7 @@ function renderOverlay(){
  * 6. 坐标转换
  * ============================================================ */
 // getScreenCTM 求逆开销较高且结果仅在 pan/zoom/resize 时变化，缓存之
-var _ctmInv = null;
+let _ctmInv = null;
 function invalidateCTM(){ _ctmInv = null; }
 function screenToSVG(clientX, clientY){
   if(!_ctmInv){
@@ -1795,9 +1821,9 @@ function debounce(fn, ms){
 const renderAllDebounced = debounce(()=>{ renderAll(); setDirty(); }, 180);
 function renderProps(){
   const body = $('prBody');
-  const head_icon = $('prIcon'), head_t = $('prTitle'), head_s = $('prSub');
+  const headIcon = $('prIcon'), headTitle = $('prTitle'), headSub = $('prSub');
   if(selection.length===0){
-    head_icon.textContent='—'; head_t.textContent='未选中'; head_s.textContent='在画布上点击元素以编辑';
+    headIcon.textContent='—'; headTitle.textContent='未选中'; headSub.textContent='在画布上点击元素以编辑';
     body.innerHTML = `<div class="pr-empty"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg><div>选中一个组件或管道<br>即可在此编辑属性</div></div>`;
     return;
   }
@@ -1805,7 +1831,7 @@ function renderProps(){
   if(selection.length>1){
     const nComp = selection.filter(s=>s.kind==='component').length;
     const nPipe = selection.filter(s=>s.kind==='pipe').length;
-    head_icon.textContent='多'; head_t.textContent='多选'; head_s.textContent = `${nComp} 组件 · ${nPipe} 管道`;
+    headIcon.textContent='多'; headTitle.textContent='多选'; headSub.textContent = `${nComp} 组件 · ${nPipe} 管道`;
     body.innerHTML = `
       <div class="fg">
         <div class="fg-title">对齐与分布(仅组件)</div>
@@ -1843,7 +1869,7 @@ function renderProps(){
     const comp = getComp(sel.id); if(!comp) return;
     const t = TEMPLATES[comp.type];
     if(comp.type==='productTankDual') normalizeDualTankProps(comp);   // 补两格默认标注，面板与画布取值一致
-    head_icon.textContent = t.name.slice(0,1); head_t.textContent = comp.props.name||t.name; head_s.textContent = `${t.name} · ${comp.id}`;
+    headIcon.textContent = t.name.slice(0,1); headTitle.textContent = comp.props.name||t.name; headSub.textContent = `${t.name} · ${comp.id}`;
     const params = comp.props.params || [];
     body.innerHTML = `
       <div class="fg">
@@ -1988,7 +2014,7 @@ function renderProps(){
     `;
     // bind（名称/位号/颜色为 oninput 连续输入，重渲染用防抖；几何用 onchange，失焦/回车才触发，无需防抖）
     const debouncedRenderAll = debounce(()=>{ renderAll(); setDirty(); }, 150);
-    $('pName').oninput = e=>{ comp.props.name=e.target.value; head_t.textContent=e.target.value||t.name; debouncedRenderAll(); };
+    $('pName').oninput = e=>{ comp.props.name=e.target.value; headTitle.textContent=e.target.value||t.name; debouncedRenderAll(); };
     if($('pTag')) $('pTag').oninput = e=>{ comp.props.tag=e.target.value; debouncedRenderAll(); };
     $('pColor').oninput = e=>{ comp.props.color=e.target.value; $('pColorT').value=e.target.value; debouncedRenderAll(); };
     $('pColorT').onchange = e=>{ comp.props.color=e.target.value; $('pColor').value=e.target.value; renderAll(); setDirty(); };
@@ -2091,7 +2117,7 @@ function renderProps(){
     $('btnDelComp').onclick = deleteSelected;
   } else if(sel.kind==='pipe'){
     const pipe = getPipe(sel.id); if(!pipe) return;
-    head_icon.textContent='管'; head_t.textContent='管道'; head_s.textContent = pipe.id;
+    headIcon.textContent='管'; headTitle.textContent='管道'; headSub.textContent = pipe.id;
     const fromC = pipe.from? getComp(pipe.from.cid): null;
     const toC = pipe.to? getComp(pipe.to.cid): null;
     body.innerHTML = `
@@ -2714,7 +2740,7 @@ function pushHistory(){
     return;
   }
   histStack.push(snap);
-  if(histStack.length>50) histStack.shift();
+  if(histStack.length>HIST_MAX) histStack.shift();
   histIdx = histStack.length-1;
 }
 /* 历史快照读取：快照损坏时跳过该步并提示，而不是抛异常让撤销/重做整体失效（审计 §5.2） */
@@ -2783,7 +2809,7 @@ if(_isEditor){
 $('btnTemplate').onclick = ()=>{ loadTemplate(); };
 $('btnSave').onclick = saveProject;            // 项目库：已入库原地覆盖，未入库则打开面板命名
 $('btnLoad').onclick = openProjectPanel;       // 项目库：可视化列表中选择加载
-$('btnExportJson').onclick = ()=>{ openModal('导出 JSON', JSON.stringify(doc,null,2), txt=>{ navigator.clipboard?.writeText(txt); flash('已复制到剪贴板'); }); };
+$('btnExportJson').onclick = ()=>{ openModal('导出 JSON', serializeDoc(doc, 2), txt=>{ navigator.clipboard?.writeText(txt); flash('已复制到剪贴板'); }); };
 /* 导入 JSON：与本地文件载入走同一条 validate → normalize → apply 链路（审计 §10.5/§1.3/§1.4）。
    原来直接 doc=JSON.parse(txt) 赋给全局，缺 pipes 等字段会在渲染层抛 TypeError，
    页面停在半渲染状态且提示无效。 */
@@ -2954,9 +2980,14 @@ function projectProblemText(problems){
   return '\n· ' + head + (problems.length > 6 ? '\n… 共 ' + problems.length + ' 项问题' : '');
 }
 
-// 组装保存数据（含配置参数与元信息）
-// reviver 过滤运行时缓存字段（_pts/_segs 等下划线开头），避免写入存档
-function stripRuntimeFields(v){ return typeof v==='string' ? JSON.parse(v, (k,val)=> k.charAt(0)==='_' ? undefined : val) : v; }
+/* 文档序列化单一入口（审计 8.5）：运行时缓存字段（_pts/_segs 等下划线开头）在此统一剥除，
+   避免写入存档 / 导出 / 预览通道。原来 stripRuntimeFields（stringify 再 reviver parse，
+   双倍开销）、writePreviewDoc 的 stringify replacer、exportStandalone 的手工挑字段三套实现并存，
+   现统一为这一份 replacer。
+   ⚠️ 撤销历史（pushHistory）是运行时内部快照，需要完整字段（含 _pts），不走本入口。 */
+function serializeDoc(v, space){
+  return JSON.stringify(v, (k,val)=> k.charAt(0)==='_' ? undefined : val, space);
+}
 /* 位号有效性批量校验（审计 §数据一致性 4.3）：保存/载入时收集
    params[].k / runTags[].tag / monitorTags[].tag 与后端目录比对，
    失效位号汇总告警（告警不阻断保存/载入）。目录未加载（离线）时不判定失效，
@@ -2992,8 +3023,9 @@ function buildProjectData(){
     savedAt: new Date().toISOString(),
     title: (doc.meta && doc.meta.title) || '未命名流程',
     meta: Object.assign({}, doc.meta),
-    components: stripRuntimeFields(JSON.stringify(doc.components)),
-    pipes: stripRuntimeFields(JSON.stringify(doc.pipes))
+    // 运行时缓存字段由 serializeDoc 在最终序列化时统一剥除（审计 8.5），这里不再做中间拷贝
+    components: doc.components,
+    pipes: doc.pipes
   };
 }
 
@@ -3023,7 +3055,7 @@ async function saveProjectToLocalFile(){
   warnUnknownTags('保存');   // 位号批量校验（审计 §数据一致性 4.3）：失效位号汇总告警，不阻断保存
   try{
     const data = buildProjectData();
-    const json = JSON.stringify(data, null, 2);
+    const json = serializeDoc(data, 2);
     const suggested = sanitizeFileName((data.title||'工艺流程') + '.json');
 
     // 优先使用 File System Access API（可保存到指定磁盘位置）
@@ -3303,7 +3335,7 @@ async function saveToLibrary(name){
   warnUnknownTags('保存');   // 位号批量校验（审计 §数据一致性 4.3）：失效位号汇总告警，不阻断保存
   const target = projFileName(name);
   const data = buildProjectData();
-  const json = JSON.stringify(data, null, 2);
+  const json = serializeDoc(data, 2);
   /* 并发写保护（审计 3.3）：带上载入时的 mtime 作为基线，
      服务端发现文件已被他人改动会返回 409，这里提示用户而不是静默覆盖。 */
   const doSave = withBase => {
@@ -3654,9 +3686,9 @@ async function exportStandalone(){
     //    直接同步调用（不监听 load 事件）：inject 脚本位于最后一个 </script> 之后，此时 IIFE 已
     //    执行完毕、PFDEmbed 已挂载到 window，直接调用即可覆盖空 doc 并触发 render+zoomFit。
     //    必须用 lastIndexOf 找真正的 </body>，因为内联的 editor.js 源码字符串中也含 '</body>'。
-    const cleanPipes = doc.pipes.map(p=>{ const {_pts,...rest}=p; return rest; });
-    const standaloneDoc = { version:doc.version||1, components:doc.components, pipes:cleanPipes, meta:doc.meta||{title:'未命名流程',bg:'#070612'} };
-    const docJson = JSON.stringify(standaloneDoc).replace(/<\/script/gi, '<\\/script');
+    // 运行时字段（_pts 等）由 serializeDoc 统一剥除（审计 8.5），不再手工挑字段
+    const standaloneDoc = { version:doc.version||1, components:doc.components, pipes:doc.pipes, meta:doc.meta||{title:'未命名流程',bg:'#070612'} };
+    const docJson = serializeDoc(standaloneDoc).replace(/<\/script/gi, '<\\/script');
     const title = (standaloneDoc.meta && standaloneDoc.meta.title) || 'PFD';
     const inject = '<script>(function(){var d='+docJson+';try{window.PFDEmbed.load(d)}catch(e){console.error("Standalone load error:",e);setTimeout(function(){try{window.PFDEmbed.load(d)}catch(e2){console.error("Retry failed:",e2)}},100)}var t=(d.meta&&d.meta.title)||"PFD";if(document.getElementById("docTitle"))document.getElementById("docTitle").textContent=t;document.title=t+" · 预览";})()</'+'script>';
     const bodyEnd = out.lastIndexOf('</body>');
@@ -3723,7 +3755,7 @@ const PFD_STORE_KEY_LEGACY = 'pfd_doc';
 function writePreviewDoc(){
   let txt;
   try{
-    txt = JSON.stringify(doc, (k,v)=> k.charAt(0)==='_' ? undefined : v);
+    txt = serializeDoc(doc);
   }catch(e){
     alert('序列化当前文档失败：' + (e && e.message));
     return false;
@@ -3764,9 +3796,9 @@ startTagLiveUpdate();
 
 /* ============================================================
  * 29. 右下角实时帧率（编辑页与预览页共用，预览页嵌入模式下由 CSS 隐藏）
- *   · rAF 采样帧间隔，指数滑动平均（EMA），忽略切后台/长任务造成的异常间隔
- *   · 每 250ms 才写一次 DOM —— 每帧写 DOM 会让"测量工具"本身变成性能问题
- *   · 分级配色：≥50 绿 / 30~50 黄 / <30 红
+ *   · rAF 采样帧间隔，指数滑动平均（EMA），忽略切后台/长任务造成的异常间隔（FPS_DT_MAX）
+ *   · 每 FPS_PAINT_MS（250ms）才写一次 DOM —— 每帧写 DOM 会让"测量工具"本身变成性能问题
+ *   · 分级配色（FPS_WARN / FPS_BAD）：≥50 绿 / 30~50 黄 / <30 红
  *   · 点击展开细节（帧时间 / 最差帧 / 画布节点数），双击重置峰值
  * ============================================================ */
 function initFpsMeter(){
@@ -3785,18 +3817,18 @@ function initFpsMeter(){
     raf = requestAnimationFrame(tick);
     if(last){
       const dt = ts - last;
-      if(dt > 0 && dt < 500){                       // 忽略异常间隔（切后台、长任务）
+      if(dt > 0 && dt < FPS_DT_MAX){                // 忽略异常间隔（切后台、长任务）
         ema = ema ? ema*0.9 + dt*0.1 : dt;
         if(dt > worst) worst = dt;
       }
     }
     last = ts;
-    if(ts - paintAt < 250) return;                  // 250ms 才写一次 DOM
+    if(ts - paintAt < FPS_PAINT_MS) return;         // 节流：到点才写一次 DOM
     paintAt = ts;
     const fps = ema > 0 ? 1000/ema : 0;
     val.textContent = fps >= 10 ? fps.toFixed(0) : fps.toFixed(1);
-    el.classList.toggle('warn', fps > 0 && fps < 50 && fps >= 30);
-    el.classList.toggle('bad', fps > 0 && fps < 30);
+    el.classList.toggle('warn', fps > 0 && fps < FPS_WARN && fps >= FPS_BAD);
+    el.classList.toggle('bad', fps > 0 && fps < FPS_BAD);
     if(el.classList.contains('expanded')){
       const canvas = document.getElementById('canvas');
       detail.textContent = `· ${ema.toFixed(1)}ms/帧 · 最差 ${worst.toFixed(0)}ms · 画布节点 ${canvas ? canvas.querySelectorAll('*').length : '-'}`;

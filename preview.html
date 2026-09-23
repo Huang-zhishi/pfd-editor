@@ -574,8 +574,8 @@
     const tr = timeRange || '10m';
     const cacheKey = s.sensorTag + '_' + tr;
     const now = Date.now();
-    // 缓存10秒
-    if(this.historyCache[cacheKey] && (now - this.historyCache[cacheKey].ts) < 10000){
+    // 缓存 HISTORY_CACHE_TTL_MS（10s，常量来自 editor.js 参数块，审计 6.4）
+    if(this.historyCache[cacheKey] && (now - this.historyCache[cacheKey].ts) < HISTORY_CACHE_TTL_MS){
       return this.historyCache[cacheKey].data;
     }
     try{
@@ -645,9 +645,9 @@
   // ============================================================
   // 嵌入模式：?embed=1 供第三方网站 iframe 嵌入，隐藏工具栏/状态栏
   const EMBED = new URLSearchParams(location.search).get('embed')==='1';
-  var doc = { version:1, components:[], pipes:[], meta:{title:'未命名流程',bg:'#070612'} };
-  var compMap = new Map();
-  var pipeMap = new Map();
+  let doc = { version:1, components:[], pipes:[], meta:{title:'未命名流程',bg:'#070612'} };
+  const compMap = new Map();
+  const pipeMap = new Map();
   function rebuildIndex(){
     compMap.clear(); pipeMap.clear();
     for(let i=0;i<doc.components.length;i++) compMap.set(doc.components[i].id, doc.components[i]);
