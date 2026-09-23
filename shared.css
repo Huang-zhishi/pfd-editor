@@ -1,0 +1,42 @@
+/* ============================================================
+ * PFD · 跨页面共享样式（审计 4.1 / 4.2）
+ *
+ * 原来 editor.html 与 preview.html 各自内联一份逐字重复的
+ *   .tbtn / .zoom-box（工具栏按钮与缩放框，4.1）
+ *   .fps-badge 全套（右下角帧率徽标，4.2；另有一份 exportPNG 内的 JS 字符串副本已随
+ *   自包含导出改造移除）
+ * 两页改一处忘一处必然漂移，这里收敛为单一来源。
+ *
+ * 使用方式：两页 <head> 内以 <link rel="stylesheet" href="shared.css"> 引入。
+ *   ⚠️ exportStandalone() 生成单文件 HTML 时会把该 <link> 内联成 <style>，
+ *      新增共享样式无需改动导出逻辑，但**不要改 link 的写法**（导出按该标签定位）。
+ *
+ * 依赖变量：--panel2 / --line2 / --line3 / --purple / --text / --text2 / --text3 / --green / --red
+ *   （两页 :root 均已定义，新增变量时两页需同步）。
+ * ============================================================ */
+
+/* ===== 工具栏按钮 ===== */
+.tbtn{display:flex;align-items:center;gap:5px;height:30px;padding:0 10px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;color:var(--text2);cursor:pointer;font-size:12px;transition:.15s;white-space:nowrap;text-decoration:none}
+.tbtn:hover{border-color:var(--purple);color:#fff;background:#1c1b40}
+.tbtn.active{background:var(--purple);color:#0a0a1a;border-color:var(--purple);font-weight:600}
+.tbtn svg{width:14px;height:14px;fill:currentColor}
+
+/* ===== 缩放框 ===== */
+.zoom-box{display:flex;align-items:center;gap:4px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;height:30px;padding:0 4px}
+.zoom-box button{width:24px;height:24px;background:none;border:0;color:var(--text2);cursor:pointer;font-size:16px;border-radius:3px}
+.zoom-box button:hover{background:var(--line2);color:#fff}
+.zoom-box .zv{font-size:11px;color:var(--text2);width:42px;text-align:center;font-variant-numeric:tabular-nums}
+
+/* ===== 右下角实时帧率 ===== */
+.fps-badge{position:fixed;right:12px;bottom:34px;z-index:80;display:flex;align-items:center;gap:6px;
+  height:26px;padding:0 10px;border-radius:13px;background:#12112bee;border:1px solid var(--line2);
+  font-size:11px;color:var(--text2);cursor:pointer;user-select:none;font-variant-numeric:tabular-nums;
+  transition:border-color .15s,color .15s;white-space:nowrap}
+.fps-badge:hover{border-color:var(--line3);color:var(--text)}
+.fps-badge .fps-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);flex-shrink:0}
+.fps-badge.warn .fps-dot{background:#F5A623;box-shadow:0 0 6px #F5A623}
+.fps-badge.bad .fps-dot{background:var(--red);box-shadow:0 0 6px var(--red)}
+.fps-badge .fps-val{font-weight:600;min-width:20px;text-align:right}
+.fps-badge .fps-unit{font-size:9px;color:var(--text3)}
+.fps-badge .fps-detail{display:none;font-size:10px;color:var(--text3)}
+.fps-badge.expanded .fps-detail{display:inline}

@@ -26,17 +26,10 @@
   .logo svg{width:18px;height:18px;fill:#fff}
   .brand .t{font-size:14px;font-weight:600;letter-spacing:1px;white-space:nowrap}
   .brand .s{font-size:9px;color:var(--text3);letter-spacing:1px;white-space:nowrap}
-  .tbtn{display:flex;align-items:center;gap:5px;height:30px;padding:0 10px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;color:var(--text2);cursor:pointer;font-size:12px;transition:.15s;white-space:nowrap}
-  .tbtn:hover{border-color:var(--purple);color:#fff;background:#1c1b40}
-  .tbtn.active{background:var(--purple);color:#0a0a1a;border-color:var(--purple);font-weight:600}
-  .tbtn svg{width:14px;height:14px;fill:currentColor}
+  /* .tbtn / .zoom-box 已抽到 shared.css（审计 4.1：与 preview.html 逐字重复） */
   .tbtn.danger:hover{border-color:var(--red);color:var(--red)}
   .tsep{width:1px;height:22px;background:var(--line2);margin:0 4px}
   .t-spacer{flex:1}
-  .zoom-box{display:flex;align-items:center;gap:4px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;height:30px;padding:0 4px}
-  .zoom-box button{width:24px;height:24px;background:none;border:0;color:var(--text2);cursor:pointer;font-size:16px;border-radius:3px}
-  .zoom-box button:hover{background:var(--line2);color:#fff}
-  .zoom-box .zv{font-size:11px;color:var(--text2);width:42px;text-align:center;font-variant-numeric:tabular-nums}
 
   /* ===== Palette ===== */
   .left{grid-area:left;background:var(--panel);border-right:1px solid var(--line2);display:flex;flex-direction:column;overflow:hidden}
@@ -196,18 +189,7 @@
   .kiln-temps .ktag:focus{border-color:var(--purple);box-shadow:0 0 0 3px #9C99FF26}
 
   /* ===== 右下角实时帧率 ===== */
-  .fps-badge{position:fixed;right:12px;bottom:34px;z-index:80;display:flex;align-items:center;gap:6px;
-    height:26px;padding:0 10px;border-radius:13px;background:#12112bee;border:1px solid var(--line2);
-    font-size:11px;color:var(--text2);cursor:pointer;user-select:none;font-variant-numeric:tabular-nums;
-    transition:border-color .15s,color .15s;white-space:nowrap}
-  .fps-badge:hover{border-color:var(--line3);color:var(--text)}
-  .fps-badge .fps-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);flex-shrink:0}
-  .fps-badge.warn .fps-dot{background:#F5A623;box-shadow:0 0 6px #F5A623}
-  .fps-badge.bad .fps-dot{background:var(--red);box-shadow:0 0 6px var(--red)}
-  .fps-badge .fps-val{font-weight:600;min-width:20px;text-align:right}
-  .fps-badge .fps-unit{font-size:9px;color:var(--text3)}
-  .fps-badge .fps-detail{display:none;font-size:10px;color:var(--text3)}
-  .fps-badge.expanded .fps-detail{display:inline}
+  /* .fps-badge 全套已抽到 shared.css（审计 4.2：与 preview.html 逐字重复） */
 
   /* ===== Status bar ===== */
   .status{grid-area:status;background:var(--panel);border-top:1px solid var(--line2);display:flex;align-items:center;padding:0 14px;gap:18px;font-size:11px;color:var(--text3)}
@@ -298,6 +280,8 @@
   .pj-act.del:hover{color:var(--red);border-color:var(--red)}
   .pj-dir{font-size:11px;color:var(--text4);padding:8px 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
+<!-- 跨页面共享样式（.tbtn / .zoom-box / .fps-badge，审计 4.1/4.2）；导出单文件时会被内联 -->
+<link rel="stylesheet" href="shared.css">
 </head>
 <body data-page-node-id="YZStSbDBX3ukiC95ZmZ4Il">
 <div id="app" data-page-node-id="G4fEN8PkXT2tOJMQNlBPqC">

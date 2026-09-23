@@ -41,6 +41,33 @@ const layerFlow = $('layerFlow');
 const layerOverlay = $('layerOverlay');
 const _isEditor = !!$('btnSave'); // true when running on editor page (has toolbar buttons)
 
+/* ============================================================
+ * 设计令牌（审计 6.2 / 6.5）
+ *   原来行高 / 内边距 / 字符宽等布局数值与视口缩放范围以字面量散落在各渲染函数里，
+ *   字体或字号一变就静默错位，两页参数也会各自漂移。集中为命名常量，单位见注释。
+ *   ⚠️ preview.html 内语义等价的副本（monitorAutoHeightPreview / 管道标签底板）
+ *      消费同一组常量；本块是唯一来源，改这里即可。
+ * ============================================================ */
+// 监控器面板：单行高度 + 上下留白合计（空态占位 1 行，无标题行/时间行）
+//   必须与 templates/monitor.js 的 ROW 保持一致（面板总高由本函数算，行位置由模板排）
+const MONITOR_ROW_H = 17;
+const MONITOR_PAD_V = 4;
+// 管道标签底板：字符平均宽度 + 左右内边距合计 + 底板高度 + 相对标签中心的两个偏移
+//   字宽按 10px 中文/数字混排实测均值取整；更换字体族/字号需同步复核
+const LABEL_CHAR_W = 7;
+const LABEL_PAD_X = 8;
+const LABEL_BOX_H = 16;
+const LABEL_BOX_DY = -9;    // 底板顶边 = 标签中心 y + 该值
+const LABEL_TEXT_DY = 3;    // 文字基线 = 标签中心 y + 该值
+const LABEL_FONT_SIZE = 10;
+/* 视口缩放范围（审计 6.5）：编辑器与预览页共用同一份视口语义。
+   原来编辑器 0.3~3、预览 0.2~4 两套参数，同一画布在两页的可缩放区间不一致。 */
+const VIEW_ZOOM_MIN = 0.3;
+const VIEW_ZOOM_MAX = 3;
+
+// 管道标签底板宽度（渲染 / 增量移动 / 增量拖动三处共用，避免字面量各写一份）
+function pipeLabelWidth(text){ return String(text == null ? '' : text).length * LABEL_CHAR_W + LABEL_PAD_X; }
+
 /* 后端传感器连接状态：用于把"拉取失败"从静默变成可观测（审计 §5.3）
    原来两处 catch 都是空实现，无法区分"后端没配"与"网络坏了"。 */
 let sensorApiState = { ok: null, error: '', at: 0 };
@@ -590,15 +617,15 @@ function renderAll(){
     // label（可沿线拖动，位置由 pipe.labelPos 0~1 决定）
     if(pipe.label){
       const mid = pointAtPolyline(pts, pipe.labelPos==null ? 0.5 : pipe.labelPos);
-      const tw = pipe.label.length*7+8;
+      const tw = pipeLabelWidth(pipe.label);
       const bg = createSVG('rect');
-      bg.setAttribute('x', mid.x-tw/2); bg.setAttribute('y', mid.y-9);
-      bg.setAttribute('width', tw); bg.setAttribute('height', 16); bg.setAttribute('rx',3);
+      bg.setAttribute('x', mid.x-tw/2); bg.setAttribute('y', mid.y+LABEL_BOX_DY);
+      bg.setAttribute('width', tw); bg.setAttribute('height', LABEL_BOX_H); bg.setAttribute('rx',3);
       bg.setAttribute('fill','#12112Bee'); bg.setAttribute('stroke', col); bg.setAttribute('stroke-width',0.8);
       bg.setAttribute('opacity', 0.9);
       g.appendChild(bg);
-      const tx = createSVG('text'); tx.setAttribute('x', mid.x); tx.setAttribute('y', mid.y+3);
-      tx.setAttribute('text-anchor','middle'); tx.setAttribute('font-size','10'); tx.setAttribute('fill', col);
+      const tx = createSVG('text'); tx.setAttribute('x', mid.x); tx.setAttribute('y', mid.y+LABEL_TEXT_DY);
+      tx.setAttribute('text-anchor','middle'); tx.setAttribute('font-size', String(LABEL_FONT_SIZE)); tx.setAttribute('fill', col);
       tx.setAttribute('font-family','inherit'); tx.textContent = pipe.label;
       g.appendChild(tx);
       // 拖动把手：选中时可水平沿线拖动标签
@@ -705,10 +732,10 @@ function renderAll(){
  *     props.lead: { targetType:'point'|'comp'|'port'|'pipe', x,y, cid?, port?, pipeId?, pipeT?, bend? }
  *                 归属指向折线（面板 → 设备/端口/管道/自由点）
  * ============================================================ */
-// 面板高度随监控项数量自适应：行数*17 + 上下留白4（空态占位1行，无标题/时间行）
+// 面板高度随监控项数量自适应：行数*MONITOR_ROW_H + 上下留白（空态占位1行，无标题/时间行）
 function monitorAutoHeight(props){
   const n = (props && Array.isArray(props.monitorTags)) ? props.monitorTags.length : 0;
-  return Math.max(n,1)*17 + 4;
+  return Math.max(n,1)*MONITOR_ROW_H + MONITOR_PAD_V;
 }
 // 旧版数据迁移：monitorTag/monitorTag2 双字段 → monitorTags 列表（lead 连接线字段保留）
 // showLead: 是否显示归属指向折线（默认 true，老数据自动补；用户可关闭）
@@ -1058,12 +1085,12 @@ function updatePipeGeometry(pipe){
   // 更新标签位置
   if(pipe.label){
     const mid = pointAtPolyline(pts, pipe.labelPos==null ? 0.5 : pipe.labelPos);
-    const tw = pipe.label.length*7+8;
+    const tw = pipeLabelWidth(pipe.label);
     const rects = pg.querySelectorAll('rect');
     const texts = pg.querySelectorAll('text');
     const circles = pg.querySelectorAll('circle');
-    if(rects[0]){ rects[0].setAttribute('x', mid.x-tw/2); rects[0].setAttribute('y', mid.y-9); }
-    if(texts[0]){ texts[0].setAttribute('x', mid.x); texts[0].setAttribute('y', mid.y+3); }
+    if(rects[0]){ rects[0].setAttribute('x', mid.x-tw/2); rects[0].setAttribute('y', mid.y+LABEL_BOX_DY); }
+    if(texts[0]){ texts[0].setAttribute('x', mid.x); texts[0].setAttribute('y', mid.y+LABEL_TEXT_DY); }
     if(circles[0]){ circles[0].setAttribute('cx', mid.x); circles[0].setAttribute('cy', mid.y); }
   }
 }
@@ -1119,12 +1146,12 @@ function incrementalLabelDrag(pipe){
   if(!pg || !pipe._pts) return;
   const pts = pipe._pts;
   const mid = pointAtPolyline(pts, pipe.labelPos==null ? 0.5 : pipe.labelPos);
-  const tw = pipe.label.length*7+8;
+  const tw = pipeLabelWidth(pipe.label);
   const rects = pg.querySelectorAll('rect');
   const texts = pg.querySelectorAll('text');
   const circles = pg.querySelectorAll('circle');
-  if(rects[0]){ rects[0].setAttribute('x', mid.x-tw/2); rects[0].setAttribute('y', mid.y-9); }
-  if(texts[0]){ texts[0].setAttribute('x', mid.x); texts[0].setAttribute('y', mid.y+3); }
+  if(rects[0]){ rects[0].setAttribute('x', mid.x-tw/2); rects[0].setAttribute('y', mid.y+LABEL_BOX_DY); }
+  if(texts[0]){ texts[0].setAttribute('x', mid.x); texts[0].setAttribute('y', mid.y+LABEL_TEXT_DY); }
   if(circles[0]){ circles[0].setAttribute('cx', mid.x); circles[0].setAttribute('cy', mid.y); }
 }
 
@@ -1647,7 +1674,7 @@ svg.addEventListener('wheel', e=>{
   } else {
     // 普通滚轮：缩放
     const factor = e.deltaY<0 ? 1.1 : 0.9;
-    const newZoom = Math.max(0.3, Math.min(3, zoom*factor));
+    const newZoom = Math.max(VIEW_ZOOM_MIN, Math.min(VIEW_ZOOM_MAX, zoom*factor));
     // 以鼠标为中心缩放
     const sp = screenToSVG(e.clientX, e.clientY);
     zoom = newZoom;
@@ -1670,7 +1697,7 @@ function applyView(){
   $('stZoom').textContent = Math.round(zoom*100)+'%';
 }
 function resetView(){ zoom=1; panX=0; panY=0; applyView(); }
-function zoomBy(f){ zoom=Math.max(0.3,Math.min(3,zoom*f)); applyView(); }
+function zoomBy(f){ zoom=Math.max(VIEW_ZOOM_MIN,Math.min(VIEW_ZOOM_MAX,zoom*f)); applyView(); }
 function zoomFit(){
   if(!doc.components.length){ resetView(); return; }
   let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
@@ -2618,7 +2645,11 @@ function refreshRunState(liveMap, docArg){
     if(typeof setRunStatePill==='function') setRunStatePill((typeof $==='function') ? $('runState') : null, st);
   });
 }
-/* 兼容旧名：预览页 / 早先导出的单文件 HTML 仍可能按名调用 */
+/* 兼容旧名（审计 4.10）：早先导出的单文件 HTML / 旧版预览页可能按名调用，
+   三个别名统一在【此处】集中定义，preview.html 不再各复制一份（原副本是 IIFE 局部、
+   外部根本调不到，属无效垫片，已删除）。
+   @deprecated 保留仅为兼容历史导出物；计划在数据格式 v3 迁移完成后一并删除
+   （届时 v2 之前的导出物已自然淘汰）。新增调用点请直接用 refreshRunState。 */
 function refreshScrewConveyorRun(m, d){ return refreshRunState(m, d); }
 function refreshFilterPressRun(m, d){ return refreshRunState(m, d); }
 function refreshPendulumMillRun(m, d){ return refreshRunState(m, d); }
@@ -3589,7 +3620,16 @@ async function exportStandalone(){
     const loaderTxt = await fetchSrc('templates.js');
     const mf = /TEMPLATE_FILES\s*=\s*\[([\s\S]*?)\]/.exec(loaderTxt);
     if(!mf) throw new Error('未找到 TEMPLATE_FILES 清单（templates.js 结构已变化）');
-    const tplFiles = mf[1].split(',').map(s=>s.trim().replace(/^['"]|['"]$/g,'')).filter(Boolean);
+    /* 清单里含分组注释行（如 `// 输送与给料`）：必须先剥掉行内注释再按逗号切分，
+       否则注释会与紧随其后的第一个文件名粘连成 `// 输送与给料\n  'screwConveyor`，
+       拼出 `templates/// 输送与给料 'screwConveyor.js` 这种非法路径 → 7 个分类各 404 一次，
+       导出必然中止（.github/scripts/render-check.js 一直有这步剥离，导出路径此前漏了）。
+       剥完再断言条目是纯文件名：将来清单格式再变会在这里 fail-fast，而不是退化成 404。 */
+    const tplFiles = mf[1].replace(/\/\/[^\n]*/g, '')
+      .split(',').map(s=>s.trim().replace(/^['"]|['"]$/g,'')).filter(Boolean);
+    const badTpl = tplFiles.find(f=>!/^[A-Za-z0-9_-]+$/.test(f));
+    if(badTpl) throw new Error('TEMPLATE_FILES 清单解析异常（条目「' + badTpl + '」不是合法文件名）');
+    if(!tplFiles.length) throw new Error('TEMPLATE_FILES 清单为空（templates.js 结构已变化）');
     const tplTxt = ['const TEMPLATES = {};']
       .concat(await Promise.all(tplFiles.map(f=>fetchSrc('templates/'+f+'.js'))))
       .join('\n');
@@ -3599,6 +3639,16 @@ async function exportStandalone(){
     if(ls<0) throw new Error('未找到 editor.js 加载脚本');
     const le = out.indexOf('</script>', ls) + '</script>'.length;
     out = out.slice(0, ls) + '<script>' + safe(tplTxt) + '</' + 'script><script>' + safe(jsTxt) + '</' + 'script>' + out.slice(le);
+
+    // 2b) 内联共享样式（审计 4.1/4.2）：preview.html 用 <link rel="stylesheet" href="shared.css">
+    //     引用跨页面共享的 .tbtn/.zoom-box/.fps-badge。单文件产物必须自带样式，
+    //     否则离线打开会去请求不存在的 shared.css（样式缺失 + 控制台报错）。
+    //     按 link 标签定位替换（不是按源码文本做 API，锚点即标签本身，缺失即 fail-fast）。
+    const linkRe = /<link\s+rel="stylesheet"\s+href="shared\.css"[^>]*>/i;
+    if(!linkRe.test(out)) throw new Error('未找到 shared.css 的 <link> 标签（preview.html 结构已变化）');
+    const cssTxt = await fetchSrc('shared.css');
+    // 用函数形式替换：避免 CSS 里的 $ 被当作 replace 的替换模式（$&/$1 等）
+    out = out.replace(linkRe, () => '<style>\n' + cssTxt + '\n</style>');
 
     // 3) 在 </body> 前注入数据：利用 preview.html EMBED 模式下暴露的 window.PFDEmbed.load() API。
     //    直接同步调用（不监听 load 事件）：inject 脚本位于最后一个 </script> 之后，此时 IIFE 已

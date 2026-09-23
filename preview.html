@@ -7,7 +7,7 @@
 <style>
   :root{
     --bg:#070612; --panel:#0f0e22; --panel2:#161534;
-    --line:#9C99FF22; --line2:#9C99FF44;
+    --line:#9C99FF22; --line2:#9C99FF44; --line3:#9C99FF66;   /* --line3 原缺失，shared.css 的 .fps-badge:hover 依赖它 */
     --purple:#9C99FF; --cyan:#00E5FF; --green:#96CC60; --amber:#F59E0B; --red:#EF4444;
     --text:#fff; --text2:#FFFFFFCC; --text3:#FFFFFF80;
   }
@@ -24,15 +24,8 @@
   .brand .s{font-size:9px;color:var(--text3);letter-spacing:1px}
   .title{font-size:13px;color:var(--text2);margin-left:4px;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .tsep{width:1px;height:22px;background:var(--line2);margin:0 4px}
-  .tbtn{display:flex;align-items:center;gap:5px;height:30px;padding:0 10px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;color:var(--text2);cursor:pointer;font-size:12px;transition:.15s;white-space:nowrap;text-decoration:none}
-  .tbtn:hover{border-color:var(--purple);color:#fff;background:#1c1b40}
-  .tbtn.active{background:var(--purple);color:#0a0a1a;border-color:var(--purple);font-weight:600}
-  .tbtn svg{width:14px;height:14px;fill:currentColor}
+  /* .tbtn / .zoom-box 已抽到 shared.css（审计 4.1：与 editor.html 逐字重复） */
   .t-spacer{flex:1}
-  .zoom-box{display:flex;align-items:center;gap:4px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;height:30px;padding:0 4px}
-  .zoom-box button{width:24px;height:24px;background:none;border:0;color:var(--text2);cursor:pointer;font-size:16px;border-radius:3px}
-  .zoom-box button:hover{background:var(--line2);color:#fff}
-  .zoom-box .zv{font-size:11px;color:var(--text2);width:42px;text-align:center;font-variant-numeric:tabular-nums}
   .src-badge{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:9999px;font-size:10px;border:1px solid var(--line2);color:var(--text3)}
   .src-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 5px var(--amber)}
   .src-badge.live .dot{background:var(--green);box-shadow:0 0 5px var(--green)}
@@ -112,18 +105,7 @@
   .dp-note{font-size:10px;color:var(--text4,var(--text3));margin-top:10px;line-height:1.65;background:#ffffff06;border-left:2px solid var(--line3);border-radius:0 6px 6px 0;padding:7px 9px}
 
   /* ===== 右下角实时帧率 ===== */
-  .fps-badge{position:fixed;right:12px;bottom:34px;z-index:80;display:flex;align-items:center;gap:6px;
-    height:26px;padding:0 10px;border-radius:13px;background:#12112bee;border:1px solid var(--line2);
-    font-size:11px;color:var(--text2);cursor:pointer;user-select:none;font-variant-numeric:tabular-nums;
-    transition:border-color .15s,color .15s;white-space:nowrap}
-  .fps-badge:hover{border-color:var(--line3);color:var(--text)}
-  .fps-badge .fps-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);flex-shrink:0}
-  .fps-badge.warn .fps-dot{background:#F5A623;box-shadow:0 0 6px #F5A623}
-  .fps-badge.bad .fps-dot{background:var(--red);box-shadow:0 0 6px var(--red)}
-  .fps-badge .fps-val{font-weight:600;min-width:20px;text-align:right}
-  .fps-badge .fps-unit{font-size:9px;color:var(--text3)}
-  .fps-badge .fps-detail{display:none;font-size:10px;color:var(--text3)}
-  .fps-badge.expanded .fps-detail{display:inline}
+  /* .fps-badge 全套已抽到 shared.css（审计 4.2：与 editor.html 逐字重复） */
 
   /* Status bar */
   .status{height:26px;display:flex;align-items:center;padding:0 14px;gap:18px;background:var(--panel);border-top:1px solid var(--line2);font-size:11px;color:var(--text3);flex-shrink:0}
@@ -139,6 +121,8 @@
   body.embed .fps-badge{display:none}
   body.embed .canvas-wrap{background:transparent}
 </style>
+<!-- 跨页面共享样式（.tbtn / .zoom-box / .fps-badge，审计 4.1/4.2）；导出单文件时会被内联 -->
+<link rel="stylesheet" href="shared.css">
 </head>
 <body data-page-node-id="JSrUubaXSNCRTmqdXMQCco">
 <div id="app" data-page-node-id="vPHpn66ivG9lqhpDbeHneX">
@@ -240,6 +224,12 @@
   const layerTop = el('layerTop');
   const layerFlow = el('layerFlow');
   const mk = tag => document.createElementNS(NS, tag);
+
+  /* 布局令牌与视口范围（审计 6.2 / 6.5）：唯一来源是 editor.js 顶部的设计令牌块
+     （MONITOR_ROW_H / MONITOR_PAD_V / LABEL_* / VIEW_ZOOM_* 与 pipeLabelWidth）。
+     本页不再各写一份字面量 —— 原来预览页缩放区间是 0.2~4、编辑器 0.3~3，同一画布两页不一致。
+     这些常量由 editor.js 在全局词法环境中声明，本 IIFE 直接按名引用（与 TEMPLATES 同理）；
+     刻意不加 typeof 兜底：editor.js 加载失败时本页本就无法渲染，静默降级只会掩盖时序问题（审计 3.4）。 */
 
   /* ============================================================
    * 数据接入配置：唯一数据源为后端实时API，无模拟数据
@@ -522,10 +512,9 @@
       applyPipesFrom(comp.id);   // 该组件的输出线配色随之刷新（停止 → 停止色）
     });
   }
-  // 兼容旧名：早先导出的单文件 HTML 仍可能按名调用
-  function refreshScrewConveyorRun(m, d){ return refreshRunState(m, d); }
-  function refreshFilterPressRun(m, d){ return refreshRunState(m, d); }
-  function refreshPendulumMillRun(m, d){ return refreshRunState(m, d); }
+  /* 兼容旧名（refreshScrewConveyorRun / refreshFilterPressRun / refreshPendulumMillRun）
+     已删除：原来在此复制了一份 IIFE 局部函数，外部（含导出单文件里的内联 handler）
+     根本调不到，属无效垫片；唯一来源改为 editor.js 的集中定义（审计 4.10）。 */
 
   // 反应釜：绑定液位 tag（levelTag）时按实时值/满量程换算液面高度并同步读数；
   // 未绑定 / 无数据 → 保持 60% 静态示意、读数显示 --（渲染时已如此）
@@ -779,7 +768,7 @@
     el('stZoom').textContent = pct;
   }
   function zoomBy(f){
-    zoom = Math.max(0.2, Math.min(4, zoom*f));
+    zoom = Math.max(VIEW_ZOOM_MIN, Math.min(VIEW_ZOOM_MAX, zoom*f));
     applyView();
   }
   function zoomFit(){
@@ -893,10 +882,10 @@
     if(p.monitorTag2!=null) delete p.monitorTag2;
     if(p.showLead===undefined) p.showLead = true;
   }
-  // 面板高度随监控项数量自适应（与 editor.js monitorAutoHeight 保持一致）
+  // 面板高度随监控项数量自适应（行高/留白取 editor.js 的设计令牌，审计 6.2）
   function monitorAutoHeightPreview(props){
     const n = (props && Array.isArray(props.monitorTags)) ? props.monitorTags.length : 0;
-    return Math.max(n,1)*17 + 4;
+    return Math.max(n,1)*MONITOR_ROW_H + MONITOR_PAD_V;
   }
   // 归属折线终点：按 lead 目标类型解析世界坐标（无 lead 返回 null，不画线）
   function monitorLeadTargetPreview(comp){
@@ -1013,15 +1002,15 @@
       g.appendChild(path);
       if(pipe.label){
         const mid = pointAlongPath(pts, pipe.labelPos==null ? 0.5 : pipe.labelPos);
-        const tw = pipe.label.length*7+8;
+        const tw = pipeLabelWidth(pipe.label);
         const bg = mk('rect');
-        bg.setAttribute('x', mid.x-tw/2); bg.setAttribute('y', mid.y-9);
-        bg.setAttribute('width', tw); bg.setAttribute('height', 16); bg.setAttribute('rx',3);
+        bg.setAttribute('x', mid.x-tw/2); bg.setAttribute('y', mid.y+LABEL_BOX_DY);
+        bg.setAttribute('width', tw); bg.setAttribute('height', LABEL_BOX_H); bg.setAttribute('rx',3);
         bg.setAttribute('fill','#12112Bee'); bg.setAttribute('stroke', col); bg.setAttribute('stroke-width',0.8);
         g.appendChild(bg);
         const tx = mk('text');
-        tx.setAttribute('x', mid.x); tx.setAttribute('y', mid.y+3);
-        tx.setAttribute('text-anchor','middle'); tx.setAttribute('font-size','10'); tx.setAttribute('fill', col);
+        tx.setAttribute('x', mid.x); tx.setAttribute('y', mid.y+LABEL_TEXT_DY);
+        tx.setAttribute('text-anchor','middle'); tx.setAttribute('font-size', String(LABEL_FONT_SIZE)); tx.setAttribute('fill', col);
         tx.setAttribute('font-family','inherit'); tx.textContent = pipe.label;
         g.appendChild(tx);
       }
@@ -1584,7 +1573,7 @@
     const vb = svg.viewBox.baseVal;
     const wx = vb.x + mx*vb.width/rect.width, wy = vb.y + my*vb.height/rect.height;
     const f = e.deltaY<0 ? 1.12 : 0.89;
-    const newZoom = Math.max(0.2, Math.min(4, zoom*f));
+    const newZoom = Math.max(VIEW_ZOOM_MIN, Math.min(VIEW_ZOOM_MAX, zoom*f));
     const ratio = newZoom/zoom;
     panX = wx - (wx-vb.x)/ratio;
     panY = wy - (wy-vb.y)/ratio;
