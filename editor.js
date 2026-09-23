@@ -926,15 +926,13 @@ function bindMonitorTagSearch(comp){
   const suggest = $('monTagSuggest');
   const renderSuggest = (q)=>{
     if(!suggest) return;
-    const cand = new Map();
-    sensorCatalog.forEach(x=>cand.set(x.tag, x));
-    if(!sensorCatalog.length) KNOWN_TAGS.forEach(t=>cand.set(t, {}));
-    docTags().forEach(t=>{ if(!cand.has(t)) cand.set(t, {}); });
+    const cand = tagCandidates();
     const qq=(q||'').trim().toUpperCase();
     let list = Array.from(cand.entries()).filter(([t])=> !qq || t.toUpperCase().includes(qq));
     list = list.slice(0,10);
-    if(!list.length){ suggest.innerHTML=''; return; }
-    suggest.innerHTML = list.map(([t,meta])=>`<div class="ts-item" data-t="${esc(t)}">${esc(t)}${(meta.type||'')?`<span class="ts-type">${esc(meta.type)}</span>`:''}</div>`).join('');
+    const offline = sensorCatalog.length ? '' : TAG_OFFLINE_HINT;
+    if(!list.length){ suggest.innerHTML = offline; return; }
+    suggest.innerHTML = offline + list.map(([t,meta])=>`<div class="ts-item" data-t="${esc(t)}">${esc(t)}${(meta.type||'')?`<span class="ts-type">${esc(meta.type)}</span>`:''}</div>`).join('');
     suggest.querySelectorAll('.ts-item').forEach(it=>{
       it.onclick = ()=>{
         const tags = comp.props.monitorTags = comp.props.monitorTags || [];
@@ -985,14 +983,12 @@ function bindRunTagSearch(comp){
   };
   const renderSuggest = (q)=>{
     if(!suggest) return;
-    const cand = new Map();
-    sensorCatalog.forEach(x=>cand.set(x.tag, x));
-    if(!sensorCatalog.length) KNOWN_TAGS.forEach(t=>cand.set(t, {}));
-    docTags().forEach(t=>{ if(!cand.has(t)) cand.set(t, {}); });
+    const cand = tagCandidates();
     const qq=(q||'').trim().toUpperCase();
     const list = Array.from(cand.entries()).filter(([t])=> !qq || t.toUpperCase().includes(qq)).slice(0,10);
-    if(!list.length){ suggest.innerHTML=''; return; }
-    suggest.innerHTML = list.map(([t,meta])=>`<div class="ts-item" data-t="${esc(t)}">${esc(t)}${(meta.type||'')?`<span class="ts-type">${esc(meta.type)}</span>`:''}</div>`).join('');
+    const offline = sensorCatalog.length ? '' : TAG_OFFLINE_HINT;
+    if(!list.length){ suggest.innerHTML = offline; return; }
+    suggest.innerHTML = offline + list.map(([t,meta])=>`<div class="ts-item" data-t="${esc(t)}">${esc(t)}${(meta.type||'')?`<span class="ts-type">${esc(meta.type)}</span>`:''}</div>`).join('');
     suggest.querySelectorAll('.ts-item').forEach(it=>{
       it.onclick = ()=>{
         if(addTag(it.dataset.t)){ pushHistory(); renderRunTagList(comp); renderAll(); setDirty(); }
@@ -2103,15 +2099,25 @@ function renderProps(){
  * 12. 属性面板：运行参数（Tag）管理模式
  *   新增 / 修改 / 删除 / 排序(上下移) / 搜索筛选 / 检索添加
  * ============================================================ */
-const KNOWN_TAGS = ['TI206A','TI206B','TI206E','TI806E','PI206','PI806','LI201','LI202',
-  'FE201','FE202','FV201','FV204','V908G','V908F','W0201','W0202','W0203A','M0203B',
-  'PH_V908','TEMP_V908','SPEED_V908','LEVEL','PRES','FLOW','VIB'];
+/* 审计 4.1：原 KNOWN_TAGS 硬编码清单（25 个位号实测 100% 不在后端目录）已废弃。
+   检索候选改为单一来源 tagCandidates()：后端目录 + 文档现有位号；
+   后端未连接时不再回退硬编码清单，而是显式提示"未连接后端，无法校验位号"。 */
 
 let tagFilter = '';   // 搜索筛选关键字
 
 // —— 后端传感器目录 / 实时值缓存（tag 检索添加与实时数值用）——
 let sensorCatalog = [];   // [{tag, type, kiln_id}]
 let sensorValueMap = {};  // tag -> {value, unit, reported_at}
+
+// 检索候选单一来源（审计 2.8/4.1）：后端目录（优先）+ 文档现有位号。
+// 目录未加载（离线）时不含任何硬编码回退 —— 由调用方提示 TAG_OFFLINE_HINT。
+function tagCandidates(){
+  const cand = new Map();
+  sensorCatalog.forEach(x=>cand.set(x.tag, x));
+  docTags().forEach(t=>{ if(!cand.has(t)) cand.set(t, {}); });
+  return cand;
+}
+const TAG_OFFLINE_HINT = '<div class="ts-hint" style="padding:6px 8px;font-size:11px;color:var(--text3);cursor:default">未连接后端，无法校验位号</div>';
 
 /* ============================================================
  * 13. 实时数据：基础设施（目录与实时值缓存，监控器/窑温共用）
@@ -2141,7 +2147,7 @@ async function loadSensorCatalog(){
         if(comp && tq) renderTagSuggest(comp, tq.value||'');
       }
     }
-  }catch(e){ logSensorFailure('传感器目录拉取', e); }   // 失败可观测；检索仍回退 KNOWN_TAGS
+  }catch(e){ logSensorFailure('传感器目录拉取', e); }   // 失败可观测；离线时检索只剩文档现有位号并提示无法校验
 }
 
 // 拉取全部传感器实时值到缓存（type 一并缓存，供监控器面板"开/关"显示使用）
@@ -2334,20 +2340,18 @@ function bindTagSearch(comp){
   tq.onblur = ()=>{ setTimeout(()=>{ const s=$('tagSuggest'); if(s) s.innerHTML=''; },150); };
 }
 // 渲染候选 tag 下拉（模糊匹配，排除已添加）
-//   候选来源：后端传感器目录（优先）> KNOWN_TAGS 预设 > 文档现有 tag
+//   候选来源：tagCandidates()（后端目录 > 文档现有 tag）；离线时显式提示无法校验位号
 function renderTagSuggest(comp, q){
   const s = $('tagSuggest'); if(!s) return;
   const existing = new Set((comp.props.params||[]).map(p=>p.k));
-  const cand = new Map();   // tag -> {type, kiln_id}
-  sensorCatalog.forEach(x=>cand.set(x.tag, x));
-  if(!sensorCatalog.length) KNOWN_TAGS.forEach(t=>cand.set(t, {}));   // 目录未加载时回退
-  docTags().forEach(t=>{ if(!cand.has(t)) cand.set(t, {}); });
+  const cand = tagCandidates();   // tag -> {type, kiln_id}
   const qq = (q||'').trim().toUpperCase();
   let list = Array.from(cand.entries()).filter(([t])=>!existing.has(t));
   if(qq) list = list.filter(([t])=>t.toUpperCase().includes(qq));
   list = list.slice(0,10);
-  if(!list.length){ s.innerHTML=''; return; }
-  s.innerHTML = list.map(([t,meta])=>{
+  const offline = sensorCatalog.length ? '' : TAG_OFFLINE_HINT;
+  if(!list.length){ s.innerHTML = offline; return; }
+  s.innerHTML = offline + list.map(([t,meta])=>{
     const type = (meta.type||'').trim();
     return `<div class="ts-item" data-t="${esc(t)}">${esc(t)}${type?`<span class="ts-type">${esc(type)}</span>`:''}</div>`;
   }).join('');
@@ -2922,6 +2926,34 @@ function projectProblemText(problems){
 // 组装保存数据（含配置参数与元信息）
 // reviver 过滤运行时缓存字段（_pts/_segs 等下划线开头），避免写入存档
 function stripRuntimeFields(v){ return typeof v==='string' ? JSON.parse(v, (k,val)=> k.charAt(0)==='_' ? undefined : val) : v; }
+/* 位号有效性批量校验（审计 §数据一致性 4.3）：保存/载入时收集
+   params[].k / runTags[].tag / monitorTags[].tag 与后端目录比对，
+   失效位号汇总告警（告警不阻断保存/载入）。目录未加载（离线）时不判定失效，
+   只显式提示"未连接后端，无法校验位号"。 */
+function collectDocTags(d){
+  const out = new Set();
+  ((d && d.components) || []).forEach(c=>{
+    const p = (c && c.props) || {};
+    (p.params||[]).forEach(x=>{ const t = String((x && x.k)||'').trim(); if(t) out.add(t); });
+    (p.runTags||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });
+    (p.monitorTags||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });
+  });
+  return Array.from(out);
+}
+function warnUnknownTags(when){
+  if(!sensorCatalog.length){
+    console.warn('[TAG] 未连接后端，无法校验位号（' + when + '）');
+    flash('未连接后端，无法校验位号');
+    return;
+  }
+  const known = new Set(sensorCatalog.map(x=>x.tag));
+  const unknown = collectDocTags(doc).filter(t=>!known.has(t));
+  if(!unknown.length) return;
+  const shown = unknown.slice(0,10).join('\n');
+  alert(when + '位号校验：以下 ' + unknown.length + ' 个位号不在后端传感器目录中，对应参数将显示 "--"：\n\n'
+    + shown + (unknown.length>10 ? '\n…（共 ' + unknown.length + ' 个）' : ''));
+}
+
 function buildProjectData(){
   return {
     type: 'pfd-project',
@@ -2949,6 +2981,7 @@ function applyProjectData(data){
   selClear(); histStack=[]; histIdx=-1; pushHistory();
   renderAll(); renderProps();
   setDirty(false);
+  warnUnknownTags('载入');   // 位号批量校验（审计 §数据一致性 4.3）：失效位号汇总告警
   // 恢复视图
   setTimeout(zoomFit, 50);
 }
@@ -2956,6 +2989,7 @@ function applyProjectData(data){
 // 另存为本地文件（File System Access API，回退为下载）
 // 项目库面板内的次要入口，保留"存到磁盘任意位置"的原有能力
 async function saveProjectToLocalFile(){
+  warnUnknownTags('保存');   // 位号批量校验（审计 §数据一致性 4.3）：失效位号汇总告警，不阻断保存
   try{
     const data = buildProjectData();
     const json = JSON.stringify(data, null, 2);
@@ -3235,6 +3269,7 @@ function renderProjectRows(files){
 
 // 保存到项目库（同名覆盖）
 async function saveToLibrary(name){
+  warnUnknownTags('保存');   // 位号批量校验（审计 §数据一致性 4.3）：失效位号汇总告警，不阻断保存
   const target = projFileName(name);
   const data = buildProjectData();
   const json = JSON.stringify(data, null, 2);

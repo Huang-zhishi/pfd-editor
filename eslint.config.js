@@ -26,7 +26,7 @@ const PROJECT_GLOBALS = {
   routePipe: 'readonly',
   running: 'writable',
   sensorValueMap: 'writable',
-  KNOWN_TAGS: 'readonly',
+
 };
 
 const RULES = {
