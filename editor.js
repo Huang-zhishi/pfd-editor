@@ -379,7 +379,8 @@ function compRunState(comp, liveMap){
     const tag = String((it && it.tag) || '').trim();
     if(!tag) return;
     const live = map ? map[tag] : null;
-    const v = live && isFinite(+live.value) ? +live.value : null;
+    const raw = live ? live.value : null;
+    const v = (raw==null || raw==='') ? null : (isFinite(+raw) ? +raw : null);
     values.push({ tag, value:v, on: v==null ? null : v>=0.5 });
   });
   if(!values.length) return { bound:false, run:true, logic, values };
@@ -2602,8 +2603,10 @@ function refreshSwitchValveAuto(liveMap, docArg){
     const tagB = (comp.props.sensorB||'').trim();
     const liveA = tagA ? liveMap[tagA] : null;
     const liveB = tagB ? liveMap[tagB] : null;
-    const vA = liveA && isFinite(+liveA.value) ? +liveA.value : null;
-    const vB = liveB && isFinite(+liveB.value) ? +liveB.value : null;
+    const rawA = liveA ? liveA.value : null;
+    const rawB = liveB ? liveB.value : null;
+    const vA = (rawA==null || rawA==='') ? null : (isFinite(+rawA) ? +rawA : null);
+    const vB = (rawB==null || rawB==='') ? null : (isFinite(+rawB) ? +rawB : null);
     const aOn = vA!=null && vA>=0.5;
     const bOn = vB!=null && vB>=0.5;
     let autoActive;
