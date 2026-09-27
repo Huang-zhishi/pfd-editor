@@ -758,6 +758,19 @@
   // 视图状态
   // ============================================================
   let zoom = 1.05, panX = 0, panY = 0;
+  /* 预览视图（缩放/平移）按浏览器本地保存：每个用户保留自己喜欢的预览大小与位置 */
+  const __VIEW_KEY = 'pfd_view:v1:' + location.pathname;
+  let __viewSaveTimer = null;
+  try {
+    const __v = JSON.parse(localStorage.getItem(__VIEW_KEY) || 'null');
+    if (__v && typeof __v.zoom === 'number') { zoom = __v.zoom; panX = __v.panX || 0; panY = __v.panY || 0; }
+  } catch (e) { /* localStorage 不可用时忽略 */ }
+  function __saveView(){
+    clearTimeout(__viewSaveTimer);
+    __viewSaveTimer = setTimeout(function(){
+      try { localStorage.setItem(__VIEW_KEY, JSON.stringify({ zoom: zoom, panX: panX, panY: panY })); } catch (e) {}
+    }, 300);
+  }
   let running = true;
   let flowRAF = null;
   let liveTimer = null;
@@ -769,6 +782,7 @@
     const pct = Math.round(zoom*100)+'%';
     el('zoomVal').textContent = pct;
     el('stZoom').textContent = pct;
+    __saveView();
   }
   function zoomBy(f){
     zoom = Math.max(VIEW_ZOOM_MIN, Math.min(VIEW_ZOOM_MAX, zoom*f));
