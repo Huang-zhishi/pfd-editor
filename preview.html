@@ -761,10 +761,14 @@
   /* 预览视图（缩放/平移）按浏览器本地保存：每个用户保留自己喜欢的预览大小与位置 */
   const __VIEW_KEY = 'pfd_view:v1:' + location.pathname;
   let __viewSaveTimer = null;
-  try {
-    const __v = JSON.parse(localStorage.getItem(__VIEW_KEY) || 'null');
-    if (__v && typeof __v.zoom === 'number') { zoom = __v.zoom; panX = __v.panX || 0; panY = __v.panY || 0; }
-  } catch (e) { /* localStorage 不可用时忽略 */ }
+  function __restoreView(){
+    try {
+      const __v = JSON.parse(localStorage.getItem(__VIEW_KEY) || 'null');
+      if (__v && typeof __v.zoom === 'number') { zoom = __v.zoom; panX = __v.panX || 0; panY = __v.panY || 0; return true; }
+    } catch (e) { /* localStorage 不可用时忽略 */ }
+    return false;
+  }
+  __restoreView();
   function __saveView(){
     clearTimeout(__viewSaveTimer);
     __viewSaveTimer = setTimeout(function(){
@@ -1664,7 +1668,7 @@
         const parsed = loadDoc(d, 'EMBED.load');
         if(!parsed) return;      // 解析/校验失败已在 loadDoc 内告警，不覆盖当前画面
         doc = parsed;
-        zoom = 1.05; panX = 0; panY = 0;
+        if(!__restoreView()){ zoom = 1.05; panX = 0; panY = 0; }
         render(); applyView();
         // 关键：用新 doc 重建数据适配器，否则传感器目录为空导致悬浮面板无数据
         initAdapter();
