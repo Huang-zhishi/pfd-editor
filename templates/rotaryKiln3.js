@@ -40,8 +40,7 @@ TEMPLATES.rotaryKiln3 = {
     { id:'fuel',      x:.9713, y:.50, dir:'right' },  // 燃烧器 / 喷煤管
     { id:'outlet',    x:1,    y:.86, dir:'right' },  // 出料（窑头罩）
     { id:'flueGas',   x:.0785, y:.10, dir:'up'   },  // 烟气出口
-    { id:'gasTop',    x:0,    y:.27, dir:'left'  },  // 天然气（上：供加热 2/4 区）
-    { id:'gasBottom', x:0,    y:.73, dir:'left'  }   // 天然气（下：供加热 1/3/5 区）
+    { id:'gasIn',     x:1,    y:.27, dir:'right' }   // 天然气入口（窑头侧引入，带手动旋钮阀）
   ],
   render: (w,h,p)=>{
     const c = (p && p.color) || '#9C99FF';
@@ -55,6 +54,7 @@ TEMPLATES.rotaryKiln3 = {
     const drumL = w*0.10, drumR = w*0.86, drumW = drumR-drumL;
     const cy = h*0.50, R = h*0.115;
     const drumTop = cy-R, drumBot = cy+R;
+    const rotDur = 6;   // 筒体旋转周期（s），旋转标记 / 螺栓 / 托轮共用
 
     /* ---------- 温区累加（x0/x1/cx 为筒体相对比例；用副本避免污染模块常量） ---------- */
     const zones = RK3_ZONES.map(z=>({ n:z.n, f:z.f }));
@@ -115,32 +115,49 @@ TEMPLATES.rotaryKiln3 = {
     });
 
     /* ---------- 天然气管路（黄管） ---------- */
+    /* ---------- 天然气管路（黄管）----------
+     * 一上一下、对角布置：上管供加热 2/4 区，下管供加热 1/3/5 区。
+     * 两管不伸向窑尾（左）；而是在窑头侧（右）由立管汇合，
+     * 经天然气入口管 + 手动旋钮阀自右侧引入。 */
     const YEL = '#F2E27A', YEL_D = '#A98F1E';
     const pw = clamp(K*2.6, 1.8, 5);
     const gasTopY = h*0.27, gasBotY = h*0.73;
-    const gasTopX1 = drumL + drumW*0.95, gasBotX1 = drumL + drumW*0.95;
+    const manifoldX = w*0.845;                                 // 右侧立管（汇合上/下管）
+    const topLeftX  = drumL + drumW*0.56;                      // 上管左端 = 加热2区左缘
+    const botLeftX  = drumL + drumW*0.47;                      // 下管左端 = 加热1区左缘
     const dropX = [0.605, 0.785].map(f=>drumL+drumW*f);        // 加热2区、加热4区
     const riseX = [0.515, 0.695, 0.875].map(f=>drumL+drumW*f);  // 加热1、3、5区
     const yLine = (x1,y1,x2,y2)=>`
       <line x1="${F(x1)}" y1="${F(y1)}" x2="${F(x2)}" y2="${F(y2)}" stroke="${YEL_D}" stroke-width="${F(pw+1.4)}" stroke-linecap="round"/>
       <line x1="${F(x1)}" y1="${F(y1)}" x2="${F(x2)}" y2="${F(y2)}" stroke="${YEL}" stroke-width="${F(pw)}" stroke-linecap="round"/>`;
     let gas = '';
-    // 上管：主横管 + 供加热 2/4 区的下降支管（含切断阀 + 烧嘴）
-    gas += yLine(0, gasTopY, gasTopX1, gasTopY);
+    // 上管（供加热 2/4 区）：主横管 + 下降支管（切断阀 + 烧嘴）
+    gas += yLine(topLeftX, gasTopY, manifoldX, gasTopY);
     dropX.forEach(x=>{
       gas += yLine(x, gasTopY, x, drumTop);
       gas += yLine(x-pw*1.5, gasTopY, x+pw*1.5, gasTopY);
       gas += `<rect x="${F(x-pw*1.5)}" y="${F(gasTopY+pw*0.6)}" width="${F(pw*3)}" height="${F(pw*1.6)}" rx="1" fill="${YEL}" stroke="${YEL_D}" stroke-width="0.6"/>`;
       gas += `<rect x="${F(x-pw*1.7)}" y="${F(drumTop-pw*0.9)}" width="${F(pw*3.4)}" height="${F(pw*1.5)}" rx="1" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
     });
-    // 下管：主横管 + 供加热 1/3/5 区的上升支管（含切断阀 + 烧嘴）
-    gas += yLine(0, gasBotY, gasBotX1, gasBotY);
+    // 下管（供加热 1/3/5 区）：主横管 + 上升支管（切断阀 + 烧嘴）
+    gas += yLine(botLeftX, gasBotY, manifoldX, gasBotY);
     riseX.forEach(x=>{
       gas += yLine(x, gasBotY, x, drumBot);
       gas += yLine(x-pw*1.5, gasBotY, x+pw*1.5, gasBotY);
       gas += `<rect x="${F(x-pw*1.5)}" y="${F(gasBotY-pw*2.2)}" width="${F(pw*3)}" height="${F(pw*1.6)}" rx="1" fill="${YEL}" stroke="${YEL_D}" stroke-width="0.6"/>`;
       gas += `<rect x="${F(x-pw*1.7)}" y="${F(drumBot-pw*0.6)}" width="${F(pw*3.4)}" height="${F(pw*1.5)}" rx="1" fill="#2a2f45" stroke="#3f445c" stroke-width="0.7"/>`;
     });
+    // 右侧立管：汇合上/下管；再自右侧水平引入天然气入口管
+    gas += yLine(manifoldX, gasTopY, manifoldX, gasBotY);
+    gas += yLine(manifoldX, gasTopY, w, gasTopY);
+    // 手动旋钮阀（阀体 + 阀杆 + 手轮）
+    const knobCX = (manifoldX + w)/2, knobCY = gasTopY;
+    const knobR = clamp(K*4, 3, 8), knobStem = clamp(K*7, 5, 12);
+    gas += `<rect x="${F(knobCX-pw*1.4)}" y="${F(knobCY-pw*1.4)}" width="${F(pw*2.8)}" height="${F(pw*2.8)}" rx="1" fill="${YEL}" stroke="${YEL_D}" stroke-width="0.7"/>`;
+    gas += `<line x1="${F(knobCX)}" y1="${F(knobCY-pw*1.4)}" x2="${F(knobCX)}" y2="${F(knobCY-knobStem)}" stroke="#8e96b6" stroke-width="${F(clamp(K*1.2,0.8,1.8))}"/>`;
+    gas += `<circle cx="${F(knobCX)}" cy="${F(knobCY-knobStem)}" r="${F(knobR)}" fill="#12162b" stroke="#8e96b6" stroke-width="${F(clamp(K*1.4,1,2))}"/>`;
+    gas += `<line x1="${F(knobCX-knobR)}" y1="${F(knobCY-knobStem)}" x2="${F(knobCX+knobR)}" y2="${F(knobCY-knobStem)}" stroke="#8e96b6" stroke-width="${F(clamp(K*0.9,0.6,1.4))}"/>`;
+    gas += `<line x1="${F(knobCX)}" y1="${F(knobCY-knobStem-knobR)}" x2="${F(knobCX)}" y2="${F(knobCY-knobStem+knobR)}" stroke="#8e96b6" stroke-width="${F(clamp(K*0.9,0.6,1.4))}"/>`;
 
     /* ---------- 窑尾罩（左）+ 进料 + 烟气 ---------- */
     const hoodL = w*0.057, hoodW = drumL-hoodL;
@@ -231,14 +248,25 @@ TEMPLATES.rotaryKiln3 = {
     /* ---------- 托轮组 + 轴承座（位于筒体下方，天然气下管之上） ---------- */
     const rollerCY = drumBot + R*0.30, rollerR = clamp(R*0.20, 3, 9);
     const rollOff = R*0.34, rollGap = clamp(K*2, 1, 3);
+    const rollDur = (rotDur*0.45).toFixed(2);
+    const drawRoller = (rx, ry, dir)=>{
+      let spokes = '';
+      for(let i=0;i<4;i++){
+        const a = i*Math.PI/2;
+        spokes += `<line x1="${F(rx)}" y1="${F(ry)}" x2="${F(rx+Math.cos(a)*rollerR*0.72)}" y2="${F(ry+Math.sin(a)*rollerR*0.72)}" stroke="#9aa2bc" stroke-width="0.8" opacity="0.5"/>`;
+      }
+      return `<g>
+        <animateTransform attributeName="transform" type="rotate" from="${dir>0?0:360} ${F(rx)} ${F(ry)}" to="${dir>0?360:0} ${F(rx)} ${F(ry)}" dur="${rollDur}s" repeatCount="indefinite"/>
+        <circle cx="${F(rx)}" cy="${F(ry)}" r="${F(rollerR)}" fill="url(#${metalId})" stroke="#3f445c" stroke-width="1"/>
+        ${spokes}
+        <circle cx="${F(rx)}" cy="${F(ry)}" r="${F(rollerR*0.28)}" fill="#12162b" stroke="#6a7192" stroke-width="0.6"/>
+      </g>`;
+    };
     let supports = '';
     tireXs.forEach(tx=>{
       const bearW = rollerR*2.4, bearH = clamp(rollerR*0.9, 3, 10), bearY = rollerCY+rollerR;
-      supports += `<circle cx="${F(tx-rollOff)}" cy="${F(rollerCY)}" r="${F(rollerR)}" fill="url(#${metalId})" stroke="#3f445c" stroke-width="1"/>
-        <circle cx="${F(tx+rollOff)}" cy="${F(rollerCY)}" r="${F(rollerR)}" fill="url(#${metalId})" stroke="#3f445c" stroke-width="1"/>
-        <circle cx="${F(tx-rollOff)}" cy="${F(rollerCY)}" r="${F(rollerR*0.28)}" fill="#12162b" stroke="#6a7192" stroke-width="0.6"/>
-        <circle cx="${F(tx+rollOff)}" cy="${F(rollerCY)}" r="${F(rollerR*0.28)}" fill="#12162b" stroke="#6a7192" stroke-width="0.6"/>
-        <rect x="${F(tx-bearW/2)}" y="${F(bearY)}" width="${F(bearW)}" height="${F(bearH)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.9"/>
+      supports += drawRoller(tx-rollOff, rollerCY, 1) + drawRoller(tx+rollOff, rollerCY, -1)
+        + `<rect x="${F(tx-bearW/2)}" y="${F(bearY)}" width="${F(bearW)}" height="${F(bearH)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.9"/>
         <rect x="${F(tx-bearW/2-rollGap)}" y="${F(bearY+bearH)}" width="${F(bearW+2*rollGap)}" height="${F(clamp(bearH*0.5,2,5))}" fill="#0c1020" stroke="#6a7192" stroke-width="0.7"/>`;
     });
 
@@ -286,17 +314,55 @@ TEMPLATES.rotaryKiln3 = {
       tempBottom += `<text class="kiln-zone-val" data-zoneidx="${i}" x="${F(cx)}" y="${F(h*0.82)}" text-anchor="middle" font-size="${F(valFs)}" font-weight="bold" fill="#e8f6ff">${xesc(val)}</text>`;
     });
 
+    /* ---------- 筒体旋转标记 / 焊缝螺栓（模拟回转） ---------- */
+    const stripMargin = clamp(drumW*0.03, 3, 12);
+    const makeStrip = (phase, sw, color, opFront)=>{
+      const delay = -(phase*rotDur).toFixed(2);
+      let yv = [], ov = [];
+      for(let k=0;k<=20;k++){
+        const ang = ((k/20)+phase)*2*Math.PI, front = Math.cos(ang);
+        yv.push((cy + R*Math.sin(ang) - sw/2).toFixed(1));
+        ov.push(front>0.1 ? (opFront*front+0.04).toFixed(2) : '0');
+      }
+      return `<rect x="${F(drumL+stripMargin)}" y="${yv[0]}" width="${F(drumW-2*stripMargin)}" height="${F(sw)}" rx="${F(sw/2)}" fill="${color}" clip-path="url(#${clipId})">
+        <animate attributeName="y" values="${yv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="${ov.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/></rect>`;
+    };
+    let rotMarks = '';
+    rotMarks += makeStrip(0,    clamp(R*0.13, 1, 5),    c,         0.28);
+    rotMarks += makeStrip(0.35, clamp(R*0.06, 0.8, 2.5), '#d9dded', 0.18);
+    rotMarks += makeStrip(0.65, clamp(R*0.09, 1, 3.5),  c,         0.28);
+    rotMarks += makeStrip(0.85, clamp(R*0.05, 0.6, 2),  c,         0.22);
+
+    let ringBolts = '';
+    [0.30, 0.60, 0.90].forEach(f=>{
+      const wx = drumL + drumW*f;
+      for(let i=0;i<4;i++){
+        const phase = i/4, delay = -(phase*rotDur).toFixed(2);
+        let cyv = [], opv = [];
+        for(let k=0;k<=16;k++){
+          const ang = ((k/16)+phase)*2*Math.PI, front = Math.cos(ang);
+          cyv.push((cy + (R-clamp(R*0.07,0.6,2.5))*Math.sin(ang)).toFixed(1));
+          opv.push(front>0 ? (0.15+0.4*front).toFixed(2) : '0');
+        }
+        ringBolts += `<circle cx="${F(wx)}" cy="${cyv[0]}" r="${F(clamp(K*1.3,0.8,1.8))}" fill="${c}" clip-path="url(#${clipId})" opacity="${opv[0]}">
+          <animate attributeName="cy" values="${cyv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="${opv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/></circle>`;
+      }
+    });
+
     return `
       ${metalDef}${metalVDef}${drumDef}${tempGrad}${clipDef}${clipInDef}
       ${supports}
-      ${gas}
       ${drumBody}
       ${tempOverlay}
+      ${rotMarks}${ringBolts}
       ${material}${flames}
       ${zoneLines}${zoneLabels}
       ${tires}
       ${tailHood}
       ${headHood}
+      ${gas}
       ${tempTop}
       ${tempBottom}
     `;
