@@ -188,53 +188,23 @@ TEMPLATES.rotaryKiln3 = {
       <rect x="${F(burnX0-burnerR)}" y="${F(cy-burnerR)}" width="${F(Math.max(1,burnEndX-burnX0+burnerR))}" height="${F(burnerR*2)}" rx="${F(clamp(burnerR*0.4,1,3))}" fill="url(#${metalVId})" stroke="#3f445c" stroke-width="1"/>
       <rect x="${F(burnEndX-burnFlW)}" y="${F(cy-burnFlH/2)}" width="${F(burnFlW)}" height="${F(burnFlH)}" fill="#2a2f45" stroke="#3f445c" stroke-width="0.9"/>`;
 
-    /* ---------- 火焰（窑头侧，筒内，三层叠加） ---------- */
-    const flameStartX = drumR - drumW*0.02, flameLen = drumW*0.26, flameR = R*0.45;
-    let flames = '';
-    for(let fi=0; fi<3; fi++){
-      const fBaseY = cy+(fi-1)*R*0.1, fDelay = -(fi*0.4).toFixed(2);
-      let fl=[], ft=[], fr=[], fo=[];
-      for(let k=0;k<=16;k++){
-        const t=k/16;
-        fl.push((flameStartX-t*flameLen-Math.sin(t*4+fi)*flameLen*0.04).toFixed(1));
-        ft.push((fBaseY+Math.sin(t*3+fi*1.5)*flameR*0.4*(1-t*0.5)).toFixed(1));
-        fr.push((flameR-t*flameR*0.7).toFixed(1)); fo.push((0.85-t*0.68).toFixed(2));
-      }
-      flames += `<ellipse cx="${fl[0]}" cy="${ft[0]}" rx="${fr[0]}" ry="${fr[0]*0.7}" fill="#ff6a10" opacity="${fo[0]}" clip-path="url(#${clipInId})">
-        <animate attributeName="cx" values="${fl.join(';')}" dur="1.8s" begin="${fDelay}s" repeatCount="indefinite"/>
-        <animate attributeName="cy" values="${ft.join(';')}" dur="1.8s" begin="${fDelay}s" repeatCount="indefinite"/>
-        <animate attributeName="rx" values="${fr.join(';')}" dur="1.8s" begin="${fDelay}s" repeatCount="indefinite"/>
-        <animate attributeName="opacity" values="${fo.join(';')}" dur="1.8s" begin="${fDelay}s" repeatCount="indefinite"/></ellipse>`;
-    }
-    for(let fi=0; fi<2; fi++){
-      const fBaseY = cy+(fi-0.5)*R*0.08, fDelay = -(fi*0.3+0.2).toFixed(2);
-      let fl=[], ft=[], fr=[], fo=[];
-      for(let k=0;k<=12;k++){
-        const t=k/12;
-        fl.push((flameStartX-t*flameLen*0.72-Math.sin(t*5+fi)*flameLen*0.03).toFixed(1));
-        ft.push((fBaseY+Math.sin(t*4+fi)*flameR*0.25*(1-t*0.4)).toFixed(1));
-        fr.push((flameR*0.55-t*flameR*0.38).toFixed(1)); fo.push((0.95-t*0.7).toFixed(2));
-      }
-      flames += `<ellipse cx="${fl[0]}" cy="${ft[0]}" rx="${fr[0]}" ry="${fr[0]*0.6}" fill="#ffdd44" opacity="${fo[0]}" clip-path="url(#${clipInId})">
-        <animate attributeName="cx" values="${fl.join(';')}" dur="1.2s" begin="${fDelay}s" repeatCount="indefinite"/>
-        <animate attributeName="cy" values="${ft.join(';')}" dur="1.2s" begin="${fDelay}s" repeatCount="indefinite"/>
-        <animate attributeName="rx" values="${fr.join(';')}" dur="1.2s" begin="${fDelay}s" repeatCount="indefinite"/>
-        <animate attributeName="opacity" values="${fo.join(';')}" dur="1.2s" begin="${fDelay}s" repeatCount="indefinite"/></ellipse>`;
-    }
-    {
-      let fl=[], ft=[], fr=[], fo=[];
-      for(let k=0;k<=12;k++){
-        const t=k/12;
-        fl.push((flameStartX-t*flameLen*0.42-Math.sin(t*6)*flameLen*0.02).toFixed(1));
-        ft.push((cy+Math.sin(t*4)*flameR*0.12).toFixed(1));
-        fr.push((flameR*0.3-t*flameR*0.22).toFixed(1)); fo.push((1-t*0.75).toFixed(2));
-      }
-      flames += `<ellipse cx="${fl[0]}" cy="${ft[0]}" rx="${fr[0]}" ry="${fr[0]*0.75}" fill="#fff6c8" opacity="${fo[0]}" clip-path="url(#${clipInId})">
-        <animate attributeName="cx" values="${fl.join(';')}" dur="1.1s" begin="-0.1s" repeatCount="indefinite"/>
-        <animate attributeName="cy" values="${ft.join(';')}" dur="1.1s" begin="-0.1s" repeatCount="indefinite"/>
-        <animate attributeName="rx" values="${fr.join(';')}" dur="1.1s" begin="-0.1s" repeatCount="indefinite"/>
-        <animate attributeName="opacity" values="${fo.join(';')}" dur="1.1s" begin="-0.1s" repeatCount="indefinite"/></ellipse>`;
-    }
+    /* ---------- 火焰（窑头燃烧器，单束，随运行轻微跳动） ----------
+     * 重要：三层必须同轴、不设相位偏移，否则会散成多团“火㕊”，
+     * 看上去像在各天然气接口处喷火。 */
+    const flameStartX = drumR - drumW*0.012, flameLen = drumW*0.14, flameR = R*0.42;
+    const flameLayers = [
+      { len: flameLen,      h: flameR,      col: '#ff6a10', op: 0.85 },
+      { len: flameLen*0.66, h: flameR*0.60, col: '#ffdd44', op: 0.95 },
+      { len: flameLen*0.38, h: flameR*0.32, col: '#fff6c8', op: 1.00 }
+    ];
+    let flames = flameLayers.map((L,i)=>{
+      const x0 = flameStartX, x1 = flameStartX - L.len;
+      const d = `M ${F(x0)} ${F(cy-L.h)} Q ${F(x0-L.len*0.3)} ${F(cy-L.h*1.05)} ${F(x1)} ${F(cy)} Q ${F(x0-L.len*0.3)} ${F(cy+L.h*1.05)} ${F(x0)} ${F(cy+L.h)} Z`;
+      const dur = (0.9+i*0.2).toFixed(2);
+      const oA = (L.op*0.78).toFixed(2), oB = L.op.toFixed(2), oC = (L.op*0.88).toFixed(2);
+      return `<path d="${d}" fill="${L.col}" opacity="${oB}" clip-path="url(#${clipInId})">
+        <animate attributeName="opacity" values="${oA};${oB};${oC};${oB};${oA}" dur="${dur}s" repeatCount="indefinite"/></path>`;
+    }).join('');
 
     /* ---------- 轮带（2 道，压在托轮上方） ---------- */
     const tireXs = [0.47, 0.74].map(f=>drumL+drumW*f);
@@ -314,25 +284,29 @@ TEMPLATES.rotaryKiln3 = {
       tempBottom += `<text class="kiln-zone-val" data-zoneidx="${i}" x="${F(cx)}" y="${F(h*0.82)}" text-anchor="middle" font-size="${F(valFs)}" font-weight="bold" fill="#e8f6ff">${xesc(val)}</text>`;
     });
 
-    /* ---------- 筒体旋转标记 / 焊缝螺栓（模拟回转） ---------- */
-    const stripMargin = clamp(drumW*0.03, 3, 12);
-    const makeStrip = (phase, sw, color, opFront)=>{
-      const delay = -(phase*rotDur).toFixed(2);
-      let yv = [], ov = [];
-      for(let k=0;k<=20;k++){
-        const ang = ((k/20)+phase)*2*Math.PI, front = Math.cos(ang);
-        yv.push((cy + R*Math.sin(ang) - sw/2).toFixed(1));
-        ov.push(front>0.1 ? (opFront*front+0.04).toFixed(2) : '0');
-      }
-      return `<rect x="${F(drumL+stripMargin)}" y="${yv[0]}" width="${F(drumW-2*stripMargin)}" height="${F(sw)}" rx="${F(sw/2)}" fill="${color}" clip-path="url(#${clipId})">
-        <animate attributeName="y" values="${yv.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
-        <animate attributeName="opacity" values="${ov.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/></rect>`;
-    };
+    /* ---------- 筒体旋转纹理 / 焊缝螺栓（模拟回转） ----------
+     * 用短斜纹阵而非长条：长条随筒体扫掠时很像一根“跟着转的管子”，
+     * 容易被误认为天然气管道；短斜纹可清楚表达是筒体表面的回转纹理。 */
+    const tickCols = 12, tickLen = clamp(R*0.32, 2, 9);
     let rotMarks = '';
-    rotMarks += makeStrip(0,    clamp(R*0.13, 1, 5),    c,         0.28);
-    rotMarks += makeStrip(0.35, clamp(R*0.06, 0.8, 2.5), '#d9dded', 0.18);
-    rotMarks += makeStrip(0.65, clamp(R*0.09, 1, 3.5),  c,         0.28);
-    rotMarks += makeStrip(0.85, clamp(R*0.05, 0.6, 2),  c,         0.22);
+    [0, 0.25, 0.5, 0.75].forEach(phase=>{
+      const delay = -(phase*rotDur).toFixed(2);
+      for(let ci=0; ci<tickCols; ci++){
+        const x = drumL + drumW*(ci+0.5)/tickCols;
+        let y1v = [], y2v = [], ov = [];
+        for(let k=0;k<=20;k++){
+          const ang = ((k/20)+phase)*2*Math.PI, front = Math.cos(ang);
+          const yc = cy + R*Math.sin(ang);
+          y1v.push((yc - tickLen/2).toFixed(1));
+          y2v.push((yc + tickLen/2).toFixed(1));
+          ov.push(front>0.1 ? (0.38*front+0.05).toFixed(2) : '0');
+        }
+        rotMarks += `<line x1="${F(x-tickLen*0.32)}" y1="${y1v[0]}" x2="${F(x+tickLen*0.32)}" y2="${y2v[0]}" stroke="${c}" stroke-width="${F(clamp(K*1,0.7,1.6))}" stroke-linecap="round" opacity="${ov[0]}" clip-path="url(#${clipId})">
+          <animate attributeName="y1" values="${y1v.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
+          <animate attributeName="y2" values="${y2v.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="${ov.join(';')}" dur="${rotDur}s" begin="${delay}s" repeatCount="indefinite"/></line>`;
+      }
+    });
 
     let ringBolts = '';
     [0.30, 0.60, 0.90].forEach(f=>{
