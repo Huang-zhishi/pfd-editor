@@ -1423,6 +1423,14 @@ function addComponent(type, x, y){
       { tag:'1#窑体温度TI_206F' }
     ];
   }
+  if(type==='rotaryKiln3'){
+    // 3#线回转窑：上方 11 个窑体测温点（驱动筒体温度色带 + 实时读数）
+    //             下方 8 个分温区读数（预热1/2区、加热1~5区、冷却区）
+    props.tempPoints = ['1#温度','2#温度','3#温度','4#温度','5#温度','6#温度','7#温度','8#温度','9#温度','10#温度','11#温度']
+      .map(label=>({ tag:'', label }));
+    props.zoneTemps = ['预热1区','预热2区','加热1区','加热2区','加热3区','加热4区','加热5区','冷却区']
+      .map(()=>({ tag:'' }));
+  }
   if(type==='productTankDual'){
     // 双格成品储罐：写入两格默认标注（默认值定义在 templates/productTankDual.js，模板与面板共用）
     Object.assign(props, productTankDualDefaults());
@@ -1922,11 +1930,18 @@ function renderProps(){
         </div>
       </div>
       ` : ''}
-      ${comp.type==='rotaryKiln' ? `
+      ${(comp.type==='rotaryKiln'||comp.type==='rotaryKiln3') ? `
       <div class="fg">
-        <div class="fg-title">窑体测温点（左→右颜色渐变）</div>
+        <div class="fg-title">${comp.type==='rotaryKiln3' ? '窑体测温点（上方 11 点）' : '窑体测温点（左→右颜色渐变）'}</div>
         <div class="kiln-temps" id="kilnTempList"></div>
-        <div class="fg-hint">4 个测温点对应窑体从左到右的颜色锚点，温度越高颜色越暖（暗红→橙→红→白热，全程无冷色）。填完整位号，如「1#窑体温度TI_206A」。</div>
+        <div class="fg-hint">${comp.type==='rotaryKiln3' ? '11 个测温点对应窑体从左到右的颜色锚点，温度越高颜色越暖；绑定位号后上方显示实时读数（可选自定义标签）。' : '4 个测温点对应窑体从左到右的颜色锚点，温度越高颜色越暖（暗红→橙→红→白热，全程无冷色）。填完整位号，如「1#窑体温度TI_206A」。'}</div>
+      </div>
+      ` : ''}
+      ${comp.type==='rotaryKiln3' ? `
+      <div class="fg">
+        <div class="fg-title">分温区读数（下方 8 区）</div>
+        <div class="kiln-temps" id="kilnZoneList"></div>
+        <div class="fg-hint">预热1/2区、加热1~5区、冷却区，逐区绑定壳体温度位号，绑定后显示在窑体下方对应温区位置。</div>
       </div>
       ` : ''}
       ${(comp.type==='reactor'||comp.type==='storageSilo') ? `
@@ -2066,8 +2081,11 @@ function renderProps(){
       bindCell('dtNameA','cellAName'); bindCell('dtTagA','cellATag');
       bindCell('dtNameB','cellBName'); bindCell('dtTagB','cellBTag');
     }
-    // 回转窑测温点配置
-    if(comp.type==='rotaryKiln') renderKilnTempList(comp);
+    // 回转窑 / 3#线回转窑：测温点配置（3#线另有下方 8 个分温区读数）
+    if(comp.type==='rotaryKiln' || comp.type==='rotaryKiln3'){
+      renderKilnTempList(comp);
+      if(comp.type==='rotaryKiln3') renderKilnZoneList(comp);
+    }
     // 通用水平镜像控制
     const mg = $('mirrorGroup');
     if(mg){ mg.querySelectorAll('.s-btn').forEach(b=>{ b.onclick=()=>{ comp.props.mirrored=+b.dataset.m===1; pushHistory(); renderAll(); renderProps(); setDirty(); }; }); }
@@ -2370,6 +2388,8 @@ function docTags(){
   doc.components.forEach(c=>{
     if(c.props && c.props.tag) s.add((c.props.tag||'').trim());
     if(c.props && Array.isArray(c.props.params)) c.props.params.forEach(p=>{ if(p.k) s.add((p.k||'').trim()); });
+    if(c.props && Array.isArray(c.props.tempPoints)) c.props.tempPoints.forEach(x=>{ if(x && x.tag) s.add((x.tag||'').trim()); });
+    if(c.props && Array.isArray(c.props.zoneTemps)) c.props.zoneTemps.forEach(x=>{ if(x && x.tag) s.add((x.tag||'').trim()); });
   });
   return s;
 }
@@ -2479,19 +2499,47 @@ function renderPropsLive(){
   set('pW', Math.round(comp.w)); set('pH', Math.round(comp.h));
 }
 
-// 回转窑属性面板：窑体测温点（tag → 颜色锚点）配置列表
+// 回转窑 / 3#线回转窑属性面板：窑体测温点（tag → 颜色锚点）配置列表
+// rotaryKiln：4 点、无标签输入；rotaryKiln3：默认 11 点、可自定义标签
 function renderKilnTempList(comp){
   const el = $('kilnTempList'); if(!el) return;
   el.innerHTML = '';
+  const isKiln3 = comp.type === 'rotaryKiln3';
   const pts = comp.props.tempPoints = comp.props.tempPoints || [];
-  while(pts.length < 4) pts.push({ tag:'' });
+  while(pts.length < (isKiln3 ? 1 : 4)) pts.push({ tag:'' });
   const dots = ['#52120A','#88280E','#EE7620','#FFCD4E']; // 色标锚点示例（200/320/650/890℃ 采样）
   const debounced = debounce(()=>{ renderAll(); setDirty(); }, 200);
   pts.forEach((pt, i)=>{
+    const dot = isKiln3
+      ? (kilnTempColor(200 + (i/Math.max(1, pts.length-1))*700) || '#9C99FF')
+      : (dots[i] || '#9C99FF');
     const row = document.createElement('div');
     row.className = 'ktemp-row';
-    row.innerHTML = `<span class="ktemp-dot" style="background:${dots[i]||'#9C99FF'}"></span><input class="ktag" placeholder="测温点 ${i+1} 位号" value="${esc(pt.tag||'')}">`;
+    const labInput = isKiln3
+      ? `<input class="klabel" placeholder="标签" value="${esc(pt.label || ((i+1)+'#温度'))}">`
+      : '';
+    row.innerHTML = `<span class="ktemp-dot" style="background:${dot}"></span><input class="ktag" placeholder="测温点 ${i+1} 位号" value="${esc(pt.tag||'')}">${labInput}`;
     row.querySelector('.ktag').oninput = e=>{ pt.tag = e.target.value; debounced(); };
+    const lb = row.querySelector('.klabel');
+    if(lb) lb.oninput = e=>{ pt.label = e.target.value; debounced(); };
+    el.appendChild(row);
+  });
+}
+
+// 3#线回转窑属性面板：下方 8 个分温区读数（预热1/2区、加热1~5区、冷却区）配置列表
+function renderKilnZoneList(comp){
+  const el = $('kilnZoneList'); if(!el) return;
+  el.innerHTML = '';
+  const names = ['预热1区','预热2区','加热1区','加热2区','加热3区','加热4区','加热5区','冷却区'];
+  const zts = comp.props.zoneTemps = Array.isArray(comp.props.zoneTemps) ? comp.props.zoneTemps : [];
+  while(zts.length < names.length) zts.push({ tag:'' });
+  if(zts.length > names.length) zts.length = names.length;
+  const debounced = debounce(()=>{ renderAll(); setDirty(); }, 200);
+  zts.forEach((zt, i)=>{
+    const row = document.createElement('div');
+    row.className = 'ktemp-row';
+    row.innerHTML = `<span class="ktag-name">${esc(names[i])}</span><input class="ktag" placeholder="${esc(names[i])} 壳体温度位号" value="${esc(zt.tag||'')}">`;
+    row.querySelector('.ktag').oninput = e=>{ zt.tag = e.target.value; debounced(); };
     el.appendChild(row);
   });
 }
@@ -2535,20 +2583,37 @@ function refreshKilnTemp(liveMap, docArg){
   const d = docArg || doc;
   if(!liveMap || !d || !Array.isArray(d.components)) return;
   d.components.forEach(comp=>{
-    if(comp.type !== 'rotaryKiln') return;
-    const pts = comp.props && comp.props.tempPoints;
-    if(!pts || !pts.length) return;
+    if(comp.type !== 'rotaryKiln' && comp.type !== 'rotaryKiln3') return;
+    const isKiln3 = comp.type === 'rotaryKiln3';
     const g = findCompGroupDom(comp.id);
     if(!g) return;
-    const stops = g.querySelectorAll('.kiln-temp-stop');
-    pts.forEach((pt, i)=>{
-      const stop = stops[i];
-      if(!stop) return;
-      const live = liveMap[(pt.tag||'').trim()];
-      const v = live ? Number(live.value) : NaN;
-      const color = kilnTempColor(v);
-      if(color) stop.setAttribute('stop-color', color);
-    });
+    const fmt = v => (v!=null && isFinite(v)) ? (Math.round(v*10)/10 + '℃') : '--';
+    const pts = comp.props && comp.props.tempPoints;
+    if(pts && pts.length){
+      const stops = g.querySelectorAll('.kiln-temp-stop');
+      pts.forEach((pt, i)=>{
+        const live = liveMap[(pt.tag||'').trim()];
+        const v = live ? Number(live.value) : NaN;
+        const stop = stops[i];
+        if(stop){ const color = kilnTempColor(v); if(color) stop.setAttribute('stop-color', color); }
+        // 3#线回转窑：同步上方测温点实时读数（rotaryKiln 无读数文本）
+        if(isKiln3){
+          const tv = g.querySelector('.kiln-temp-val[data-kidx="'+i+'"]');
+          if(tv) tv.textContent = fmt(live ? v : null);
+        }
+      });
+    }
+    // 3#线回转窑：同步下方 8 个分温区读数
+    if(isKiln3){
+      const zts = comp.props && comp.props.zoneTemps;
+      if(Array.isArray(zts)){
+        zts.forEach((zt, i)=>{
+          const live = liveMap[(zt.tag||'').trim()];
+          const tv = g.querySelector('.kiln-zone-val[data-zoneidx="'+i+'"]');
+          if(tv) tv.textContent = fmt(live ? Number(live.value) : null);
+        });
+      }
+    }
   });
 }
 // 增量更新反应釜液位（不触发 renderAll，避免无谓重绘）
@@ -3002,6 +3067,8 @@ function collectDocTags(d){
     (p.params||[]).forEach(x=>{ const t = String((x && x.k)||'').trim(); if(t) out.add(t); });
     (p.runTags||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });
     (p.monitorTags||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });
+    (p.tempPoints||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });  // 回转窑测温点
+    (p.zoneTemps||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });   // 3#线回转窑分温区
   });
   return Array.from(out);
 }

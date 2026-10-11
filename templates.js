@@ -52,6 +52,7 @@ const TEMPLATE_FILES = [
   'reactor',
   // 干燥煅烧与冷却
   'rotaryKiln',
+  'rotaryKiln3',
   'miningDryer',
   'hotAirFurnace',
   'heater',
