@@ -6,16 +6,13 @@
  *       （相差半圈）：上管供加热 2/4 区，下管供加热 1/3/5 区；
  *       每个天然气接口（烧嘴）处喷火。天然气经窑头侧回转接头引入。
  *     · 窑体上方 11 个测温点（既驱动筒体温度色带，又显示实时读数）
- *     · 窑体下方 8 个分温区读数
  *
  *   对外契约（沿用 rotaryKiln 的测温渐变机制，供 editor.js 增量刷新）：
  *     · <linearGradient class="kiln-temp-grad">（x1=0,y1=0,x2=1,y2=0）
  *     · <stop class="kiln-temp-stop" data-kidx="i" offset="…%" stop-color="…">
  *     · <rect class="kiln-temp-overlay" fill="url(#温度渐变id)" clip-path=筒体clip>
  *     · 温度读数 <text class="kiln-temp-val"  data-kidx="i">   （上方 11 点）
- *     · 分区读数 <text class="kiln-zone-val" data-zoneidx="i">（下方 8 区）
  *   数据源：props.tempPoints = [{tag,label}]（默认 11 点）
- *           props.zoneTemps  = [{tag}]        （默认 8 区）
  * ============================================================ */
 
 /* 默认测温点标签（上方：1#温度…11#温度） */
@@ -328,15 +325,6 @@ TEMPLATES.rotaryKiln3 = {
         <text class="kiln-temp-val" data-kidx="${i}" x="${F(cx)}" y="${F(h*0.175)}" text-anchor="middle" font-size="${F(valFs)}" font-weight="bold" fill="#e8f6ff">${xesc(val)}</text>`;
     });
 
-    /* ---------- 分温区读数（下 8 区） ---------- */
-    const zts = (p && Array.isArray(p.zoneTemps)) ? p.zoneTemps : [];
-    let tempBottom = '';
-    zones.forEach((z,i)=>{
-      const cx = drumL + drumW*z.cx;
-      const val = (zts[i] && zts[i].value!=null && zts[i].value!=='') ? zts[i].value : '--';
-      tempBottom += `<text class="kiln-zone-val" data-zoneidx="${i}" x="${F(cx)}" y="${F(h*0.82)}" text-anchor="middle" font-size="${F(valFs)}" font-weight="bold" fill="#e8f6ff">${xesc(val)}</text>`;
-    });
-
     return `
       ${metalDef}${metalVDef}${drumDef}${tempGrad}${clipDef}${clipInDef}
       ${supports}
@@ -350,7 +338,6 @@ TEMPLATES.rotaryKiln3 = {
       ${gas}
       ${zoneLines}${zoneLabels}
       ${tempTop}
-      ${tempBottom}
     `;
   }
 };
