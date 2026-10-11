@@ -43,6 +43,7 @@ const TEMPLATE_FILES = [
   'vrm',
   'pendulumMill',
   'classifier',
+  'vibratingScreen',
   // 储存与反应
   'silo',
   'storageSilo',
