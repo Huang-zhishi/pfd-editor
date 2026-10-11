@@ -120,7 +120,8 @@ TEMPLATES.rotaryKiln3 = {
     const hoodTop = cy - R*1.28, hoodH = R*2.56, hoodBot = hoodTop+hoodH;
     const hoodIn = clamp(K*2, 1, 4);
     const chuteH = clamp(R*0.5, 6, 20);
-    const flueCX = hoodL + hoodW/2, flueW = clamp(R*0.42, 6, 16), flueTopY = h*0.10;
+    // 烟气上升管长度取原设计的一半（原 0.353h→0.10h，现到 0.226h），避免顶到上方测温点
+    const flueCX = hoodL + hoodW/2, flueW = clamp(R*0.42, 6, 16), flueTopY = h*0.226;
     const tailHood = `
       <rect x="0" y="${F(cy-chuteH/2)}" width="${F(hoodL)}" height="${F(chuteH)}" fill="url(#${metalVId})" stroke="#3f445c" stroke-width="1"/>
       <rect x="${F(hoodL)}" y="${F(hoodTop)}" width="${F(hoodW)}" height="${F(hoodH)}" rx="${F(clamp(K*2,1,4))}" fill="url(#${metalId})" stroke="#3f445c" stroke-width="1.3"/>
@@ -322,9 +323,9 @@ TEMPLATES.rotaryKiln3 = {
       const cx = drumL + drumW*f;
       const lab = (pt && pt.label) || RK3_TEMP_LABELS[i] || ((i+1)+'#温度');
       const val = (pt && pt.value!=null && pt.value!=='') ? pt.value : '--';
-      tempTop += `<line x1="${F(cx)}" y1="${F(h*0.125)}" x2="${F(cx)}" y2="${F(drumTop)}" stroke="${c}" stroke-width="0.6" stroke-dasharray="2 2" opacity="0.4"/>
-        <text class="kiln-temp-lab" x="${F(cx)}" y="${F(h*0.045)}" text-anchor="middle" font-size="${F(labelFs)}" fill="${c}">${xesc(lab)}</text>
-        <text class="kiln-temp-val" data-kidx="${i}" x="${F(cx)}" y="${F(h*0.10)}" text-anchor="middle" font-size="${F(valFs)}" font-weight="bold" fill="#e8f6ff">${xesc(val)}</text>`;
+      tempTop += `<line x1="${F(cx)}" y1="${F(h*0.20)}" x2="${F(cx)}" y2="${F(drumTop)}" stroke="${c}" stroke-width="0.6" stroke-dasharray="2 2" opacity="0.4"/>
+        <text class="kiln-temp-lab" x="${F(cx)}" y="${F(h*0.115)}" text-anchor="middle" font-size="${F(labelFs)}" fill="${c}">${xesc(lab)}</text>
+        <text class="kiln-temp-val" data-kidx="${i}" x="${F(cx)}" y="${F(h*0.175)}" text-anchor="middle" font-size="${F(valFs)}" font-weight="bold" fill="#e8f6ff">${xesc(val)}</text>`;
     });
 
     /* ---------- 分温区读数（下 8 区） ---------- */
