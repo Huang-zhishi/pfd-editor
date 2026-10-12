@@ -2736,7 +2736,10 @@ function refreshKilnFlames(liveMap, docArg){
     const g = findCompGroupDom(comp.id);
     if(!g) return;
     const fts = (comp.props && comp.props.flameTags) || [];
-    g.querySelectorAll('.rk3-flame').forEach((el, i)=>{
+    // 必须按 data-flame 取索引：模板里火焰是按“上管/下管”分组渲染的，
+    // DOM 顺序不是 0..9（实际为 2,3,6,7,0,1,4,5,8,9），用 DOM 序号会张冠李戴。
+    g.querySelectorAll('.rk3-flame').forEach(el=>{
+      const i = Number(el.getAttribute('data-flame'));
       const tag = String((fts[i] && fts[i].tag) || '').trim();
       const live = (liveMap && tag) ? liveMap[tag] : null;
       const raw = live ? live.value : null;
