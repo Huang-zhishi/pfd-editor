@@ -920,6 +920,47 @@ function fmtMonVal(v, asInt){
   if(isNaN(n)) return String(v);
   return asInt ? String(Math.round(n)) : String(Math.round(n*100)/100);
 }
+/* ============================================================
+ * 传感器「类型 / 单位」前端归一（PFD 侧，不依赖后端重建）
+ *   后端 kiln-sensor-dashboard 的 classifySensor() 按名称关键词分类，但
+ *   规则有先后顺序、且“阀”过于贪婪、又缺“变频/调节/氧含量/反馈/探测/料位”等词，
+ *   会把一批位号判错，例如：
+ *     1#窑M0809下料阀电流                                  → 阀位/%（应为 电流/A）
+ *     3#窑D0921除尘器星形下料阀M704电流检测II_M704            → 阀位/%（应为 电流/A）
+ *     3#窑D0921除尘器绞龙L704变频调节FV_L704             → 其他/-（应为 阀位/%）
+ *     3#窑废气氧含量检测OI_C0921                          → 其他/-（应为 成分检测/%）
+ *   这里用同一套更精确的规则在前端纠正；后端分类器修好后本函数结果不变（幂等）。
+ *   规则须与 /ai/kiln-sensor-dashboard/src/lib/sensor-classifier.ts 保持一致。
+ * ============================================================ */
+const SENSOR_TYPE_UNIT = { '温度':'°C','压力':'kPa','流量':'m³/h','阀位':'%','液位':'m','成分检测':'%','pH值':'pH','电流':'A','开关':'','其他':'' };
+const SENSOR_TYPE_RULES = [
+  [['温度','ti_'], '温度'],
+  [['压力','pi_'], '压力'],
+  [['流量','fi_'], '流量'],
+  [['含氧量','氧含量','成分','ai_','oi_'], '成分检测'],
+  [['电流','ii_'], '电流'],                       // 提到“阀”之前，修 II_xxx / “下料阀电流”
+  [['ph','酸碱'], 'pH值'],
+  [['阀位','fv_','变频','调节'], '阀位'],          // 补 变频/调节/FV_
+  [['状态','信号','反馈','报警','探测','按钮','连锁','超时','振动'], '开关'],   // 补 反馈/报警/探测/按钮/连锁
+  [['液位','料位'], '液位'],                       // 补 料位
+  [['阀'], '阀位']                                 // 裸“阀”降到最后兜底
+];
+function sensorTypeOf(tag, fallback){
+  const n = String(tag||'').toLowerCase();
+  for(const [kws, ty] of SENSOR_TYPE_RULES){
+    for(const k of kws){ if(n.indexOf(k) >= 0) return ty; }
+  }
+  return fallback || '其他';
+}
+function sensorUnitOf(type){ return SENSOR_TYPE_UNIT[type] || ''; }
+// 归一：类型被纠正时用新类型的规范单位（开关/其他 → 空，不沿用后端的 % 等）；
+// 类型未变时保留后端原单位（避免误改 MPa/kPa 这类）
+function sensorUnitFor(tag, backendType, backendUnit){
+  const ty = sensorTypeOf(tag, backendType);
+  if(ty !== (backendType || '')) return { type: ty, unit: sensorUnitOf(ty) };
+  return { type: ty, unit: backendUnit || sensorUnitOf(ty) || '' };
+}
+
 // 开关量类型识别（与 isDiscreteSeries 口径保持一致）：用于把 0/1 显示为"关/开"
 function isDiscreteSensorType(type){
   if(!type) return false;
@@ -2257,7 +2298,7 @@ async function loadSensorCatalog(){
     if(j && Array.isArray(j.data)){
       sensorCatalog = j.data
         .filter(d=>d && d.sensor_tag && d.sensor_tag.trim())
-        .map(d=>({ tag:d.sensor_tag.trim(), type:d.type||'', kiln_id:d.kiln_id||'' }));
+        .map(d=>{ const t=d.sensor_tag.trim(); return { tag:t, type:sensorTypeOf(t, d.type), kiln_id:d.kiln_id||'' }; });
       // 若当前已选中组件且搜索框存在，刷新候选下拉
       const sc = selSingle();
       if(sc && sc.kind==='component'){
@@ -2275,7 +2316,7 @@ async function refreshSensorValues(){
     const j = await SENSOR_API.values({ limit: 500 });
     if(j && Array.isArray(j.data)){
       const m = {};
-      j.data.forEach(d=>{ if(d && d.sensor_tag){ const t=(d.sensor_tag||'').trim(); if(t) m[t] = { value:d.value, unit:d.unit, reported_at:d.reported_at, type:d.type }; } });
+      j.data.forEach(d=>{ if(d && d.sensor_tag){ const t=(d.sensor_tag||'').trim(); if(t){ const sm = sensorUnitFor(t, d.type, d.unit); m[t] = { value:d.value, unit:sm.unit, reported_at:d.reported_at, type:sm.type }; } } });
       sensorValueMap = m;
       refreshMonitorValues();
       refreshKilnTemp(sensorValueMap);

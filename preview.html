@@ -267,7 +267,9 @@
         if(d && d.sensor_tag){
           const t = d.sensor_tag.trim();
           if(!t) return;
-          this.metaMap[t] = { type:d.type, unit:d.unit, kiln_id:d.kiln_id };
+          // 类型/单位前端归一（见 editor.js sensorUnitFor：修后端分类器误判）
+          const sm = (typeof sensorUnitFor==='function') ? sensorUnitFor(t, d.type, d.unit) : { type:d.type, unit:d.unit };
+          this.metaMap[t] = { type:sm.type, unit:sm.unit, kiln_id:d.kiln_id };
           this.tagAlias[t] = d.sensor_tag;   // 保留后端原始名（可能带空格），供 history 精确查询
         }
       });
@@ -355,7 +357,7 @@
             const meta = this.metaMap[t] || {};
             m[t] = {
               value:d.value,
-              unit:d.unit || meta.unit || '',
+              unit:meta.unit || d.unit || '',   // meta 已归一，优先用它
               reported_at:d.reported_at,
               type:meta.type   // 一并缓存：监控器面板"开/关"显示用
             };
