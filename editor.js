@@ -750,6 +750,7 @@ function renderAll(){
   applySMILState();
   renderOverlay();
   refreshKilnTemp(sensorValueMap);
+  refreshKilnFlames(sensorValueMap);
   refreshSignalState(sensorValueMap);
   refreshReactorLevel(sensorValueMap);
 }
@@ -1434,6 +1435,8 @@ function addComponent(type, x, y){
     // 3#线回转窑：上方 11 个窑体测温点（驱动筒体温度色带 + 实时读数）
     props.tempPoints = ['1#温度','2#温度','3#温度','4#温度','5#温度','6#温度','7#温度','8#温度','9#温度','10#温度','11#温度']
       .map(label=>({ tag:'', label }));
+    // 10 只燃烧器烧嘴的着火信号（1,2→加热1区 … 9,10→加热5区）；开=显火焰、关=不显
+    props.flameTags = Array.from({ length:10 }, (_,i)=>({ tag:`3#窑燃烧器着火信号${i+1}MOD1_${10002+2*(i+1)}_0` }));
   }
   if(type==='productTankDual'){
     // 双格成品储罐：写入两格默认标注（默认值定义在 templates/productTankDual.js，模板与面板共用）
@@ -1960,6 +1963,13 @@ function renderProps(){
         <div class="fg-hint">${comp.type==='rotaryKiln3' ? '11 个测温点对应窑体从左到右的颜色锚点，温度越高颜色越暖；绑定位号后上方显示实时读数（可选自定义标签）。' : '4 个测温点对应窑体从左到右的颜色锚点，温度越高颜色越暖（暗红→橙→红→白热，全程无冷色）。填完整位号，如「1#窑体温度TI_206A」。'}</div>
       </div>
       ` : ''}
+      ${comp.type==='rotaryKiln3' ? `
+      <div class="fg">
+        <div class="fg-title">燃烧器着火信号（10 只烧嘴 · 开=显火焰）</div>
+        <div class="kiln-temps" id="kilnFlameList"></div>
+        <div class="fg-hint">每个温区一对烧嘴（一双）：1,2→加热1区、3,4→加热2区 … 9,10→加热5区。信号为 <b>0（关）</b> 则不显示火焰；未绑定或暂无数据时按显示处理。</div>
+      </div>
+      ` : ''}
       ${(comp.type==='reactor'||comp.type==='storageSilo') ? `
       <div class="fg">
         <div class="fg-title">液位（动态绑定 Tag）</div>
@@ -2118,8 +2128,11 @@ function renderProps(){
       bindCell('dtNameA','cellAName'); bindCell('dtTagA','cellATag');
       bindCell('dtNameB','cellBName'); bindCell('dtTagB','cellBTag');
     }
-    // 回转窑 / 3#线回转窑：测温点配置
-    if(comp.type==='rotaryKiln' || comp.type==='rotaryKiln3') renderKilnTempList(comp);
+    // 回转窑 / 3#线回转窑：测温点配置（3#线另有 10 只烧嘴的着火信号）
+    if(comp.type==='rotaryKiln' || comp.type==='rotaryKiln3'){
+      renderKilnTempList(comp);
+      if(comp.type==='rotaryKiln3') renderKilnFlameList(comp);
+    }
     // 通用水平镜像控制
     const mg = $('mirrorGroup');
     if(mg){ mg.querySelectorAll('.s-btn').forEach(b=>{ b.onclick=()=>{ comp.props.mirrored=+b.dataset.m===1; pushHistory(); renderAll(); renderProps(); setDirty(); }; }); }
@@ -2266,6 +2279,7 @@ async function refreshSensorValues(){
       sensorValueMap = m;
       refreshMonitorValues();
       refreshKilnTemp(sensorValueMap);
+      refreshKilnFlames(sensorValueMap);     // 3#线回转窑：按着火信号显隐 10 只烧嘴火焰
       refreshSignalState(sensorValueMap);    // 开关信号：按 0=关/非0=开 更新指示灯
       refreshReactorLevel(sensorValueMap);   // 反应釜：绑定液位 tag 时按实时值更新液面与读数
       refreshSwitchValveAuto(sensorValueMap); // 三通阀自动模式：根据 A/B 开关量互斥切换
@@ -2424,6 +2438,7 @@ function docTags(){
     if(c.props && c.props.tag) s.add((c.props.tag||'').trim());
     if(c.props && Array.isArray(c.props.params)) c.props.params.forEach(p=>{ if(p.k) s.add((p.k||'').trim()); });
     if(c.props && Array.isArray(c.props.tempPoints)) c.props.tempPoints.forEach(x=>{ if(x && x.tag) s.add((x.tag||'').trim()); });
+    if(c.props && Array.isArray(c.props.flameTags)) c.props.flameTags.forEach(x=>{ if(x && x.tag) s.add((x.tag||'').trim()); });
     if(c.props && c.props.signalTag && !c.props.linkCid) s.add(String(c.props.signalTag).trim());
   });
   return s;
@@ -2561,6 +2576,24 @@ function renderKilnTempList(comp){
   });
 }
 
+// 3#线回转窑属性面板：10 只燃烧器烧嘴的着火信号（开=显火焰、关=不显）
+function renderKilnFlameList(comp){
+  const el = $('kilnFlameList'); if(!el) return;
+  el.innerHTML = '';
+  const labels = ['加热1区·烧嘴1','加热1区·烧嘴2','加热2区·烧嘴1','加热2区·烧嘴2','加热3区·烧嘴1','加热3区·烧嘴2','加热4区·烧嘴1','加热4区·烧嘴2','加热5区·烧嘴1','加热5区·烧嘴2'];
+  const fts = comp.props.flameTags = Array.isArray(comp.props.flameTags) ? comp.props.flameTags : [];
+  while(fts.length < labels.length) fts.push({ tag:'' });
+  if(fts.length > labels.length) fts.length = labels.length;
+  const debounced = debounce(()=>{ renderAll(); setDirty(); }, 200);
+  fts.forEach((ft, i)=>{
+    const row = document.createElement('div');
+    row.className = 'ktemp-row';
+    row.innerHTML = `<span class="ktag-name">${esc(labels[i])}</span><input class="ktag" placeholder="着火信号位号" value="${esc(ft.tag||'')}">`;
+    row.querySelector('.ktag').oninput = e=>{ ft.tag = e.target.value; debounced(); };
+    el.appendChild(row);
+  });
+}
+
 /* ============================================================
  * 15. 实时数据：回转窑温度渐变（组件定制联动）
  *   - comp.props.tempPoints: [{tag:'1#窑体温度TI_206A'}, ...]（最多 4 个）
@@ -2651,6 +2684,24 @@ function refreshSignalState(liveMap, docArg){
       const devName = dev ? ((dev.props && dev.props.name) || ((TEMPLATES[dev.type]||{}).name) || dev.type) : '';
       ttl.textContent = linkCid ? ('跟随设备：' + (devName || linkCid)) : (tag ? ('位号：' + tag) : '未绑定位号');
     }
+  });
+}
+/* 3#线回转窑：10 只烧嘴火焰按着火信号显隐（0=关→不显示；开 / 无数据 / 未绑定 → 显示） */
+function refreshKilnFlames(liveMap, docArg){
+  const d = docArg || doc;
+  if(!d || !Array.isArray(d.components)) return;
+  d.components.forEach(comp=>{
+    if(comp.type !== 'rotaryKiln3') return;
+    const g = findCompGroupDom(comp.id);
+    if(!g) return;
+    const fts = (comp.props && comp.props.flameTags) || [];
+    g.querySelectorAll('.rk3-flame').forEach((el, i)=>{
+      const tag = String((fts[i] && fts[i].tag) || '').trim();
+      const live = (liveMap && tag) ? liveMap[tag] : null;
+      const raw = live ? live.value : null;
+      const show = signalStateOf(tag ? raw : null) !== 'off';
+      el.style.display = show ? '' : 'none';
+    });
   });
 }
 function refreshKilnTemp(liveMap, docArg){
@@ -3131,6 +3182,7 @@ function collectDocTags(d){
     (p.runTags||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });
     (p.monitorTags||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });
     (p.tempPoints||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });  // 回转窑测温点
+    (p.flameTags||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });   // 3#线回转窑着火信号
     if(!p.linkCid){ const t = String(p.signalTag||'').trim(); if(t) out.add(t); }                     // 开关信号（关联设备时不收集自身位号）
   });
   return Array.from(out);

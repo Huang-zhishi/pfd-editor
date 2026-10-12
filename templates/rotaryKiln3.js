@@ -3,16 +3,20 @@
  *   由 templates/rotaryKiln.js（回转窑/旋转煅烧窑）派生的定制组件：
  *     · 窑体沿轴向划分为 8 个温区：预热1区、预热2区、加热1~5区、冷却区
  *     · 天然气黄管【装在窑体（筒体）上，随筒体一起回转】，两组总管对角布置
- *       （相差半圈）：上管供加热 2/4 区，下管供加热 1/3/5 区；
- *       每个天然气接口（烧嘴）处喷火。天然气经窑头侧回转接头引入。
+ *       （相差半圈）：上管供加热 2/4 区、下管供加热 1/3/5 区；
+ *       天然气经窑头侧回转接头引入。
+ *     · **每个温区一对烧嘴（一双），共 10 只**，分别绑定着火信号 1~10
+ *       （1,2→加热1区、3,4→加热2区 … 9,10→加热5区）；开=显火焰，关=不显
  *     · 窑体上方 11 个测温点（既驱动筒体温度色带，又显示实时读数）
  *
  *   对外契约（沿用 rotaryKiln 的测温渐变机制，供 editor.js 增量刷新）：
+ *     · 火焰组 <g class="rk3-flame" data-flame="i">（i=0..9）← refreshKilnFlames 显隐
  *     · <linearGradient class="kiln-temp-grad">（x1=0,y1=0,x2=1,y2=0）
  *     · <stop class="kiln-temp-stop" data-kidx="i" offset="…%" stop-color="…">
  *     · <rect class="kiln-temp-overlay" fill="url(#温度渐变id)" clip-path=筒体clip>
  *     · 温度读数 <text class="kiln-temp-val"  data-kidx="i">   （上方 11 点）
  *   数据源：props.tempPoints = [{tag,label}]（默认 11 点）
+ *           props.flameTags  = [{tag}]        （默认 10 点着火信号）
  * ============================================================ */
 
 /* 默认测温点标签（上方：1#温度…11#温度） */
@@ -144,9 +148,12 @@ TEMPLATES.rotaryKiln3 = {
     const pw = clamp(K*2.6, 1.8, 5);
     const GAS_R = R*1.34;                       // 壳装管安装半径
     const manifoldX = w*0.845;                  // 窑头侧回转接头 / 引出位置
+    // 每个温区一对烧嘴（一双）：br[].f = 温区中心（筒体相对比例），fl = 该对两只烧嘴对应的着火信号序号-1
+    // 着火信号 1,2→加热1区、3,4→加热2区 … 9,10→加热5区（对应现场“燃烧器一~五区”）
+    const branchDx = clamp(drumW*0.020, 3, 12);   // 一对烧嘴的轴向半间距
     const gasGroups = [
-      { off: 0.0, fr: [0.605, 0.785] },         // 上管：加热2、加热4
-      { off: 0.5, fr: [0.515, 0.695, 0.875] }   // 下管：加热1、加热3、加热5
+      { off: 0.0, br: [ {f:0.605, fl:[2,3]}, {f:0.785, fl:[6,7]} ] },                      // 上管：加热2(火3,4)、加热4(火7,8)
+      { off: 0.5, br: [ {f:0.515, fl:[0,1]}, {f:0.695, fl:[4,5]}, {f:0.875, fl:[8,9]} ] }   // 下管：加热1(火1,2)、加热3(火5,6)、加热5(火9,10)
     ];
     const NF = 24;                              // 关键帧数
     const gasKey = gasGroups.map(g=>{
@@ -184,7 +191,7 @@ TEMPLATES.rotaryKiln3 = {
     // 两组旋转总管
     gasGroups.forEach((g,gi)=>{
       const G = gasKey[gi];
-      const xL = drumL + drumW*(Math.min(...g.fr) - 0.06);
+      const xL = drumL + drumW*(Math.min(...g.br.map(b=>b.f)) - 0.06) - branchDx;
       // 总管（深色描边 + 黄芯），沿圆周上下扫掠
       [[YEL_D, pw+1.4], [YEL, pw]].forEach(([col,wd])=>{
         gas += `<line x1="${F(xL)}" y1="${G.yH0}" x2="${F(manifoldX)}" y2="${G.yH0}" stroke="${col}" stroke-width="${F(wd)}" stroke-linecap="round" opacity="${G.ov0}">
@@ -198,22 +205,27 @@ TEMPLATES.rotaryKiln3 = {
           <animate attributeName="y1" values="${G.yHs}" dur="${rotDur}s" repeatCount="indefinite"/>
           <animate attributeName="opacity" values="${G.ovs}" dur="${rotDur}s" repeatCount="indefinite"/></line>`;
       });
-      // 支管（烧嘴）+ 接口阀块 + 火焰
-      g.fr.forEach(f=>{
-        const x = drumL + drumW*f;
-        gas += `<line x1="${F(x)}" y1="${G.yH0}" x2="${F(x)}" y2="${G.yS0}" stroke="${YEL}" stroke-width="${F(pw*0.9)}" stroke-linecap="round" opacity="${G.ov0}">
-          <animate attributeName="y1" values="${G.yHs}" dur="${rotDur}s" repeatCount="indefinite"/>
-          <animate attributeName="y2" values="${G.ySs}" dur="${rotDur}s" repeatCount="indefinite"/>
-          <animate attributeName="opacity" values="${G.ovs}" dur="${rotDur}s" repeatCount="indefinite"/></line>`;
-        gas += `<rect x="${F(x-pw*1.4)}" y="${G.fc0}" width="${F(pw*2.8)}" height="${F(pw*1.6)}" rx="1" fill="${YEL}" stroke="${YEL_D}" stroke-width="0.6" opacity="${G.ov0}">
-          <animate attributeName="y" values="${G.fcs}" dur="${rotDur}s" repeatCount="indefinite"/>
-          <animate attributeName="opacity" values="${G.ovs}" dur="${rotDur}s" repeatCount="indefinite"/></rect>`;
-        // 火焰：外/内/焰芯同轴
-        const fr0 = clamp(R*0.26, 3, 10);
-        [[fr0, '#ff6a10', 0.85], [fr0*0.6, '#ffdd44', 0.95], [fr0*0.32, '#fff6c8', 1.0]].forEach(([rr,col,op])=>{
-          gas += `<ellipse cx="${F(x)}" cy="${G.fc0}" rx="${F(rr)}" ry="${F(rr*1.1)}" fill="${col}" opacity="${(op*Number(G.ov0)).toFixed(2)}" clip-path="url(#${clipId})">
-            <animate attributeName="cy" values="${G.fcs}" dur="${rotDur}s" repeatCount="indefinite"/>
-            <animate attributeName="opacity" values="${G.ovs}" dur="${rotDur}s" repeatCount="indefinite"/></ellipse>`;
+      // 支管（烧嘴，一双）+ 接口阀块 + 火焰；每只火焰按对应着火信号显隐
+      g.br.forEach(({f,fl})=>{
+        const xc = drumL + drumW*f;
+        fl.forEach((fi,k)=>{
+          const x = xc + (k===0 ? -branchDx : branchDx);
+          gas += `<line x1="${F(x)}" y1="${G.yH0}" x2="${F(x)}" y2="${G.yS0}" stroke="${YEL}" stroke-width="${F(pw*0.9)}" stroke-linecap="round" opacity="${G.ov0}">
+            <animate attributeName="y1" values="${G.yHs}" dur="${rotDur}s" repeatCount="indefinite"/>
+            <animate attributeName="y2" values="${G.ySs}" dur="${rotDur}s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="${G.ovs}" dur="${rotDur}s" repeatCount="indefinite"/></line>`;
+          gas += `<rect x="${F(x-pw*1.3)}" y="${G.fc0}" width="${F(pw*2.6)}" height="${F(pw*1.5)}" rx="1" fill="${YEL}" stroke="${YEL_D}" stroke-width="0.6" opacity="${G.ov0}">
+            <animate attributeName="y" values="${G.fcs}" dur="${rotDur}s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="${G.ovs}" dur="${rotDur}s" repeatCount="indefinite"/></rect>`;
+          // 火焰：外/内/焰芯同轴，整组由 refreshKilnFlames() 按着火信号显隐
+          const fr0 = clamp(R*0.24, 3, 9);
+          let fl3 = '';
+          [[fr0, '#ff6a10', 0.85], [fr0*0.6, '#ffdd44', 0.95], [fr0*0.32, '#fff6c8', 1.0]].forEach(([rr,col,op])=>{
+            fl3 += `<ellipse cx="${F(x)}" cy="${G.fc0}" rx="${F(rr)}" ry="${F(rr*1.1)}" fill="${col}" opacity="${(op*Number(G.ov0)).toFixed(2)}" clip-path="url(#${clipId})">
+              <animate attributeName="cy" values="${G.fcs}" dur="${rotDur}s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="${G.ovs}" dur="${rotDur}s" repeatCount="indefinite"/></ellipse>`;
+          });
+          gas += `<g class="rk3-flame" data-flame="${fi}">${fl3}</g>`;
         });
       });
     });

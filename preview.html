@@ -363,6 +363,7 @@
         });
         this.liveMap = m;
         if(typeof refreshKilnTemp==='function') refreshKilnTemp(this.liveMap, this.doc);
+        if(typeof refreshKilnFlames==='function') refreshKilnFlames(this.liveMap, this.doc);
         if(typeof refreshSignalState==='function') refreshSignalState(this.liveMap, this.doc);
         if(typeof refreshReactorLevel==='function') refreshReactorLevel(this.liveMap, this.doc);
         if(typeof refreshSwitchValveAuto==='function') refreshSwitchValveAuto(this.liveMap, this.doc);
@@ -1115,6 +1116,7 @@
     // 重建 DOM 后 SMIL 时间线重置，按 running 状态恢复正确的播放/暂停
     if(typeof applySMILState==='function') applySMILState();
     if(typeof refreshKilnTemp==='function' && adapter && adapter.liveMap) refreshKilnTemp(adapter.liveMap, doc);
+    if(typeof refreshKilnFlames==='function' && adapter && adapter.liveMap) refreshKilnFlames(adapter.liveMap, doc);
     if(typeof refreshSignalState==='function' && adapter && adapter.liveMap) refreshSignalState(adapter.liveMap, doc);
     if(typeof refreshReactorLevel==='function' && adapter && adapter.liveMap) refreshReactorLevel(adapter.liveMap, doc);
   }
