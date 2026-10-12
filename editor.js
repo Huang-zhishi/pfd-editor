@@ -1887,7 +1887,7 @@ function renderProps(){
         <div class="fg-title">基本</div>
         <div class="fg-row"><label>名称</label><input id="pName" value="${esc(comp.props.name||'')}"></div>
         ${comp.type!=='monitor' ? `<div class="fg-row"><label>位号</label><input id="pTag" value="${esc(comp.props.tag||'')}"></div>` : ''}
-        ${(comp.type!=='text' && comp.type!=='monitor') ? `<div class="fg-row"><label>名称位置</label><div class="btn-group" id="namePosGroup"><button class="pr-btn s-btn ${comp.props.namePos==='center'?'':'active'}" data-np="top">顶部</button><button class="pr-btn s-btn ${comp.props.namePos==='center'?'active':''}" data-np="center">居中</button></div></div>` : ''}
+        ${(comp.type!=='text' && comp.type!=='monitor' && comp.type!=='signal') ? `<div class="fg-row"><label>名称位置</label><div class="btn-group" id="namePosGroup"><button class="pr-btn s-btn ${comp.props.namePos==='center'?'':'active'}" data-np="top">顶部</button><button class="pr-btn s-btn ${comp.props.namePos==='center'?'active':''}" data-np="center">居中</button></div></div>` : ''}
         <div class="fg-row"><label>颜色</label><div class="color-row"><input type="color" id="pColor" value="${comp.props.color||'#9C99FF'}"><input id="pColorT" value="${comp.props.color||'#9C99FF'}"></div></div>
       </div>
       ${comp.type==='signal' ? `

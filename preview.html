@@ -1074,7 +1074,7 @@
       const cx = comp.x + comp.w/2, cy = comp.y + comp.h/2;
       const r = (comp.rotation||0) * Math.PI/180;
       const cos = Math.cos(r), sin = Math.sin(r);
-      if(comp.type!=='text' && !isMonitor){
+      if(comp.type!=='text' && comp.type!=='signal' && !isMonitor){
         const lbl = mk('text');
         // 名称位置：center=组件中心（+4 为 11px 字号的基线视觉补偿）；默认组件顶部上方
         const ldx=0, ldy=(comp.props.namePos==='center') ? 4 : -(comp.h/2+6);
