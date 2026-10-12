@@ -1416,8 +1416,9 @@ function addComponent(type, x, y){
     props.lead = { targetType:'point', x: x + t.defaultSize.w + 60, y: y + t.defaultSize.h/2 }; // 归属指向折线（默认右侧自由点，可拖拽吸附设备/端口/管道）
   }
   if(type==='signal'){
-    // 开关信号指示牌：绑定单个位号（0=关 / 非 0=开）；名称显示在牌内
+    // 开关信号指示牌：可关联设备（跟随其运行开关）或单独绑位号（0=关 / 非 0=开）；名称显示在牌内
     props.signalTag = '';
+    props.linkCid = '';
   }
   if(type==='rotaryKiln'){
     // 预设 1# 窑 4 个体温点，沿窑体从左到右颜色渐变（可自行修改）
@@ -1882,6 +1883,10 @@ function renderProps(){
     if(comp.type==='productTankDual') normalizeDualTankProps(comp);   // 补两格默认标注，面板与画布取值一致
     headIcon.textContent = t.name.slice(0,1); headTitle.textContent = comp.props.name||t.name; headSub.textContent = `${t.name} · ${comp.id}`;
     const params = comp.props.params || [];
+    // 开关信号可关联设备：直接跟随该设备「运行控制（开关 Tag）」的判定结果，免二次绑定
+    const sigLinkCands = (comp.type==='signal')
+      ? doc.components.filter(c=>c.id!==comp.id && hasAnimation(c.type))
+      : [];
     body.innerHTML = `
       <div class="fg">
         <div class="fg-title">基本</div>
@@ -1893,12 +1898,16 @@ function renderProps(){
       ${comp.type==='signal' ? `
       <div class="fg">
         <div class="fg-title">开关信号（0=关 · 非 0=开）</div>
-        <div class="tag-search">
+        <div class="fg-row"><label>关联设备</label><select id="sigLink">
+          <option value="">不关联（用下方位号）</option>
+          ${sigLinkCands.map(cc=>`<option value="${esc(cc.id)}" ${comp.props.linkCid===cc.id?'selected':''}>${esc(cc.props.name||((TEMPLATES[cc.type]||{}).name)||cc.type)}</option>`).join('')}
+        </select></div>
+        <div class="tag-search" style="${comp.props.linkCid?'opacity:.45;pointer-events:none':''}">
           <span class="ts-icon">⌕</span>
           <input id="sigTag" placeholder="搜索 / 输入开关量位号…" value="${esc(comp.props.signalTag||'')}">
           <div class="tag-suggest" id="sigTagSuggest"></div>
         </div>
-        <div class="fg-hint">绑定一个开关量/状态位号：值 <b>0</b> → 「关」灰灯；<b>非 0</b> → 「开」绿灯；无数据 → 「--」。牌内文字取上方「名称」。</div>
+        <div class="fg-hint"><b>① 关联设备</b>：直接跟随该设备「运行控制（开关 Tag）」的判定结果（运行=开），<b>无需再绑一遍</b>；<br><b>② 或单独绑位号</b>：值 <b>0</b> → 「关」灰灯，<b>非 0</b> → 「开」绿灯，无数据 → 「--」。牌内文字取上方「名称」。</div>
       </div>
       ` : ''}
       <div class="fg">
@@ -2037,8 +2046,10 @@ function renderProps(){
     // bind（名称/位号/颜色为 oninput 连续输入，重渲染用防抖；几何用 onchange，失焦/回车才触发，无需防抖）
     const debouncedRenderAll = debounce(()=>{ renderAll(); setDirty(); }, 150);
     $('pName').oninput = e=>{ comp.props.name=e.target.value; headTitle.textContent=e.target.value||t.name; debouncedRenderAll(); };
-    // 开关信号：位号搜索/输入 → 增量刷新指示灯（不重建 DOM，避免闪烁）
+    // 开关信号：关联设备 或 位号搜索/输入 → 增量刷新指示灯（不重建 DOM，避免闪烁）
     if(comp.type==='signal'){
+      const sel = $('sigLink');
+      if(sel) sel.onchange = e=>{ comp.props.linkCid = e.target.value||''; pushHistory(); renderAll(); renderProps(); setDirty(); refreshSignalState(sensorValueMap); };
       const st = $('sigTag'), sug = $('sigTagSuggest');
       const showSug = (q)=>{
         if(!sug) return;
@@ -2412,7 +2423,7 @@ function docTags(){
     if(c.props && c.props.tag) s.add((c.props.tag||'').trim());
     if(c.props && Array.isArray(c.props.params)) c.props.params.forEach(p=>{ if(p.k) s.add((p.k||'').trim()); });
     if(c.props && Array.isArray(c.props.tempPoints)) c.props.tempPoints.forEach(x=>{ if(x && x.tag) s.add((x.tag||'').trim()); });
-    if(c.props && c.props.signalTag) s.add(String(c.props.signalTag).trim());
+    if(c.props && c.props.signalTag && !c.props.linkCid) s.add(String(c.props.signalTag).trim());
   });
   return s;
 }
@@ -2610,9 +2621,22 @@ function refreshSignalState(liveMap, docArg){
     if(comp.type !== 'signal') return;
     const g = findCompGroupDom(comp.id);
     if(!g) return;
+    // 关联设备：直接采用该设备运行开关的判定结果（无绑定 → 未知）
+    const linkCid = String((comp.props && comp.props.linkCid) || '');
     const tag = String((comp.props && comp.props.signalTag) || '').trim();
-    const live = (liveMap && tag) ? liveMap[tag] : null;
-    const st = signalStateOf(tag ? (live ? live.value : null) : null);
+    let st;
+    if(linkCid){
+      const dev = d.components.find(c=>c.id===linkCid);
+      if(!dev) st = 'unknown';
+      else {
+        const rs = compRunState(dev, liveMap);
+        const known = !!(rs.values && rs.values.some(v=>v.on != null));   // 绑了位号且有实时值才算已知
+        st = (rs.bound && known) ? (rs.run ? 'on' : 'off') : 'unknown';
+      }
+    } else {
+      const live = (liveMap && tag) ? liveMap[tag] : null;
+      st = signalStateOf(tag ? (live ? live.value : null) : null);
+    }
     const s = SIGNAL_STYLE[st];
     const lamp = g.querySelector('.sig-lamp'), glow = g.querySelector('.sig-glow');
     const box = g.querySelector('.sig-box'), txt = g.querySelector('.sig-state');
@@ -2620,6 +2644,12 @@ function refreshSignalState(liveMap, docArg){
     if(glow) glow.setAttribute('opacity', s.glow);
     if(box) box.setAttribute('stroke', s.box);
     if(txt){ txt.textContent = s.label; txt.setAttribute('fill', s.text); }
+    const ttl = g.querySelector('title');
+    if(ttl){
+      const dev = linkCid ? d.components.find(c=>c.id===linkCid) : null;
+      const devName = dev ? ((dev.props && dev.props.name) || ((TEMPLATES[dev.type]||{}).name) || dev.type) : '';
+      ttl.textContent = linkCid ? ('跟随设备：' + (devName || linkCid)) : (tag ? ('位号：' + tag) : '未绑定位号');
+    }
   });
 }
 function refreshKilnTemp(liveMap, docArg){
@@ -3100,7 +3130,7 @@ function collectDocTags(d){
     (p.runTags||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });
     (p.monitorTags||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });
     (p.tempPoints||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });  // 回转窑测温点
-    { const t = String(p.signalTag||'').trim(); if(t) out.add(t); }                                 // 开关信号
+    if(!p.linkCid){ const t = String(p.signalTag||'').trim(); if(t) out.add(t); }                     // 开关信号（关联设备时不收集自身位号）
   });
   return Array.from(out);
 }
