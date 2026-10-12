@@ -76,6 +76,7 @@ const TEMPLATE_FILES = [
   'circle',
   'text',
   'instrument',
+  'signal',
   'monitor'
 ];
 

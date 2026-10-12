@@ -710,7 +710,7 @@ function renderAll(){
     const cx = comp.x + comp.w/2, cy = comp.y + comp.h/2;
     const r = (comp.rotation||0) * Math.PI / 180;
     const cos = Math.cos(r), sin = Math.sin(r);
-    if(comp.type!=='text' && !isMonitor){
+    if(comp.type!=='text' && comp.type!=='signal' && !isMonitor){
       const lbl = createSVG('text');
       // 名称位置：center=组件中心（+4 为 11px 字号的基线视觉补偿）；默认组件顶部上方
       const ldx = 0, ldy = (comp.props.namePos==='center') ? 4 : -(comp.h/2 + 6);
@@ -750,6 +750,7 @@ function renderAll(){
   applySMILState();
   renderOverlay();
   refreshKilnTemp(sensorValueMap);
+  refreshSignalState(sensorValueMap);
   refreshReactorLevel(sensorValueMap);
 }
 
@@ -1414,6 +1415,10 @@ function addComponent(type, x, y){
     props.monitorTags = [];   // [{tag, label}] 任意多个监控项
     props.lead = { targetType:'point', x: x + t.defaultSize.w + 60, y: y + t.defaultSize.h/2 }; // 归属指向折线（默认右侧自由点，可拖拽吸附设备/端口/管道）
   }
+  if(type==='signal'){
+    // 开关信号指示牌：绑定单个位号（0=关 / 非 0=开）；名称显示在牌内
+    props.signalTag = '';
+  }
   if(type==='rotaryKiln'){
     // 预设 1# 窑 4 个体温点，沿窑体从左到右颜色渐变（可自行修改）
     props.tempPoints = [
@@ -1885,6 +1890,17 @@ function renderProps(){
         ${(comp.type!=='text' && comp.type!=='monitor') ? `<div class="fg-row"><label>名称位置</label><div class="btn-group" id="namePosGroup"><button class="pr-btn s-btn ${comp.props.namePos==='center'?'':'active'}" data-np="top">顶部</button><button class="pr-btn s-btn ${comp.props.namePos==='center'?'active':''}" data-np="center">居中</button></div></div>` : ''}
         <div class="fg-row"><label>颜色</label><div class="color-row"><input type="color" id="pColor" value="${comp.props.color||'#9C99FF'}"><input id="pColorT" value="${comp.props.color||'#9C99FF'}"></div></div>
       </div>
+      ${comp.type==='signal' ? `
+      <div class="fg">
+        <div class="fg-title">开关信号（0=关 · 非 0=开）</div>
+        <div class="tag-search">
+          <span class="ts-icon">⌕</span>
+          <input id="sigTag" placeholder="搜索 / 输入开关量位号…" value="${esc(comp.props.signalTag||'')}">
+          <div class="tag-suggest" id="sigTagSuggest"></div>
+        </div>
+        <div class="fg-hint">绑定一个开关量/状态位号：值 <b>0</b> → 「关」灰灯；<b>非 0</b> → 「开」绿灯；无数据 → 「--」。牌内文字取上方「名称」。</div>
+      </div>
+      ` : ''}
       <div class="fg">
         <div class="fg-title">几何</div>
         <div class="fg-row2">
@@ -2021,6 +2037,25 @@ function renderProps(){
     // bind（名称/位号/颜色为 oninput 连续输入，重渲染用防抖；几何用 onchange，失焦/回车才触发，无需防抖）
     const debouncedRenderAll = debounce(()=>{ renderAll(); setDirty(); }, 150);
     $('pName').oninput = e=>{ comp.props.name=e.target.value; headTitle.textContent=e.target.value||t.name; debouncedRenderAll(); };
+    // 开关信号：位号搜索/输入 → 增量刷新指示灯（不重建 DOM，避免闪烁）
+    if(comp.type==='signal'){
+      const st = $('sigTag'), sug = $('sigTagSuggest');
+      const showSug = (q)=>{
+        if(!sug) return;
+        const cand = tagCandidates();
+        const qq = (q||'').trim().toUpperCase();
+        const list = Array.from(cand.entries()).filter(([tk])=> !qq || tk.toUpperCase().includes(qq)).slice(0,10);
+        const offline = sensorCatalog.length ? '' : TAG_OFFLINE_HINT;
+        if(!list.length){ sug.innerHTML = offline; return; }
+        sug.innerHTML = offline + list.map(([tk,meta])=>`<div class="ts-item" data-t="${esc(tk)}">${esc(tk)}${(meta.type||'')?`<span class="ts-type">${esc(meta.type)}</span>`:''}</div>`).join('');
+        sug.querySelectorAll('.ts-item').forEach(it=>{ it.onclick = ()=>{ st.value = it.dataset.t; comp.props.signalTag = it.dataset.t; sug.innerHTML=''; pushHistory(); setDirty(); renderAllDebounced(); refreshSignalState(sensorValueMap); }; });
+      };
+      if(st){
+        st.oninput = e=>{ comp.props.signalTag = e.target.value; showSug(e.target.value); setDirty(); renderAllDebounced(); };
+        st.onblur = ()=>{ setTimeout(()=>{ if(sug) sug.innerHTML=''; },150); };
+      }
+      refreshSignalState(sensorValueMap);
+    }
     if($('pTag')) $('pTag').oninput = e=>{ comp.props.tag=e.target.value; debouncedRenderAll(); };
     $('pColor').oninput = e=>{ comp.props.color=e.target.value; $('pColorT').value=e.target.value; debouncedRenderAll(); };
     $('pColorT').onchange = e=>{ comp.props.color=e.target.value; $('pColor').value=e.target.value; renderAll(); setDirty(); };
@@ -2219,6 +2254,7 @@ async function refreshSensorValues(){
       sensorValueMap = m;
       refreshMonitorValues();
       refreshKilnTemp(sensorValueMap);
+      refreshSignalState(sensorValueMap);    // 开关信号：按 0=关/非0=开 更新指示灯
       refreshReactorLevel(sensorValueMap);   // 反应釜：绑定液位 tag 时按实时值更新液面与读数
       refreshSwitchValveAuto(sensorValueMap); // 三通阀自动模式：根据 A/B 开关量互斥切换
       refreshRunState(sensorValueMap);       // 运行开关：按开关 tag（可多个 + 与/或逻辑）驱动各设备动画开/停
@@ -2376,6 +2412,7 @@ function docTags(){
     if(c.props && c.props.tag) s.add((c.props.tag||'').trim());
     if(c.props && Array.isArray(c.props.params)) c.props.params.forEach(p=>{ if(p.k) s.add((p.k||'').trim()); });
     if(c.props && Array.isArray(c.props.tempPoints)) c.props.tempPoints.forEach(x=>{ if(x && x.tag) s.add((x.tag||'').trim()); });
+    if(c.props && c.props.signalTag) s.add(String(c.props.signalTag).trim());
   });
   return s;
 }
@@ -2547,6 +2584,44 @@ function kilnTempColor(t){
 }
 // 增量更新回转窑温度渐变（不触发 renderAll，避免 SMIL 重置）
 // docArg：预览页在 IIFE 内用局部 doc 遮蔽了全局 doc，需显式传入当前文档；编辑器省略则回退全局 doc
+/* ============================================================
+ * 开关信号（signal）：绑定单个位号，0=关 / 非 0=开 / 无数据=--
+ *   - 增量更新画布上 signal 组件的指示灯与状态文字（不触发 renderAll，避免闪烁）
+ *   - 与模板 templates/signal.js 的类名契约同步：sig-box / sig-lamp / sig-glow / sig-state
+ * ============================================================ */
+function signalStateOf(raw){
+  if(raw==null || raw==='') return 'unknown';
+  const n = Number(raw);
+  if(isFinite(n)) return n===0 ? 'off' : 'on';
+  const s = String(raw).trim().toLowerCase();
+  if(s==='0' || s==='false' || s==='off' || s==='no' || s==='关' || s==='停') return 'off';
+  return 'on';
+}
+const SIGNAL_STYLE = {
+  on:      { lamp:'#3ddc84', glow:'0.32', box:'#3ddc84', text:'#3ddc84', label:'开' },
+  off:     { lamp:'#3a4166', glow:'0',    box:'#3a4166', text:'#8a90c4', label:'关' },
+  unknown: { lamp:'#5a608a', glow:'0',    box:'#3a4166', text:'#8a90c4', label:'--' }
+};
+// docArg：预览页在 IIFE 内用局部 doc 遮蔽了全局 doc，需显式传入；编辑器省略则回退全局 doc
+function refreshSignalState(liveMap, docArg){
+  const d = docArg || doc;
+  if(!d || !Array.isArray(d.components)) return;
+  d.components.forEach(comp=>{
+    if(comp.type !== 'signal') return;
+    const g = findCompGroupDom(comp.id);
+    if(!g) return;
+    const tag = String((comp.props && comp.props.signalTag) || '').trim();
+    const live = (liveMap && tag) ? liveMap[tag] : null;
+    const st = signalStateOf(tag ? (live ? live.value : null) : null);
+    const s = SIGNAL_STYLE[st];
+    const lamp = g.querySelector('.sig-lamp'), glow = g.querySelector('.sig-glow');
+    const box = g.querySelector('.sig-box'), txt = g.querySelector('.sig-state');
+    if(lamp) lamp.setAttribute('fill', s.lamp);
+    if(glow) glow.setAttribute('opacity', s.glow);
+    if(box) box.setAttribute('stroke', s.box);
+    if(txt){ txt.textContent = s.label; txt.setAttribute('fill', s.text); }
+  });
+}
 function refreshKilnTemp(liveMap, docArg){
   const d = docArg || doc;
   if(!liveMap || !d || !Array.isArray(d.components)) return;
@@ -3025,6 +3100,7 @@ function collectDocTags(d){
     (p.runTags||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });
     (p.monitorTags||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });
     (p.tempPoints||[]).forEach(x=>{ const t = String((x && x.tag)||'').trim(); if(t) out.add(t); });  // 回转窑测温点
+    { const t = String(p.signalTag||'').trim(); if(t) out.add(t); }                                 // 开关信号
   });
   return Array.from(out);
 }
