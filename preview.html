@@ -1326,6 +1326,8 @@
   function isDiscreteSeries(sensor, series){
     if(!series || series.length<2) return false;
     if(sensor && sensor.type){
+      // 复用 editor.js 的类型口径（含中文「开关」），避免两处漂移
+      if(typeof isDiscreteSensorType==='function' && isDiscreteSensorType(sensor.type)) return true;
       const t = String(sensor.type).toUpperCase();
       if(/^(DI|DO|DIGITAL|DISCRETE|SWITCH|BINARY|FLAG|BIT|ONOFF)/.test(t)) return true;
       if(/(DIGITAL|DISCRETE|SWITCH|BIT|FLAG|ONOFF)/.test(t)) return true;

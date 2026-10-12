@@ -923,6 +923,7 @@ function fmtMonVal(v, asInt){
 function isDiscreteSensorType(type){
   if(!type) return false;
   const t = String(type).toUpperCase();
+  if(t === '开关') return true;   // 后端目录中开关量类型为中文「开关」
   if(/^(DI|DO|DIGITAL|DISCRETE|SWITCH|BINARY|FLAG|BIT|ONOFF)/.test(t)) return true;
   if(/(DIGITAL|DISCRETE|SWITCH|BIT|FLAG|ONOFF)/.test(t)) return true;
   return false;
