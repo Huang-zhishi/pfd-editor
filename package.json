@@ -17,7 +17,7 @@
   },
   "comment": "运行时零依赖：dependencies 为空是刻意设计。此文件只用于声明版本、Node 版本约束与脚本入口。",
   "devDependencies": {
-    "eslint": "^10.11.0",
+    "eslint": "^10.13.0",
     "globals": "^15.15.0"
   }
 }
